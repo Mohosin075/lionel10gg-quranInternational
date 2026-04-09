@@ -5,6 +5,7 @@ import express, { Router } from 'express'
 import { PublicRoutes } from '../app/modules/public/public.route'
 import { SupportRoutes } from '../app/modules/support/support.route'
 import { UploadRoutes } from '../app/modules/upload/upload.route'
+import { PrayerTimeRoutes } from '../app/modules/prayer-time/prayer-time.route'
 
 import { NotificationRoutes } from '../app/modules/notification/notification.routes'
 import { MessageRoutes } from '../app/modules/message/message.routes'
@@ -24,6 +25,7 @@ const apiRoutes: { path: string; route: Router }[] = [
   { path: '/message', route: MessageRoutes },
   { path: '/chat', route: ChatRoutes },
   { path: '/quran', route: QuranRoutes },
+  { path: '/prayer-time', route: PrayerTimeRoutes },
 ]
 
 apiRoutes.forEach(route => {
