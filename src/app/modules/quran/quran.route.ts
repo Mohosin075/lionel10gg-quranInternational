@@ -1,6 +1,5 @@
 import express from 'express';
 import { QuranControllers } from './quran.controller';
-import auth from '../../middleware/auth';
 import validateRequest from '../../middleware/validateRequest';
 import { QuranValidations } from './quran.validation';
 
@@ -39,31 +38,5 @@ router.get(
   validateRequest(QuranValidations.downloadSyncValidationSchema),
   QuranControllers.downloadSync
 );
-
-// Private Routes (Require Authentication)
-router.post(
-  '/bookmark',
-  auth(),
-  validateRequest(QuranValidations.bookmarkValidationSchema),
-  QuranControllers.addBookmark
-);
-router.get('/bookmarks', auth(), QuranControllers.getBookmarks);
-router.delete('/bookmark/:id', auth(), QuranControllers.removeBookmark);
-
-router.post(
-  '/highlight',
-  auth(),
-  validateRequest(QuranValidations.highlightValidationSchema),
-  QuranControllers.addHighlight
-);
-router.get('/highlights', auth(), QuranControllers.getHighlights);
-
-router.patch(
-  '/last-read',
-  auth(),
-  validateRequest(QuranValidations.lastReadValidationSchema),
-  QuranControllers.updateLastRead
-);
-router.get('/last-read', auth(), QuranControllers.getLastRead);
 
 export const QuranRoutes = router;

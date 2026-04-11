@@ -3,7 +3,6 @@ import { StatusCodes } from 'http-status-codes';
 import catchAsync from '../../../shared/catchAsync';
 import sendResponse from '../../../shared/sendResponse';
 import { QuranServices } from './quran.service';
-import { JwtPayload } from 'jsonwebtoken';
 
 const getLanguages = catchAsync(async (req: Request, res: Response) => {
   const result = await QuranServices.fetchLanguages();
@@ -64,84 +63,6 @@ const getDailyInspiration = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-const addBookmark = catchAsync(async (req: Request, res: Response) => {
-  const user = (req.user as JwtPayload).authId;
-  const result = await QuranServices.addBookmark({ ...req.body, user });
-  sendResponse(res, {
-    statusCode: StatusCodes.CREATED,
-    success: true,
-    message: 'Bookmark added successfully',
-    data: result,
-  });
-});
-
-const getBookmarks = catchAsync(async (req: Request, res: Response) => {
-  const user = (req.user as JwtPayload).authId;
-  const result = await QuranServices.getBookmarks(user);
-  sendResponse(res, {
-    statusCode: StatusCodes.OK,
-    success: true,
-    message: 'Bookmarks fetched successfully',
-    data: result,
-  });
-});
-
-const removeBookmark = catchAsync(async (req: Request, res: Response) => {
-  const user = (req.user as JwtPayload).authId;
-  const { id } = req.params;
-  const result = await QuranServices.removeBookmark(id, user);
-  sendResponse(res, {
-    statusCode: StatusCodes.OK,
-    success: true,
-    message: 'Bookmark removed successfully',
-    data: result,
-  });
-});
-
-const addHighlight = catchAsync(async (req: Request, res: Response) => {
-  const user = (req.user as JwtPayload).authId;
-  const result = await QuranServices.addHighlight({ ...req.body, user });
-  sendResponse(res, {
-    statusCode: StatusCodes.CREATED,
-    success: true,
-    message: 'Highlight added successfully',
-    data: result,
-  });
-});
-
-const getHighlights = catchAsync(async (req: Request, res: Response) => {
-  const user = (req.user as JwtPayload).authId;
-  const result = await QuranServices.getHighlights(user);
-  sendResponse(res, {
-    statusCode: StatusCodes.OK,
-    success: true,
-    message: 'Highlights fetched successfully',
-    data: result,
-  });
-});
-
-const updateLastRead = catchAsync(async (req: Request, res: Response) => {
-  const user = (req.user as JwtPayload).authId;
-  const result = await QuranServices.updateLastRead({ ...req.body, user });
-  sendResponse(res, {
-    statusCode: StatusCodes.OK,
-    success: true,
-    message: 'Last read updated successfully',
-    data: result,
-  });
-});
-
-const getLastRead = catchAsync(async (req: Request, res: Response) => {
-  const user = (req.user as JwtPayload).authId;
-  const result = await QuranServices.getLastRead(user);
-  sendResponse(res, {
-    statusCode: StatusCodes.OK,
-    success: true,
-    message: 'Last read fetched successfully',
-    data: result,
-  });
-});
-
 const getAyah = catchAsync(async (req: Request, res: Response) => {
   const { surah, ayah } = req.params;
   const edition = req.query.edition as string || 'english_saheeh';
@@ -194,13 +115,6 @@ export const QuranControllers = {
   getSurahDetail,
   search,
   getDailyInspiration,
-  addBookmark,
-  getBookmarks,
-  removeBookmark,
-  addHighlight,
-  getHighlights,
-  updateLastRead,
-  getLastRead,
   getAyah,
   getVersion,
   checkSync,

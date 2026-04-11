@@ -37,31 +37,6 @@ export interface IAyah {
   sajda: boolean | ISajda;
 }
 
-export interface IBookmark {
-  user: Types.ObjectId;
-  surahNumber: number;
-  ayahNumber: number;
-  text?: string;
-  translation?: string;
-  editionIdentifier: string;
-}
-
-export interface IHighlight {
-  user: Types.ObjectId;
-  surahNumber: number;
-  ayahNumber: number;
-  color: string; // Hex color or name
-  text?: string;
-}
-
-export interface ILastRead {
-  user: Types.ObjectId;
-  surahNumber: number;
-  ayahNumber: number;
-  editionIdentifier: string;
-  updatedAt?: Date;
-}
-
 export interface ITranslation {
   surah: number;
   ayah: number;

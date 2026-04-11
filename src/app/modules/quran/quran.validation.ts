@@ -1,32 +1,5 @@
 import { z } from 'zod';
 
-const bookmarkValidationSchema = z.object({
-  body: z.object({
-    surahNumber: z.number({ required_error: 'Surah number is required' }),
-    ayahNumber: z.number({ required_error: 'Ayah number is required' }),
-    text: z.string().optional(),
-    translation: z.string().optional(),
-    editionIdentifier: z.string().optional(),
-  }),
-});
-
-const highlightValidationSchema = z.object({
-  body: z.object({
-    surahNumber: z.number({ required_error: 'Surah number is required' }),
-    ayahNumber: z.number({ required_error: 'Ayah number is required' }),
-    color: z.string({ required_error: 'Color is required' }),
-    text: z.string().optional(),
-  }),
-});
-
-const lastReadValidationSchema = z.object({
-  body: z.object({
-    surahNumber: z.number({ required_error: 'Surah number is required' }),
-    ayahNumber: z.number({ required_error: 'Ayah number is required' }),
-    editionIdentifier: z.string().optional(),
-  }),
-});
-
 const getSurahDetailValidationSchema = z.object({
   params: z.object({
     number: z.string().regex(/^\d+$/, 'Surah number must be a digit'),
@@ -62,9 +35,6 @@ const downloadSyncValidationSchema = z.object({
 });
 
 export const QuranValidations = {
-  bookmarkValidationSchema,
-  highlightValidationSchema,
-  lastReadValidationSchema,
   getSurahDetailValidationSchema,
   getAyahValidationSchema,
   checkSyncValidationSchema,

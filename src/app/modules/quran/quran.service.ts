@@ -1,9 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable prefer-const */
 import axios from 'axios';
-import { StatusCodes } from 'http-status-codes';
-import ApiError from '../../../errors/ApiError';
-import { Bookmark, Highlight, LastRead, Translation } from './quran.model';
-import { IBookmark, IHighlight, ILastRead, ITranslation } from './quran.interface';
+import { Translation } from './quran.model';
+import { ITranslation } from './quran.interface';
 import { ingestSurahTranslations } from './quran.worker';
 
 const ALQURAN_CLOUD_URL = 'https://api.alquran.cloud/v1';
@@ -107,54 +106,6 @@ const getDailyInspiration = async (translationKey: string = 'english_saheeh') =>
   return ayah;
 };
 
-// Database Operations
-const addBookmark = async (payload: IBookmark) => {
-  const result = await Bookmark.findOneAndUpdate(
-    { user: payload.user, surahNumber: payload.surahNumber, ayahNumber: payload.ayahNumber },
-    payload,
-    { upsert: true, new: true }
-  );
-  return result;
-};
-
-const getBookmarks = async (userId: string) => {
-  return await Bookmark.find({ user: userId }).sort({ createdAt: -1 });
-};
-
-const removeBookmark = async (id: string, userId: string) => {
-  const result = await Bookmark.findOneAndDelete({ _id: id, user: userId });
-  if (!result) {
-    throw new ApiError(StatusCodes.NOT_FOUND, 'Bookmark not found');
-  }
-  return result;
-};
-
-const addHighlight = async (payload: IHighlight) => {
-    const result = await Highlight.findOneAndUpdate(
-      { user: payload.user, surahNumber: payload.surahNumber, ayahNumber: payload.ayahNumber },
-      payload,
-      { upsert: true, new: true }
-    );
-    return result;
-  };
-  
-const getHighlights = async (userId: string) => {
-    return await Highlight.find({ user: userId }).sort({ createdAt: -1 });
-};
-
-const updateLastRead = async (payload: ILastRead) => {
-  const result = await LastRead.findOneAndUpdate(
-    { user: payload.user },
-    payload,
-    { upsert: true, new: true }
-  );
-  return result;
-};
-
-const getLastRead = async (userId: string) => {
-  return await LastRead.findOne({ user: userId });
-};
-
 const upsertTranslations = async (batch: ITranslation[]) => {
   return await Translation.bulkWrite(
     batch.map((doc) => ({
@@ -209,13 +160,6 @@ export const QuranServices = {
   getAyah,
   searchQuran,
   getDailyInspiration,
-  addBookmark,
-  getBookmarks,
-  removeBookmark,
-  addHighlight,
-  getHighlights,
-  updateLastRead,
-  getLastRead,
   upsertTranslations,
   getSurahTranslations,
   getTranslationVersion,

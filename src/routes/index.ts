@@ -1,5 +1,8 @@
 import { UserRoutes } from '../app/modules/user/user.route'
 import { QuranRoutes } from '../app/modules/quran/quran.route'
+import { BookmarkRoutes } from '../app/modules/bookmark/bookmark.route'
+import { HighlightRoutes } from '../app/modules/highlight/highlight.route'
+import { LastReadRoutes } from '../app/modules/lastRead/lastRead.route'
 import { AuthRoutes } from '../app/modules/auth/auth.route'
 import express, { Router } from 'express'
 import { PublicRoutes } from '../app/modules/public/public.route'
@@ -25,6 +28,9 @@ const apiRoutes: { path: string; route: Router }[] = [
   { path: '/message', route: MessageRoutes },
   { path: '/chat', route: ChatRoutes },
   { path: '/quran', route: QuranRoutes },
+  { path: '/bookmark', route: BookmarkRoutes },
+  { path: '/highlight', route: HighlightRoutes },
+  { path: '/last-read', route: LastReadRoutes },
   { path: '/prayer-time', route: PrayerTimeRoutes },
 ]
 
