@@ -1,0 +1,197 @@
+Quran App – Industry Standard Backend & Data System (TypeScript)
+🎯 Scope of This Document
+
+This covers:
+
+Data pipeline (ETL)
+Database strategy
+Sync system (offline + online)
+API architecture
+Scaling strategy
+Production best practices
+🧠 1. System Philosophy (VERY IMPORTANT)
+✔ Golden Rule
+
+“Database is source of truth, external APIs are only ingestion sources.”
+
+👉 You DO NOT depend on:
+
+third-party APIs ❌
+live fetching ❌
+
+👉 You DO depend on:
+
+your MongoDB ✅
+cached offline DB ✅
+🏗️ 2. Data Architecture (Industry Standard)
+QuranEnc / Data Sources (https://quranenc.com/en/home/api)
+        ↓
+ETL Pipeline (TypeScript Worker)
+        ↓
+MongoDB (Master Database)
+        ↓
+API Layer (Node.js + TypeScript)
+        ↓
+Redis Cache (Optional but recommended)
+        ↓
+Mobile App Backend Response
+        ↓
+Offline DB (SQLite / Hive)
+⚙️ 3. ETL PIPELINE (PRODUCTION LEVEL)
+Purpose:
+Normalize QuranEnc data
+Remove duplicates
+Ensure versioning
+Bulk insert efficiently
+🔥 ETL Rules
+✔ Idempotent (VERY IMPORTANT)
+
+Same data run multiple times → no duplication
+
+✔ Batch Processing
+
+1000 records per batch
+
+✔ Upsert logic
+
+Always update if exists
+
+🧪 Production ETL Code
+import { TranslationModel } from "../models/Translation.model";
+
+export async function upsertTranslations(batch: any[]) {
+  await TranslationModel.bulkWrite(
+    batch.map((doc) => ({
+      updateOne: {
+        filter: {
+          surah: doc.surah,
+          ayah: doc.ayah,
+          language: doc.language,
+          edition: doc.edition,
+        },
+        update: { $set: doc },
+        upsert: true,
+      },
+    }))
+  );
+}
+🗄️ 4. DATABASE DESIGN (OPTIMIZED)
+📌 Translation Collection
+{
+  surah: Number,
+  ayah: Number,
+  language: String,
+  edition: String,
+  text: String,
+  version: Number,
+  updatedAt: Date
+}
+⚡ Index Strategy (CRITICAL)
+TranslationSchema.index(
+  { surah: 1, ayah: 1, language: 1, edition: 1 },
+  { unique: true }
+);
+🚀 Performance Rules
+Avoid full collection scan
+Always query by composite index
+Use lean queries in Mongoose
+🌐 5. API ARCHITECTURE (CLEAN DESIGN)
+✔ REST Structure
+GET    /api/surah
+GET    /api/ayah/:surah/:ayah
+GET    /api/translation?lang=en&surah=1&ayah=1
+GET    /api/languages
+GET    /api/search?q=mercy
+⚡ Service Layer Pattern
+export class TranslationService {
+  async getTranslation(surah: number, ayah: number, lang: string) {
+    return TranslationModel.findOne({
+      surah,
+      ayah,
+      language: lang,
+    }).lean();
+  }
+}
+⚡ 6. CACHING STRATEGY (INDUSTRY MUST)
+Use Redis (Recommended)
+Why?
+Reduce MongoDB load
+Faster response
+Scalable system
+Flow:
+API Request →
+  Check Redis →
+    HIT → return fast
+    MISS →
+      MongoDB →
+      Store in Redis →
+      return
+📱 7. OFFLINE-FIRST MOBILE STRATEGY
+🔥 Golden Rule:
+
+“Offline is default, online is fallback”
+
+Flow:
+App Open →
+  Local DB check →
+    FOUND → instant load
+    NOT FOUND →
+      API call →
+        save to local DB →
+          reuse offline
+Local DB Options
+Flutter → Hive / Isar
+React Native → SQLite
+🔄 8. DATA SYNC SYSTEM (VERY IMPORTANT)
+3-Level Sync System
+1. Initial Sync
+Download selected languages
+2. Incremental Sync
+Only updated translations
+3. Version Control
+{
+  language: "en",
+  version: 3
+}
+Sync Strategy Flow:
+Client →
+  check version →
+    outdated →
+      fetch updates →
+        update local DB
+🧪 9. SCALABILITY STRATEGY
+Handle 100+ languages:
+
+✔ Lazy loading
+✔ On-demand download
+✔ Compression (gzip)
+✔ CDN for JSON files
+✔ Pagination in API
+
+🔐 10. SECURITY BEST PRACTICES
+Rate limiting (API protection)
+Input validation (Zod / Joi)
+Helmet middleware
+Environment variables only (.env)
+No direct DB exposure
+❌ WHAT NOT TO DO
+
+🚫 Don’t use third-party API as primary source
+🚫 Don’t load all languages at app start
+🚫 Don’t skip indexing
+🚫 Don’t store everything in mobile bundle
+🚫 Don’t call DB without cache layer
+
+🏆 FINAL INDUSTRY SUMMARY
+✔ Data Source
+QuranEnc (ETL ingestion only)
+✔ Backend
+Node.js + TypeScript
+✔ DB
+MongoDB (single source of truth)
+✔ Cache
+Redis (optional but recommended)
+✔ Mobile
+Offline-first local DB
+✔ Sync
+Version-based incremental sync

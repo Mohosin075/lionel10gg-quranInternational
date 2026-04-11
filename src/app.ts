@@ -1,4 +1,6 @@
 import cors from 'cors'
+import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
 import express, { Request, Response } from 'express'
 import { StatusCodes } from 'http-status-codes'
 import path from 'path'
@@ -10,6 +12,18 @@ import globalErrorHandler from './app/middleware/globalErrorHandler'
 import config from './config'
 
 const app = express()
+
+// -------------------- Security Middleware --------------------
+// Set security HTTP headers
+app.use(helmet())
+
+// Rate limiting: prevent abuse
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again after 15 minutes',
+})
+app.use('/api', limiter)
 
 // -------------------- Middleware --------------------
 // Body parsers

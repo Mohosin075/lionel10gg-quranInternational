@@ -61,3 +61,34 @@ export interface ILastRead {
   editionIdentifier: string;
   updatedAt?: Date;
 }
+
+export interface ITranslation {
+  surah: number;
+  ayah: number;
+  language: string;
+  edition: string;
+  text: string;
+  version: number;
+  updatedAt?: Date;
+}
+
+// QuranEnc Response Interfaces
+export interface IQuranEncTranslationInfo {
+  id: number;
+  translation_key: string;
+  language_name: string;
+  language_id: string;
+  version: number;
+}
+
+export interface IQuranEncAyah {
+  id: string;
+  sura: string;
+  aya: string;
+  translation: string;
+  footnotes: string;
+}
+
+export interface IQuranEncSurahResponse {
+  result: IQuranEncAyah[];
+}
