@@ -109,7 +109,7 @@ const downloadSync = catchAsync(async (req: Request, res: Response) => {
     });
 });
 
-export const QuranControllers = {
+export const QuranController = {
   getLanguages,
   getSurahs,
   getSurahDetail,

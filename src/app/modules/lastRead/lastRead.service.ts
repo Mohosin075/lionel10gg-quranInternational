@@ -1,3 +1,5 @@
+import { StatusCodes } from 'http-status-codes';
+import ApiError from '../../../errors/ApiError';
 import { LastRead } from './lastRead.model';
 import { ILastRead } from './lastRead.interface';
 
@@ -7,11 +9,17 @@ const updateLastRead = async (payload: ILastRead) => {
     payload,
     { upsert: true, new: true }
   );
+
+  if (!result) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Failed to update last read');
+  }
+
   return result;
 };
 
 const getLastRead = async (userId: string) => {
-  return await LastRead.findOne({ user: userId });
+  const result = await LastRead.findOne({ user: userId });
+  return result;
 };
 
 export const LastReadServices = {

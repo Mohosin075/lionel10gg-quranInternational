@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const bookmarkValidationSchema = z.object({
+const createBookmarkSchema = z.object({
   body: z.object({
     surahNumber: z.number({ required_error: 'Surah number is required' }),
     ayahNumber: z.number({ required_error: 'Ayah number is required' }),
@@ -11,5 +11,5 @@ const bookmarkValidationSchema = z.object({
 });
 
 export const BookmarkValidations = {
-  bookmarkValidationSchema,
+  createBookmarkSchema,
 };

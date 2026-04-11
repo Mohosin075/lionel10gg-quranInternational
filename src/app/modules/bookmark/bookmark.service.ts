@@ -9,11 +9,17 @@ const addBookmark = async (payload: IBookmark) => {
     payload,
     { upsert: true, new: true }
   );
+
+  if (!result) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Failed to add bookmark');
+  }
+
   return result;
 };
 
 const getBookmarks = async (userId: string) => {
-  return await Bookmark.find({ user: userId }).sort({ createdAt: -1 });
+  const result = await Bookmark.find({ user: userId }).sort({ createdAt: -1 });
+  return result;
 };
 
 const removeBookmark = async (id: string, userId: string) => {

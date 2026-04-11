@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const highlightValidationSchema = z.object({
+const createHighlightSchema = z.object({
   body: z.object({
     surahNumber: z.number({ required_error: 'Surah number is required' }),
     ayahNumber: z.number({ required_error: 'Ayah number is required' }),
@@ -10,5 +10,5 @@ const highlightValidationSchema = z.object({
 });
 
 export const HighlightValidations = {
-  highlightValidationSchema,
+  createHighlightSchema,
 };

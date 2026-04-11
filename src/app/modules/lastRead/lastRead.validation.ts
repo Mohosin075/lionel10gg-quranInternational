@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const lastReadValidationSchema = z.object({
+const updateLastReadSchema = z.object({
   body: z.object({
     surahNumber: z.number({ required_error: 'Surah number is required' }),
     ayahNumber: z.number({ required_error: 'Ayah number is required' }),
@@ -9,5 +9,5 @@ const lastReadValidationSchema = z.object({
 });
 
 export const LastReadValidations = {
-  lastReadValidationSchema,
+  updateLastReadSchema,
 };

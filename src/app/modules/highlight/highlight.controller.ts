@@ -6,8 +6,8 @@ import { HighlightServices } from './highlight.service';
 import { JwtPayload } from 'jsonwebtoken';
 
 const addHighlight = catchAsync(async (req: Request, res: Response) => {
-  const user = (req.user as JwtPayload).authId;
-  const result = await HighlightServices.addHighlight({ ...req.body, user });
+  const user = req.user as JwtPayload;
+  const result = await HighlightServices.addHighlight({ ...req.body, user: user.authId });
   sendResponse(res, {
     statusCode: StatusCodes.CREATED,
     success: true,
@@ -17,8 +17,8 @@ const addHighlight = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getHighlights = catchAsync(async (req: Request, res: Response) => {
-  const user = (req.user as JwtPayload).authId;
-  const result = await HighlightServices.getHighlights(user);
+  const user = req.user as JwtPayload;
+  const result = await HighlightServices.getHighlights(user.authId);
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
@@ -27,7 +27,7 @@ const getHighlights = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-export const HighlightControllers = {
+export const HighlightController = {
   addHighlight,
   getHighlights,
 };

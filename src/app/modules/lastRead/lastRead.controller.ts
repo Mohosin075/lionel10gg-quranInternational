@@ -6,8 +6,8 @@ import { LastReadServices } from './lastRead.service';
 import { JwtPayload } from 'jsonwebtoken';
 
 const updateLastRead = catchAsync(async (req: Request, res: Response) => {
-  const user = (req.user as JwtPayload).authId;
-  const result = await LastReadServices.updateLastRead({ ...req.body, user });
+  const user = req.user as JwtPayload;
+  const result = await LastReadServices.updateLastRead({ ...req.body, user: user.authId });
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
@@ -17,8 +17,8 @@ const updateLastRead = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getLastRead = catchAsync(async (req: Request, res: Response) => {
-  const user = (req.user as JwtPayload).authId;
-  const result = await LastReadServices.getLastRead(user);
+  const user = req.user as JwtPayload;
+  const result = await LastReadServices.getLastRead(user.authId);
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
@@ -27,7 +27,7 @@ const getLastRead = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-export const LastReadControllers = {
+export const LastReadController = {
   updateLastRead,
   getLastRead,
 };
