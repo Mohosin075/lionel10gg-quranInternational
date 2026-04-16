@@ -5,7 +5,9 @@ import sendResponse from '../../../shared/sendResponse';
 import { QuranServices } from './quran.service';
 
 const getLanguages = catchAsync(async (req: Request, res: Response) => {
-  const result = await QuranServices.fetchLanguages();
+  const lang = req.query.lang as string || 'en';
+  const localization = req.query.localization as string || 'en';
+  const result = await QuranServices.fetchLanguages(lang, localization);
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
@@ -27,7 +29,8 @@ const getSurahs = catchAsync(async (req: Request, res: Response) => {
 const getSurahDetail = catchAsync(async (req: Request, res: Response) => {
   const { number } = req.params;
   const edition = req.query.edition as string || 'english_saheeh';
-  const result = await QuranServices.fetchSurahDetail(Number(number), edition);
+  const lang = req.query.lang as string || 'en';
+  const result = await QuranServices.getSurahDetail(Number(number), edition, lang);
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,

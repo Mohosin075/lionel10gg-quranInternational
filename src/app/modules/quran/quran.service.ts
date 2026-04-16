@@ -4,64 +4,94 @@ import axios from 'axios';
 import { Translation } from './quran.model';
 import { ITranslation } from './quran.interface';
 import { ingestSurahTranslations } from './quran.worker';
+import { SURAH_LIST } from './quran.constants';
 
-const ALQURAN_CLOUD_URL = 'https://api.alquran.cloud/v1';
 const QURAN_ENC_URL = 'https://quranenc.com/api/v1';
 
-const fetchLanguages = async () => {
-  const response = await axios.get(`${QURAN_ENC_URL}/translations/list`);
+const fetchLanguages = async (language?: string, localization?: string) => {
+  let url = `${QURAN_ENC_URL}/translations/list`;
+  if (language) {
+    url += `/${language}`;
+  }
+  if (localization) {
+    url += `?localization=${localization}`;
+  }
+  const response = await axios.get(url);
   return response.data.translations;
 };
 
 const fetchSurahs = async () => {
-  const response = await axios.get(`${ALQURAN_CLOUD_URL}/surah`);
-  return response.data.data;
+  return SURAH_LIST;
 };
 
-const fetchSurahDetail = async (surahNumber: number, translationKey: string = 'english_saheeh') => {
-  // 1. Check if translations exist in DB
-  let translations = await getSurahTranslations(surahNumber, translationKey);
+const getSurahDetail = async (surahNumber: number, translationKey: string = 'english_saheeh', lang: string = 'en') => {
+  // 1. Get Surah Metadata from local constant
+  const surahInfo = SURAH_LIST.find((s) => s.number === surahNumber);
+
+
+
+  if (!surahInfo) {
+    throw new Error(`Surah ${surahNumber} not found`);
+  }
+
+  // Handle 'ar' or 'quran-uthmani' as edition
+  const isArabicOnly = translationKey === 'ar' || translationKey === 'quran-uthmani';
+  if (isArabicOnly) {
+    translationKey = 'quran-uthmani';
+  }
+
+  // 2. Check if translations exist in DB
+  let ayahsData = await getSurahTranslations(surahNumber, translationKey);
   
-  // 2. If not found, trigger ingestion (ETL)
-  if (!translations.length) {
-    // Determine language from translation key (heuristically or fetch from list)
-    // For now, mapping some defaults, but in production, we'd lookup from IQuranEncTranslationInfo
-    const languages: any = { 'english_saheeh': 'en', 'bengali_zakaria': 'bn' };
-    const language = languages[translationKey] || 'en';
+  // 3. If not found, trigger ingestion (ETL)
+  if (!ayahsData.length) {
+    const languages: any = { 
+      'english_saheeh': 'en', 
+      'bengali_zakaria': 'bn',
+      'quran-uthmani': 'ar'
+    };
+    const effectiveLang = languages[translationKey] || lang || 'en';
     
-    await ingestSurahTranslations(surahNumber, translationKey, language);
-    translations = await getSurahTranslations(surahNumber, translationKey);
+    await ingestSurahTranslations(surahNumber, translationKey, effectiveLang);
+    ayahsData = await getSurahTranslations(surahNumber, translationKey);
   }
 
-  // 3. Fetch Arabic (uthmani) text - always ensure it's in DB
-  let arabicText = await getSurahTranslations(surahNumber, 'quran-uthmani');
-  if (!arabicText.length) {
-    await ingestSurahTranslations(surahNumber, 'quran-uthmani', 'ar');
-    arabicText = await getSurahTranslations(surahNumber, 'quran-uthmani');
-  }
-
-  // 4. Merge them for response
-  const ayahs = arabicText.map((arabicAyah, index) => ({
-    number: arabicAyah.ayah,
-    text: arabicAyah.text,
-    translation: translations[index]?.text || '',
-  }));
+  // 4. Format response
+  const ayahs = ayahsData.map((item) => {
+    const s = surahNumber.toString().padStart(3, '0');
+    const a = item.ayah.toString().padStart(3, '0');
+    
+    return {
+      number: item.ayah,
+      text: item.arabicText || '',
+      translation: isArabicOnly ? undefined : (item.text || ''),
+      footnotes: isArabicOnly ? undefined : (item.footnotes || ''),
+      audio: `https://d.quranenc.com/data/audio/${isArabicOnly ? 'english_saheeh' : translationKey}/${s}${a}.mp3`,
+    };
+  });
 
   return {
-    number: surahNumber,
+    ...surahInfo,
     ayahs,
     edition: translationKey,
   };
 };
 
-const getAyah = async (surah: number, ayah: number, translationKey: string = 'english_saheeh', language: string = 'en') => {
+const getAyah = async (surah: number, ayah: number, translationKey: string = 'english_saheeh', lang: string = 'en') => {
     let result = await Translation.findOne({ surah, ayah, edition: translationKey }).lean();
     
     if (!result) {
         // Trigger ingestion for the whole surah for better UX later
-        await ingestSurahTranslations(surah, translationKey, language);
+        await ingestSurahTranslations(surah, translationKey, lang);
         result = await Translation.findOne({ surah, ayah, edition: translationKey }).lean();
     }
+    
+    if (result) {
+        const s = surah.toString().padStart(3, '0');
+        const a = ayah.toString().padStart(3, '0');
+        (result as any).audio = `https://d.quranenc.com/data/audio/${translationKey}/${s}${a}.mp3`;
+    }
+    
     return result;
 };
 
@@ -113,7 +143,7 @@ const upsertTranslations = async (batch: ITranslation[]) => {
         filter: {
           surah: doc.surah,
           ayah: doc.ayah,
-          language: doc.language,
+          lang: doc.lang,
           edition: doc.edition,
         },
         update: { $set: doc },
@@ -156,7 +186,7 @@ const getSyncData = async (translationKey: string, fromVersion: number = 0) => {
 export const QuranServices = {
   fetchLanguages,
   fetchSurahs,
-  fetchSurahDetail,
+  getSurahDetail,
   getAyah,
   searchQuran,
   getDailyInspiration,

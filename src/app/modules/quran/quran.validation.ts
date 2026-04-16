@@ -6,6 +6,7 @@ const getSurahDetailValidationSchema = z.object({
   }),
   query: z.object({
     edition: z.string().optional(),
+    lang: z.string().optional(),
   }),
 });
 

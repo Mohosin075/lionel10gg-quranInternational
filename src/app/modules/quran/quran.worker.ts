@@ -8,26 +8,33 @@ const QURAN_ENC_BASE_URL = 'https://quranenc.com/api/v1';
  * ETL Pipeline to ingest data from QuranEnc into MongoDB
  * @param surahNumber 
  * @param translationKey (e.g., 'english_saheeh')
- * @param language 
+ * @param lang 
  */
-export async function ingestSurahTranslations(surahNumber: number, translationKey: string, language: string) {
+export async function ingestSurahTranslations(surahNumber: number, translationKey: string, lang: string) {
   try {
     console.log(`Starting ingestion from QuranEnc for Surah ${surahNumber}, Key: ${translationKey}`);
     
+    // If we want Arabic, we use 'english_saheeh' as a source because it includes 'arabic_text'
+    const fetchKey = (translationKey === 'quran-uthmani' || translationKey === 'ar') ? 'english_saheeh' : translationKey;
+    
     const response = await axios.get<IQuranEncSurahResponse>(
-      `${QURAN_ENC_BASE_URL}/translation/sura/${translationKey}/${surahNumber}`
+      `${QURAN_ENC_BASE_URL}/translation/sura/${fetchKey}/${surahNumber}`
     );
     
-    if (!response.data.result) {
+    if (!response.data || !response.data.result || !Array.isArray(response.data.result)) {
       throw new Error(`Failed to fetch translations for Surah ${surahNumber} from QuranEnc`);
     }
+
+    const isArabicOnly = translationKey === 'quran-uthmani' || translationKey === 'ar';
 
     const batch: ITranslation[] = response.data.result.map((item) => ({
       surah: Number(item.sura),
       ayah: Number(item.aya),
-      language: language,
+      lang: lang,
       edition: translationKey,
-      text: item.translation,
+      arabicText: item.arabic_text,
+      text: isArabicOnly ? item.arabic_text : item.translation,
+      footnotes: isArabicOnly ? undefined : item.footnotes,
       version: 1, // Default version, can be updated from sync service
     }));
 
@@ -44,11 +51,11 @@ export async function ingestSurahTranslations(surahNumber: number, translationKe
 /**
  * Sync all surahs for a specific edition proactively
  * @param translationKey 
- * @param language 
+ * @param lang 
  */
-export async function syncLanguage(translationKey: string, language: string) {
+export async function syncLanguage(translationKey: string, lang: string) {
   for (let surah = 1; surah <= 114; surah++) {
-    await ingestSurahTranslations(surah, translationKey, language);
+    await ingestSurahTranslations(surah, translationKey, lang);
     // Be kind to the external API
     await new Promise(resolve => setTimeout(resolve, 300));
   }

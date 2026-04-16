@@ -1,4 +1,3 @@
-import { Types } from 'mongoose';
 
 export interface IQuranEdition {
   identifier: string;
@@ -40,30 +39,38 @@ export interface IAyah {
 export interface ITranslation {
   surah: number;
   ayah: number;
-  language: string;
+  lang: string;
   edition: string;
+  arabicText?: string;
   text: string;
+  footnotes?: string;
   version: number;
   updatedAt?: Date;
 }
 
 // QuranEnc Response Interfaces
 export interface IQuranEncTranslationInfo {
-  id: number;
-  translation_key: string;
-  language_name: string;
-  language_id: string;
-  version: number;
+  key: string;
+  language_iso_code: string;
+  version: string;
+  last_update: string;
+  title: string;
+  description: string;
 }
 
 export interface IQuranEncAyah {
   id: string;
   sura: string;
   aya: string;
+  arabic_text: string;
   translation: string;
   footnotes: string;
 }
 
 export interface IQuranEncSurahResponse {
   result: IQuranEncAyah[];
+}
+
+export interface IQuranEncTranslationsListResponse {
+  translations: IQuranEncTranslationInfo[];
 }

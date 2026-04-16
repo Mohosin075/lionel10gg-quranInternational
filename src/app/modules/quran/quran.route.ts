@@ -17,6 +17,12 @@ router.get(
 );
 
 router.get(
+  '/surahDetail/:number',
+  validateRequest(QuranValidations.getSurahDetailValidationSchema),
+  QuranController.getSurahDetail
+);
+
+router.get(
   '/ayah/:surah/:ayah',
   validateRequest(QuranValidations.getAyahValidationSchema),
   QuranController.getAyah
