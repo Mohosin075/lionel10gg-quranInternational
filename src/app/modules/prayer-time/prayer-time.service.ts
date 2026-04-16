@@ -67,7 +67,15 @@ const getPrayerTimes = async (city: string, country: string) => {
   }
 };
 
-const getPrayerSettings = async (userId: string) => {
+const getPrayerSettings = async (userId?: string) => {
+  if (!userId) {
+    return {
+      location: { city: 'Dhaka', country: 'Bangladesh' },
+      calculationMethod: 'ISNA',
+      activePrayers: ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'],
+      selectedRecitationId: 'makkah',
+    };
+  }
   let settings = await PrayerSettings.findOne({ user: userId });
   if (!settings) {
     settings = await PrayerSettings.create({ user: userId });

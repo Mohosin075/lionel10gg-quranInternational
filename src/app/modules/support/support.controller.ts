@@ -6,11 +6,12 @@ import { StatusCodes } from 'http-status-codes'
 import pick from '../../../shared/pick'
 import { supportFilterables } from './support.constants'
 import { paginationFields } from '../../../interfaces/pagination'
+import { JwtPayload } from 'jsonwebtoken'
 
 const createSupport = catchAsync(async (req: Request, res: Response) => {
   const supportData = req.body
 
-  const result = await SupportServices.createSupport(req.user!, supportData)
+  const result = await SupportServices.createSupport(req.user as JwtPayload, supportData)
 
   sendResponse(res, {
     statusCode: StatusCodes.CREATED,

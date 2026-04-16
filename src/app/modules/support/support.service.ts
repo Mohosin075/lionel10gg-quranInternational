@@ -9,14 +9,14 @@ import { Types } from 'mongoose'
 import { SUPPORT_STATUS } from '../../../enum/support'
 
 const createSupport = async (
-  user: JwtPayload,
+  user: JwtPayload | null,
   payload: ISupport,
 ): Promise<ISupport> => {
   console.log({ user, payload })
 
   const data = {
     ...payload,
-    userId: user?.authId,
+    userId: user?.authId || null,
     status: SUPPORT_STATUS.IN_PROGRESS,
   }
 

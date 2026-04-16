@@ -7,13 +7,13 @@ const router = express.Router();
 
 router.get(
   '/',
-  auth(USER_ROLES.USER, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  // Public access for general prayer times
   PrayerTimeControllers.getMyPrayerTimes,
 );
 
 router.get(
   '/recitations',
-  auth(USER_ROLES.USER, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  // Public access
   PrayerTimeControllers.getAdhanRecitations,
 );
 

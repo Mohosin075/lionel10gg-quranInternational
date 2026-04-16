@@ -7,7 +7,9 @@ import { JwtPayload } from 'jsonwebtoken';
 
 const getMyPrayerTimes = catchAsync(async (req: Request, res: Response) => {
   const user = req.user as JwtPayload;
-  const settings = await PrayerTimeServices.getPrayerSettings(user.authId);
+  const authId = user?.authId;
+  
+  const settings = await PrayerTimeServices.getPrayerSettings(authId);
   
   const prayerTimes = await PrayerTimeServices.getPrayerTimes(
     settings.location.city,

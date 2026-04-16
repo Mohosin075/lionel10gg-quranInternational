@@ -21,10 +21,8 @@ router.get(
 
 router.post(
   '/',
-  auth(USER_ROLES.ADMIN, USER_ROLES.USER, USER_ROLES.SUPER_ADMIN),
-
+  // Public access - anyone can send support
   validateRequest(createSupportSchema),
-
   SupportController.createSupport,
 )
 
