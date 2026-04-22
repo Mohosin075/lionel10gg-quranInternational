@@ -32,6 +32,7 @@ router.get('/search', QuranController.search);
 router.get('/daily-inspiration', QuranController.getDailyInspiration);
 
 // Sync Routes
+router.post('/sync/languages', QuranController.syncLanguages);
 router.get(
   '/sync/check',
   validateRequest(QuranValidations.checkSyncValidationSchema),

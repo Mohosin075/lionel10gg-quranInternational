@@ -14,31 +14,31 @@ const adhanRecitations: IAdhanRecitation[] = [
     id: 'makkah',
     name: 'Makkah',
     location: 'HARAM AL-MAKKI',
-    audioUrl: 'https://download.quranicaudio.com/adhan/makkah.mp3',
+    audioUrl: 'https://www.islamcan.com/audio/adhan/azan2.mp3',
   },
   {
     id: 'madinah',
     name: 'Madinah',
     location: 'HARAM AL-MADANI',
-    audioUrl: 'https://download.quranicaudio.com/adhan/madinah.mp3',
+    audioUrl: 'https://www.islamcan.com/audio/adhan/azan1.mp3',
   },
   {
     id: 'al-aqsa',
     name: 'Al-Aqsa',
     location: 'QUDS',
-    audioUrl: 'https://download.quranicaudio.com/adhan/aqsa.mp3',
+    audioUrl: 'https://www.islamcan.com/audio/adhan/azan10.mp3',
   },
   {
     id: 'egypt',
     name: 'Egypt',
     location: 'AL-AZHAR',
-    audioUrl: 'https://download.quranicaudio.com/adhan/egypt.mp3',
+    audioUrl: 'https://www.islamcan.com/audio/adhan/azan4.mp3',
   },
   {
     id: 'turkey',
     name: 'Turkey',
     location: 'BLUE MOSQUE',
-    audioUrl: 'https://download.quranicaudio.com/adhan/turkey.mp3',
+    audioUrl: 'https://www.islamcan.com/audio/adhan/azan6.mp3',
   },
 ];
 

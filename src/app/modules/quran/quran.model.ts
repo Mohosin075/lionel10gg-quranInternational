@@ -1,5 +1,5 @@
 import { Schema, model } from 'mongoose';
-import { ITranslation } from './quran.interface';
+import { ITranslation, ILanguage } from './quran.interface';
 
 const TranslationSchema = new Schema<ITranslation>(
   {
@@ -25,3 +25,18 @@ TranslationSchema.index(
 TranslationSchema.index({ text: 'text' });
 
 export const Translation = model<ITranslation>('Translation', TranslationSchema);
+
+const LanguageSchema = new Schema<ILanguage>(
+  {
+    key: { type: String, required: true, unique: true },
+    name: { type: String, required: true },
+    language: { type: String, required: true },
+    author: { type: String },
+    source: { type: String, enum: ['quranenc', 'qurancom'], required: true },
+    isSynced: { type: Boolean, default: false },
+    lastSyncedAt: { type: Date },
+  },
+  { timestamps: true }
+);
+
+export const Language = model<ILanguage>('Language', LanguageSchema);

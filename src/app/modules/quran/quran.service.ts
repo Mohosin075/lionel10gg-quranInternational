@@ -1,34 +1,119 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable prefer-const */
 import axios from 'axios';
-import { Translation } from './quran.model';
-import { ITranslation } from './quran.interface';
-import { ingestSurahTranslations } from './quran.worker';
+import { Translation, Language } from './quran.model';
+import { ITranslation, ILanguage } from './quran.interface';
+import { ingestSurahTranslations, syncLanguage, syncAllLanguages } from './quran.worker';
 import { SURAH_LIST } from './quran.constants';
 
 const QURAN_ENC_URL = 'https://quranenc.com/api/v1';
+const QURAN_COM_URL = 'https://api.quran.com/api/v4';
 
-const fetchLanguages = async (language?: string, localization?: string) => {
-  let url = `${QURAN_ENC_URL}/translations/list`;
+const fetchLanguages = async (page: number = 1, limit: number = 200, language?: string, localization?: string) => {
+  const skip = (page - 1) * limit;
+
+  // 1. Try to fetch from DB first
+  let query: any = {};
   if (language) {
-    url += `/${language}`;
+    query.language = language;
   }
-  if (localization) {
-    url += `?localization=${localization}`;
+
+  let dbLanguages = await Language.find(query).sort({ language: 1, name: 1 }).skip(skip).limit(limit).lean();
+  let total = await Language.countDocuments(query);
+
+  // 2. If DB is empty or explicitly requested (not implemented here, but could be), fetch from API
+  if (dbLanguages.length === 0) {
+    // Fetch from API
+    let encUrl = `${QURAN_ENC_URL}/translations/list`;
+    if (language) {
+      encUrl += `/${language}`;
+    }
+    if (localization) {
+      encUrl += `?localization=${localization}`;
+    }
+    
+    const comTranslationsUrl = `${QURAN_COM_URL}/resources/translations`;
+    const comLanguagesUrl = `${QURAN_COM_URL}/resources/languages`;
+    
+    const [encResponse, comTransResponse, comLangResponse] = await Promise.all([
+      axios.get(encUrl).catch(() => ({ data: { translations: [] } })),
+      axios.get(comTranslationsUrl).catch(() => ({ data: { translations: [] } })),
+      axios.get(comLanguagesUrl).catch(() => ({ data: { languages: [] } }))
+    ]);
+
+    const langMap = new Map();
+    (comLangResponse.data.languages || []).forEach((l: any) => {
+      langMap.set(l.name.toLowerCase(), l.iso_code);
+    });
+
+    const encTranslations: Partial<ILanguage>[] = (encResponse.data.translations || []).map((t: any) => ({
+      key: t.key,
+      name: t.title,
+      language: t.language_iso_code,
+      author: t.description,
+      source: 'quranenc'
+    }));
+
+    const comTranslations: Partial<ILanguage>[] = (comTransResponse.data.translations || []).map((t: any) => {
+      const langName = t.language_name.toLowerCase();
+      return {
+        key: `qcom:${t.id}`,
+        name: t.name,
+        language: langMap.get(langName) || t.language_name,
+        author: t.author_name,
+        source: 'qurancom'
+      };
+    });
+
+    const allTranslations = [...encTranslations, ...comTranslations];
+    
+    // Save to DB
+    if (allTranslations.length > 0) {
+      await Language.bulkWrite(
+        allTranslations.map((t) => ({
+          updateOne: {
+            filter: { key: t.key },
+            update: { $set: t },
+            upsert: true,
+          },
+        }))
+      );
+    }
+
+    dbLanguages = await Language.find(query).sort({ language: 1, name: 1 }).skip(skip).limit(limit).lean();
+    total = await Language.countDocuments(query);
   }
-  const response = await axios.get(url);
-  return response.data.translations;
+
+  return {
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit)
+    },
+    data: dbLanguages
+  };
 };
 
-const fetchSurahs = async () => {
-  return SURAH_LIST;
+const fetchSurahs = async (page: number = 1, limit: number = 10) => {
+  const skip = (page - 1) * limit;
+  const total = SURAH_LIST.length;
+  const data = SURAH_LIST.slice(skip, skip + limit);
+
+  return {
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit)
+    },
+    data
+  };
 };
 
-const getSurahDetail = async (surahNumber: number, translationKey: string = 'english_saheeh', lang: string = 'en') => {
+const getSurahDetail = async (surahNumber: number, translationKey: string = 'english_saheeh', lang?: string) => {
   // 1. Get Surah Metadata from local constant
   const surahInfo = SURAH_LIST.find((s) => s.number === surahNumber);
-
-
 
   if (!surahInfo) {
     throw new Error(`Surah ${surahNumber} not found`);
@@ -45,14 +130,18 @@ const getSurahDetail = async (surahNumber: number, translationKey: string = 'eng
   
   // 3. If not found, trigger ingestion (ETL)
   if (!ayahsData.length) {
-    const languages: any = { 
-      'english_saheeh': 'en', 
-      'bengali_zakaria': 'bn',
-      'quran-uthmani': 'ar'
-    };
-    const effectiveLang = languages[translationKey] || lang || 'en';
-    
-    await ingestSurahTranslations(surahNumber, translationKey, effectiveLang);
+    // Determine the correct language for this edition
+    let targetLang = lang;
+    if (!targetLang || targetLang === 'en') {
+      const langInfo = await Language.findOne({ key: translationKey });
+      if (langInfo) {
+        targetLang = langInfo.language;
+      } else {
+        targetLang = targetLang || 'en';
+      }
+    }
+
+    await ingestSurahTranslations(surahNumber, translationKey, targetLang);
     ayahsData = await getSurahTranslations(surahNumber, translationKey);
   }
 
@@ -61,12 +150,16 @@ const getSurahDetail = async (surahNumber: number, translationKey: string = 'eng
     const s = surahNumber.toString().padStart(3, '0');
     const a = item.ayah.toString().padStart(3, '0');
     
+    // For audio, we use a stable source (QuranEnc Arabic) for all translations
+    // unless it's specifically an Arabic edition.
+    const audioKey = isArabicOnly ? 'english_saheeh' : (translationKey.startsWith('qcom:') ? 'english_saheeh' : translationKey);
+    
     return {
       number: item.ayah,
       text: item.arabicText || '',
       translation: isArabicOnly ? undefined : (item.text || ''),
       footnotes: isArabicOnly ? undefined : (item.footnotes || ''),
-      audio: `https://d.quranenc.com/data/audio/${isArabicOnly ? 'english_saheeh' : translationKey}/${s}${a}.mp3`,
+      audio: `https://d.quranenc.com/data/audio/${audioKey}/${s}${a}.mp3`,
     };
   });
 
@@ -77,19 +170,31 @@ const getSurahDetail = async (surahNumber: number, translationKey: string = 'eng
   };
 };
 
-const getAyah = async (surah: number, ayah: number, translationKey: string = 'english_saheeh', lang: string = 'en') => {
+const getAyah = async (surah: number, ayah: number, translationKey: string = 'english_saheeh', lang?: string) => {
     let result = await Translation.findOne({ surah, ayah, edition: translationKey }).lean();
     
     if (!result) {
+        // Determine the correct language for this edition
+        let targetLang = lang;
+        if (!targetLang || targetLang === 'en') {
+          const langInfo = await Language.findOne({ key: translationKey });
+          if (langInfo) {
+            targetLang = langInfo.language;
+          } else {
+            targetLang = targetLang || 'en';
+          }
+        }
+
         // Trigger ingestion for the whole surah for better UX later
-        await ingestSurahTranslations(surah, translationKey, lang);
+        await ingestSurahTranslations(surah, translationKey, targetLang);
         result = await Translation.findOne({ surah, ayah, edition: translationKey }).lean();
     }
     
     if (result) {
         const s = surah.toString().padStart(3, '0');
         const a = ayah.toString().padStart(3, '0');
-        (result as any).audio = `https://d.quranenc.com/data/audio/${translationKey}/${s}${a}.mp3`;
+        const audioKey = translationKey.startsWith('qcom:') ? 'english_saheeh' : translationKey;
+        (result as any).audio = `https://d.quranenc.com/data/audio/${audioKey}/${s}${a}.mp3`;
     }
     
     return result;
@@ -183,6 +288,16 @@ const getSyncData = async (translationKey: string, fromVersion: number = 0) => {
     }).sort({ surah: 1, ayah: 1 }).lean();
 };
 
+const syncEdition = async (edition: string) => {
+  // Run in background
+  syncLanguage(edition);
+};
+
+const syncAll = async () => {
+  // Run in background
+  syncAllLanguages();
+};
+
 export const QuranServices = {
   fetchLanguages,
   fetchSurahs,
@@ -194,5 +309,7 @@ export const QuranServices = {
   getSurahTranslations,
   getTranslationVersion,
   checkSyncMetadata,
-  getSyncData
+  getSyncData,
+  syncEdition,
+  syncAll
 };

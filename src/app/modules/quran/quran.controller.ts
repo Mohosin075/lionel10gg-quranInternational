@@ -5,24 +5,32 @@ import sendResponse from '../../../shared/sendResponse';
 import { QuranServices } from './quran.service';
 
 const getLanguages = catchAsync(async (req: Request, res: Response) => {
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 200;
   const lang = req.query.lang as string;
   const localization = req.query.localization as string || 'en';
-  const result = await QuranServices.fetchLanguages(lang, localization);
+  
+  const result = await QuranServices.fetchLanguages(page, limit, lang, localization);
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
     message: 'Languages fetched successfully',
-    data: result,
+    meta: result.meta,
+    data: result.data,
   });
 });
 
 const getSurahs = catchAsync(async (req: Request, res: Response) => {
-  const result = await QuranServices.fetchSurahs();
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 10;
+  
+  const result = await QuranServices.fetchSurahs(page, limit);
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
     message: 'Surahs fetched successfully',
-    data: result,
+    meta: result.meta,
+    data: result.data,
   });
 });
 
@@ -90,6 +98,28 @@ const getVersion = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const syncLanguages = catchAsync(async (req: Request, res: Response) => {
+  const { edition } = req.query;
+  
+  if (edition) {
+    // Sync specific edition in background
+    QuranServices.syncEdition(edition as string);
+    sendResponse(res, {
+      statusCode: StatusCodes.ACCEPTED,
+      success: true,
+      message: `Sync started for edition: ${edition}`,
+    });
+  } else {
+    // Sync all editions in background
+    QuranServices.syncAll();
+    sendResponse(res, {
+      statusCode: StatusCodes.ACCEPTED,
+      success: true,
+      message: 'Sync started for all editions',
+    });
+  }
+});
+
 const checkSync = catchAsync(async (req: Request, res: Response) => {
     const { edition, version } = req.query;
     const result = await QuranServices.checkSyncMetadata(edition as string, Number(version) || 0);
@@ -103,12 +133,27 @@ const checkSync = catchAsync(async (req: Request, res: Response) => {
 
 const downloadSync = catchAsync(async (req: Request, res: Response) => {
     const { edition, fromVersion } = req.query;
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
+    
     const result = await QuranServices.getSyncData(edition as string, Number(fromVersion) || 0);
+    
+    // Manual pagination for sync data since it's an array from DB
+    const total = result.length;
+    const skip = (page - 1) * limit;
+    const paginatedData = result.slice(skip, skip + limit);
+
     sendResponse(res, {
         statusCode: StatusCodes.OK,
         success: true,
         message: 'Sync data fetched successfully',
-        data: result,
+        meta: {
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit)
+        },
+        data: paginatedData,
     });
 });
 
@@ -120,6 +165,7 @@ export const QuranController = {
   getDailyInspiration,
   getAyah,
   getVersion,
+  syncLanguages,
   checkSync,
   downloadSync
 };

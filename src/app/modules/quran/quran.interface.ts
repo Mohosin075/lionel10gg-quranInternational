@@ -48,6 +48,16 @@ export interface ITranslation {
   updatedAt?: Date;
 }
 
+export interface ILanguage {
+  key: string;
+  name: string;
+  language: string;
+  author: string;
+  source: 'quranenc' | 'qurancom';
+  isSynced: boolean;
+  lastSyncedAt?: Date;
+}
+
 // QuranEnc Response Interfaces
 export interface IQuranEncTranslationInfo {
   key: string;
@@ -73,4 +83,33 @@ export interface IQuranEncSurahResponse {
 
 export interface IQuranEncTranslationsListResponse {
   translations: IQuranEncTranslationInfo[];
+}
+
+// Quran.com Response Interfaces
+export interface IQuranComTranslationInfo {
+  id: number;
+  name: string;
+  author_name: string;
+  slug: string;
+  language_name: string;
+  translated_name: {
+    name: string;
+    language_name: string;
+  };
+}
+
+export interface IQuranComVerse {
+  id: number;
+  verse_key: string;
+  verse_number: number;
+  text_uthmani?: string;
+  translations: {
+    id: number;
+    resource_id: number;
+    text: string;
+  }[];
+}
+
+export interface IQuranComChapterResponse {
+  verses: IQuranComVerse[];
 }
