@@ -15,11 +15,14 @@ import { MessageRoutes } from '../app/modules/message/message.routes'
 import { ChatRoutes } from '../app/modules/chat/chat.routes'
 import { StatusCodes } from 'http-status-codes'
 
+import { DashboardRoutes } from '../app/modules/dashboard/dashboard.route'
+
 const router = express.Router()
 
 const apiRoutes: { path: string; route: Router }[] = [
   { path: '/user', route: UserRoutes },
   { path: '/auth', route: AuthRoutes },
+  { path: '/dashboard', route: DashboardRoutes },
   { path: '/notifications', route: NotificationRoutes },
   { path: '/public', route: PublicRoutes },
   { path: '/support', route: SupportRoutes },
