@@ -5,7 +5,7 @@ import sendResponse from '../../../shared/sendResponse';
 import { QuranServices } from './quran.service';
 
 const getLanguages = catchAsync(async (req: Request, res: Response) => {
-  const lang = req.query.lang as string || 'en';
+  const lang = req.query.lang as string;
   const localization = req.query.localization as string || 'en';
   const result = await QuranServices.fetchLanguages(lang, localization);
   sendResponse(res, {
