@@ -9,8 +9,9 @@ const getLanguages = catchAsync(async (req: Request, res: Response) => {
   const limit = Number(req.query.limit) || 200;
   const lang = req.query.lang as string;
   const localization = req.query.localization as string || 'en';
+  const edition = req.query.edition as string;
   
-  const result = await QuranServices.fetchLanguages(page, limit, lang, localization);
+  const result = await QuranServices.fetchLanguages(page, limit, lang, localization, edition);
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
@@ -23,8 +24,9 @@ const getLanguages = catchAsync(async (req: Request, res: Response) => {
 const getSurahs = catchAsync(async (req: Request, res: Response) => {
   const page = Number(req.query.page) || 1;
   const limit = Number(req.query.limit) || 10;
+  const language = req.query.language as string || req.query.lang as string || 'en';
   
-  const result = await QuranServices.fetchSurahs(page, limit);
+  const result = await QuranServices.fetchSurahs(page, limit, language);
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,

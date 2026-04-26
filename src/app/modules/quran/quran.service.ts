@@ -9,13 +9,16 @@ import { SURAH_LIST } from './quran.constants';
 const QURAN_ENC_URL = 'https://quranenc.com/api/v1';
 const QURAN_COM_URL = 'https://api.quran.com/api/v4';
 
-const fetchLanguages = async (page: number = 1, limit: number = 200, language?: string, localization?: string) => {
+const fetchLanguages = async (page: number = 1, limit: number = 200, language?: string, localization?: string, edition?: string) => {
   const skip = (page - 1) * limit;
 
   // 1. Try to fetch from DB first
   let query: any = {};
   if (language) {
     query.language = language;
+  }
+  if (edition) {
+    query.key = edition;
   }
 
   let dbLanguages = await Language.find(query).sort({ language: 1, name: 1 }).skip(skip).limit(limit).lean();
@@ -103,10 +106,31 @@ const fetchLanguages = async (page: number = 1, limit: number = 200, language?: 
   };
 };
 
-const fetchSurahs = async (page: number = 1, limit: number = 10) => {
+const fetchSurahs = async (page: number = 1, limit: number = 10, language?: string) => {
   const skip = (page - 1) * limit;
   const total = SURAH_LIST.length;
-  const data = SURAH_LIST.slice(skip, skip + limit);
+  let data: any[] = SURAH_LIST.slice(skip, skip + limit);
+
+  if (language && language !== 'en') {
+    try {
+      const response = await axios.get(`${QURAN_COM_URL}/chapters?language=${language}`);
+      const chapters = response.data.chapters;
+      if (chapters && chapters.length > 0) {
+        data = data.map(surah => {
+          const chapter = chapters.find((c: any) => c.id === surah.number);
+          if (chapter && chapter.translated_name) {
+            return {
+              ...surah,
+              translatedName: chapter.translated_name.name
+            };
+          }
+          return surah;
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch translated surah names:', error);
+    }
+  }
 
   return {
     meta: {
