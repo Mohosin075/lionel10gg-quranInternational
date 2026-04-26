@@ -31,6 +31,8 @@ const LanguageSchema = new Schema<ILanguage>(
     key: { type: String, required: true, unique: true },
     name: { type: String, required: true },
     language: { type: String, required: true },
+    iso: { type: String },
+    full_language_name: { type: String },
     author: { type: String },
     source: { type: String, enum: ['quranenc', 'qurancom'], required: true },
     isSynced: { type: Boolean, default: false },

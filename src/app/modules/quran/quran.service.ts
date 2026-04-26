@@ -21,8 +21,9 @@ const fetchLanguages = async (page: number = 1, limit: number = 200, language?: 
   let dbLanguages = await Language.find(query).sort({ language: 1, name: 1 }).skip(skip).limit(limit).lean();
   let total = await Language.countDocuments(query);
 
-  // 2. If DB is empty or explicitly requested (not implemented here, but could be), fetch from API
-  if (dbLanguages.length === 0) {
+  // 2. If DB is empty or missing full_language_name/iso, fetch from API
+   const needsRefresh = dbLanguages.length > 0 && !dbLanguages.every(l => l.full_language_name && l.iso);
+  if (dbLanguages.length === 0 || needsRefresh) {
     // Fetch from API
     let encUrl = `${QURAN_ENC_URL}/translations/list`;
     if (language) {
@@ -42,24 +43,31 @@ const fetchLanguages = async (page: number = 1, limit: number = 200, language?: 
     ]);
 
     const langMap = new Map();
+    const isoToNameMap = new Map();
     (comLangResponse.data.languages || []).forEach((l: any) => {
       langMap.set(l.name.toLowerCase(), l.iso_code);
+      isoToNameMap.set(l.iso_code, l.name);
     });
 
     const encTranslations: Partial<ILanguage>[] = (encResponse.data.translations || []).map((t: any) => ({
       key: t.key,
       name: t.title,
       language: t.language_iso_code,
+      iso: t.language_iso_code,
+      full_language_name: isoToNameMap.get(t.language_iso_code) || t.language_iso_code,
       author: t.description,
       source: 'quranenc'
     }));
 
     const comTranslations: Partial<ILanguage>[] = (comTransResponse.data.translations || []).map((t: any) => {
       const langName = t.language_name.toLowerCase();
+      const iso = langMap.get(langName) || t.language_name;
       return {
         key: `qcom:${t.id}`,
         name: t.name,
-        language: langMap.get(langName) || t.language_name,
+        language: iso,
+        iso: iso,
+        full_language_name: t.language_name,
         author: t.author_name,
         source: 'qurancom'
       };
