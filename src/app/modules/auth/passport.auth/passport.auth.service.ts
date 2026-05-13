@@ -8,7 +8,7 @@ import { AuthHelper } from '../auth.helper'
 import { IAuthResponse } from '../auth.interface'
 import { authResponse } from '../common'
 
-interface GoogleProfile {
+export interface GoogleProfile {
   emails: { value: string }[]
   photos: { value: string }[]
   displayName: string

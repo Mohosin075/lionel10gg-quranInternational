@@ -1,0 +1,38 @@
+Quran International – Feature Specification - additional
+Overview:
+A free, offline-capable Quran app offering 100+ languages and 196 translations, with prayer times
+(location-based), 5 Adhan sounds, bookmarks, and highlights.
+Project Scope:
+
+Trial / Demo:
+All premium features must be fully testable within Surah Al-Fatiha so users can experience the
+functionality before subscribing.
+1) Tafsir (All App Languages)
+Provide Tafsir (concise explanations) for each Ayah in all supported app languages (currently 100+).
+• Accessible via a lightbulb icon.
+• Full functionality available for Al-Fatiha as a demo.
+• Unlock full Tafsir across all Surahs after subscription.
+2) Hasanat Counter System
+Implement two counters:
+• Total Hasanat Balance: cumulative counter.
+• Per-Surah Live Counter: circular UI element with dynamic number updating while scrolling.
+Behavior:
+• Per-Surah counter is not added to the total automatically.
+• At the end of each Surah, provide a button: “Collect Hasanat” to add the session total to the global
+balance.
+• Include an “X” close button to hide the counter.
+• Full functionality available in Al-Fatiha (free). Locked from Al-Baqarah onwards unless subscribed.
+3) Duas (Supplications)
+Include a comprehensive collection of common daily Duas (similar to leading Islamic apps).
+• Completely free and available in the basic version (no subscription required).
+
+5) Quran Audio (Offline)
+Provide full Quran audio playback per Surah.
+• Audio available within the app without requiring separate downloads.
+• Al-Fatiha audio is free for testing; remaining Surahs unlock with subscription.
+Important Notes
+• All premium features must be clearly gated behind a yearly subscription.
+• Al-Fatiha serves as the universal demo for all features.
+• Duas remain fully free.
+• UI/UX should be clean, intuitive, and consistent with the current app design.
+• Additional UI references (screenshots) will be provided separately

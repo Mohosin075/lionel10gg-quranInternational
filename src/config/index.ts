@@ -9,9 +9,10 @@ export default {
   node_env: process.env.NODE_ENV,
   clientUrl: process.env.clientUrl,
   port: process.env.PORT,
+  server_map_api_key: process.env.SERVER_MAP_API_KEY,
   cors_origins: process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',')
-    : ['*'],
+    : ['*', "http://localhost:3000", "http://localhost:3001"],
   bcrypt_salt_rounds: process.env.BCRYPT_SALT_ROUNDS,
   firebase_service_account_base64: process.env.FIREBASE_SERVICE_ACCOUNT_BASE64,
   google: {

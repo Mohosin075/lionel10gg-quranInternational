@@ -69,6 +69,7 @@ export interface IUser {
   authentication: IAuthentication
   favorites?: Types.ObjectId[]
 
+  totalHasanat: number
   createdAt: Date
   updatedAt: Date
 }

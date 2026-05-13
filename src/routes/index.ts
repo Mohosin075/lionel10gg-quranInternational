@@ -13,6 +13,9 @@ import { PrayerTimeRoutes } from '../app/modules/prayer-time/prayer-time.route'
 import { NotificationRoutes } from '../app/modules/notification/notification.routes'
 import { MessageRoutes } from '../app/modules/message/message.routes'
 import { ChatRoutes } from '../app/modules/chat/chat.routes'
+import { HasanatRoutes } from '../app/modules/hasanat/hasanat.route'
+import { TafsirRoutes } from '../app/modules/tafsir/tafsir.route'
+import { DuaRoutes } from '../app/modules/dua/dua.route'
 import { StatusCodes } from 'http-status-codes'
 
 import { DashboardRoutes } from '../app/modules/dashboard/dashboard.route'
@@ -35,6 +38,9 @@ const apiRoutes: { path: string; route: Router }[] = [
   { path: '/highlight', route: HighlightRoutes },
   { path: '/last-read', route: LastReadRoutes },
   { path: '/prayer-time', route: PrayerTimeRoutes },
+  { path: '/hasanat', route: HasanatRoutes },
+  { path: '/tafsir', route: TafsirRoutes },
+  { path: '/dua', route: DuaRoutes },
 ]
 
 apiRoutes.forEach(route => {

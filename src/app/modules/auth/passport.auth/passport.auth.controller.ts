@@ -3,7 +3,7 @@ import catchAsync from '../../../../shared/catchAsync'
 import sendResponse from '../../../../shared/sendResponse'
 import { IUser } from '../../user/user.interface'
 import { ILoginResponse } from '../../../../interfaces/response'
-import { PassportAuthServices } from './passport.auth.service'
+import { PassportAuthServices, GoogleProfile } from './passport.auth.service'
 import { AuthCommonServices } from '../common'
 
 import config from '../../../../config'
@@ -33,7 +33,7 @@ const login = catchAsync(async (req: Request, res: Response) => {
 
 const googleAuthCallback = catchAsync(async (req: Request, res: Response) => {
   const result = await PassportAuthServices.handleGoogleLogin(
-    req.user as IUser & { profile: unknown },
+    req.user as IUser & { profile: GoogleProfile },
   )
   const { accessToken, refreshToken } = result
 
