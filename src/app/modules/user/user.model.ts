@@ -78,6 +78,17 @@ const UserSchema = new Schema<IUser, UserModel>(
         ref: 'User',
       },
     ],
+    purchasedMaps: [
+      {
+        type: Schema.Types.ObjectId,
+      },
+    ],
+    
+    stripeCustomerId: { type: String },
+    subscriptionStatus: { type: String },
+    subscriptionTier: { type: String },
+    trialUsed: { type: Boolean, default: false },
+    subscriptionExpiresAt: { type: Date },
   },
   {
     timestamps: true,

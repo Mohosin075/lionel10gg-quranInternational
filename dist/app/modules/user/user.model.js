@@ -75,6 +75,16 @@ const UserSchema = new mongoose_1.Schema({
             ref: 'User',
         },
     ],
+    purchasedMaps: [
+        {
+            type: mongoose_1.Schema.Types.ObjectId,
+        },
+    ],
+    stripeCustomerId: { type: String },
+    subscriptionStatus: { type: String },
+    subscriptionTier: { type: String },
+    trialUsed: { type: Boolean, default: false },
+    subscriptionExpiresAt: { type: Date },
 }, {
     timestamps: true,
     toJSON: { virtuals: true },

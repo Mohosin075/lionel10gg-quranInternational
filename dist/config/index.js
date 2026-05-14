@@ -30,6 +30,12 @@ exports.default = {
         region: process.env.AWS_REGION,
         bucket_name: process.env.AWS_BUCKET_NAME,
     },
+    stripe: {
+        stripeSecretKey: process.env.STRIPE_SECRET_KEY,
+        stripePublicKey: process.env.STRIPE_PUBLIC_KEY,
+        paymentWebhookSecret: process.env.STRIPE_PAYMENT_WEBHOOK_SECRET,
+        subscriptionWebhookSecret: process.env.STRIPE_SUBSCRIPTION_WEBHOOK_SECRET,
+    },
     jwt: {
         jwt_secret: process.env.JWT_SECRET,
         jwt_expire_in: process.env.JWT_EXPIRE_IN,
