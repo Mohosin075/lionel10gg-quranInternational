@@ -3,9 +3,10 @@ import { StatusCodes } from 'http-status-codes';
 import catchAsync from '../../../shared/catchAsync';
 import sendResponse from '../../../shared/sendResponse';
 import { HasanatService } from './hasanat.service';
+import { JwtPayload } from 'jsonwebtoken';
 
 const collectHasanat = catchAsync(async (req: Request, res: Response) => {
-  const userId = (req as any).user?._id;
+  const userId = (req.user as JwtPayload).authId;
   const { amount } = req.body;
 
   const result = await HasanatService.collectHasanat(userId, amount);

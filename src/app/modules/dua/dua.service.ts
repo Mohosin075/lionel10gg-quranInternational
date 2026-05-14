@@ -1,7 +1,8 @@
 import { Dua } from './dua.model';
+import { IDua } from './dua.interface';
 
 const getAllDuas = async (lang: string = 'en', category?: string) => {
-  const query: any = { lang };
+  const query: Record<string, unknown> = { lang };
   if (category) {
     query.category = category;
   }
@@ -12,7 +13,7 @@ const getDuaById = async (id: string) => {
   return await Dua.findById(id).lean();
 };
 
-const createDua = async (payload: any) => {
+const createDua = async (payload: Partial<IDua>) => {
   return await Dua.create(payload);
 };
 

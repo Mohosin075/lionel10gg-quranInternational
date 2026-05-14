@@ -47,6 +47,7 @@ const token_model_1 = require("../../token/token.model");
 const emailTemplate_1 = require("../../../../shared/emailTemplate");
 const crypto_1 = __importStar(require("../../../../utils/crypto"));
 const bcrypt_1 = __importDefault(require("bcrypt"));
+const crypto_2 = __importDefault(require("crypto"));
 const common_1 = require("../common");
 const jwtHelper_1 = require("../../../../helpers/jwtHelper");
 const emailHelper_1 = require("../../../../helpers/emailHelper");
@@ -291,7 +292,7 @@ const socialLogin = async (appId, deviceToken) => {
             appId,
             deviceToken,
             status: user_1.USER_STATUS.ACTIVE,
-            password: crypto.randomUUID(),
+            password: crypto_2.default.randomUUID(),
         });
         console.log({ createdUser });
         if (!createdUser)
