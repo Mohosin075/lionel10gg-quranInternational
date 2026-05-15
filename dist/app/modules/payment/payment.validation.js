@@ -5,13 +5,11 @@ const zod_1 = require("zod");
 exports.PaymentValidations = {
     create: zod_1.z.object({
         body: zod_1.z.object({
-            mapId: zod_1.z.string({
-                required_error: 'Map ID is required',
-            }),
             amount: zod_1.z.number({
                 required_error: 'Amount is required',
             }).min(1, 'Amount must be at least 1'),
             currency: zod_1.z.string().default('USD'),
+            paymentType: zod_1.z.enum(['one_time', 'subscription']).default('one_time'),
             productName: zod_1.z.string().optional(),
             description: zod_1.z.string().optional(),
         }),

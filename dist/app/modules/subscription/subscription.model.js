@@ -31,7 +31,6 @@ const subscriptionSchema = new mongoose_1.Schema({
         enum: [
             'incomplete',
             'incomplete_expired',
-            'trialing',
             'active',
             'past_due',
             'canceled',
@@ -48,14 +47,6 @@ const subscriptionSchema = new mongoose_1.Schema({
         type: Date,
         required: true,
     },
-    trialStart: {
-        type: Date,
-        default: null,
-    },
-    trialEnd: {
-        type: Date,
-        default: null,
-    },
     canceledAt: {
         type: Date,
         default: null,
@@ -67,10 +58,6 @@ const subscriptionSchema = new mongoose_1.Schema({
     endedAt: {
         type: Date,
         default: null,
-    },
-    hasUsedTrial: {
-        type: Boolean,
-        default: false,
     },
     metadata: {
         type: Map,
@@ -142,7 +129,7 @@ subscriptionSchema.index({ userId: 1, status: 1 });
 subscriptionSchema.statics.findActiveByUserId = function (userId) {
     return this.findOne({
         userId,
-        status: { $in: ['active', 'trialing'] },
+        status: { $in: ['active'] },
     }).populate('planId');
 };
 subscriptionSchema.statics.findByStripeId = function (stripeSubscriptionId) {

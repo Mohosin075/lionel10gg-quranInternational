@@ -8,10 +8,6 @@ const paymentSchema = new mongoose_1.Schema({
         ref: 'User',
         required: true,
     },
-    mapId: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'Map',
-    },
     userEmail: {
         type: String,
         required: true,
@@ -30,6 +26,12 @@ const paymentSchema = new mongoose_1.Schema({
         enum: ['stripe'],
         required: true,
         default: 'stripe',
+    },
+    paymentType: {
+        type: String,
+        enum: ['one_time', 'subscription'],
+        required: true,
+        default: 'one_time',
     },
     paymentIntentId: {
         type: String,

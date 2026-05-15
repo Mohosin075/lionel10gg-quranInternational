@@ -4,7 +4,6 @@ import config from '../../../config'
 import ApiError from '../../../errors/ApiError'
 import { Payment } from './payment.model'
 import { emailHelper } from '../../../helpers/emailHelper'
-import { User } from '../user/user.model'
 import Stripe from 'stripe'
 
 const stripe = new Stripe(config.stripe.stripeSecretKey!, {
@@ -38,7 +37,6 @@ const handleCheckoutSessionCompleted = async (
     mongoSession.startTransaction()
 
     try {
-      // Find and lock the payment document
       const payment = await Payment.findOne({
         $or: [
           { paymentIntentId: lookupId },
@@ -53,42 +51,20 @@ const handleCheckoutSessionCompleted = async (
         )
       }
 
-      // Check if already processed to avoid duplicates
       if (payment.status === 'succeeded') {
         await mongoSession.commitTransaction()
         return
       }
 
-      // Update payment
       payment.status = 'succeeded'
       payment.metadata = { ...payment.metadata, ...sessionWithDetails }
       await payment.save({ session: mongoSession })
-
-      // Update User purchasedMaps if mapId exists in metadata or payment
-      const mapId = payment.mapId || sessionWithDetails.metadata?.mapId
-      
-      console.log(`Webhook: Processing map purchase update for Map ID: ${mapId}`)
-      
-      if (mapId) {
-        const updatedUser = await User.findByIdAndUpdate(
-          payment.userId,
-          { 
-            $addToSet: { purchasedMaps: mapId }
-          },
-          { session: mongoSession, new: true }
-        )
-        
-        if (updatedUser) {
-          console.log(`Webhook: User purchasedMaps updated for User ID: ${payment.userId}`)
-        }
-      }
 
       await mongoSession.commitTransaction()
       console.log(
         `Successfully processed payment for session: ${sessionWithDetails.id}`,
       )
 
-      // Send email
       await emailHelper.sendEmail({
         to: payment.userEmail,
         subject: 'Payment Successful',
@@ -144,20 +120,16 @@ const handlePaymentSuccess = async (paymentIntent: any): Promise<void> => {
 
 
   try {
-    // STRICT LOOKUP: First try paymentIntentId
     let payment = await Payment.findOne({
       paymentIntentId: paymentIntent.id,
     }).session(mongoSession)
 
-    // FALLBACK LOOKUP: Use mapId and userId from metadata
     if (!payment) {
       const metadata = paymentIntent.metadata || {}
-      const mapId = metadata.mapId
       const userId = metadata.userId
       
-      if (mapId && userId) {
+      if (userId) {
         payment = await Payment.findOne({
-          mapId,
           userId,
           status: 'pending',
         })
@@ -175,38 +147,18 @@ const handlePaymentSuccess = async (paymentIntent: any): Promise<void> => {
       return
     }
 
-    // Check if already processed
     if (payment.status === 'succeeded') {
       await mongoSession.commitTransaction()
       return
     }
 
-    // Update payment
     payment.status = 'succeeded'
-    // Ensure we don't overwrite crucial metadata if it exists
     payment.metadata = { ...payment.metadata, ...paymentIntent }
     await payment.save({ session: mongoSession })
 
-    // Update User purchasedMaps if mapId exists
-    const mapId = payment.mapId || paymentIntent.metadata?.mapId
-    
-    if (mapId) {
-      const updatedUser = await User.findByIdAndUpdate(
-        payment.userId,
-        { 
-          $addToSet: { purchasedMaps: mapId }
-        },
-        { session: mongoSession, new: true }
-      )
-      
-      if (updatedUser) {
-        console.log(`Webhook: User purchasedMaps updated for User ID: ${payment.userId}`)
-      }
-    }
     await mongoSession.commitTransaction()
     console.log(`Successfully processed payment intent: ${paymentIntent.id}`)
 
-    // Send email
     if (payment.userEmail) {
       await emailHelper.sendEmail({
         to: payment.userEmail,
@@ -227,16 +179,9 @@ const handlePaymentFailure = async (paymentIntent: any): Promise<void> => {
   mongoSession.startTransaction()
 
   try {
-    let payment = await Payment.findOne({
+    const payment = await Payment.findOne({
       paymentIntentId: paymentIntent.id,
     }).session(mongoSession)
-
-    // Fallback for failure too
-    if (!payment && paymentIntent.metadata && paymentIntent.metadata.mapId) {
-       payment = await Payment.findOne({
-         mapId: paymentIntent.metadata.mapId
-       }).session(mongoSession)
-    }
 
     if (payment) {
       payment.status = 'failed'
@@ -271,8 +216,6 @@ export const WebhookService = {
           )
         } catch (err: any) {
           console.error('⚠️ Webhook signature verification failed:', err.message)
-          // Fallback to direct parsing for development if needed, 
-          // but in production this should probably throw
           event = JSON.parse(payload.body.toString())
         }
       } else {

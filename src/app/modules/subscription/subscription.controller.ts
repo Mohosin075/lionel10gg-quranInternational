@@ -33,22 +33,7 @@ const getPlanById = catchAsync(async (req: Request, res: Response) => {
   })
 })
 
-// Check trial eligibility
-const checkTrialEligibility = catchAsync(
-  async (req: Request, res: Response) => {
-    const user = req.user as JwtPayload
-    const userId = req.params.userId || user.authId?.toString()
 
-    const trialInfo = await subscriptionService.checkTrialEligibility(userId!)
-
-    sendResponse(res, {
-      statusCode: StatusCodes.OK,
-      success: true,
-      message: 'Trial eligibility checked successfully',
-      data: trialInfo,
-    })
-  },
-)
 
 // Create subscription
 const createSubscription = catchAsync(async (req: Request, res: Response) => {
@@ -397,7 +382,6 @@ export const SubscriptionController = {
   getPlanById,
 
   // User endpoints (require authentication)
-  checkTrialEligibility,
   createSubscription,
   getUserSubscription,
   updateSubscription,

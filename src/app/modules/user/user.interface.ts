@@ -74,9 +74,7 @@ export interface IUser {
   stripeCustomerId?: string
   subscriptionStatus?: string
   subscriptionTier?: string
-  trialUsed?: boolean
   subscriptionExpiresAt?: Date
-  purchasedMaps?: Types.ObjectId[]
   
   createdAt: Date
   updatedAt: Date

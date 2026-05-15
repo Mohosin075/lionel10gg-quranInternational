@@ -10,13 +10,12 @@ const config_1 = __importDefault(require("../../../config"));
 const ApiError_1 = __importDefault(require("../../../errors/ApiError"));
 const payment_model_1 = require("./payment.model");
 const emailHelper_1 = require("../../../helpers/emailHelper");
-const user_model_1 = require("../user/user.model");
 const stripe_1 = __importDefault(require("stripe"));
 const stripe = new stripe_1.default(config_1.default.stripe.stripeSecretKey, {
     apiVersion: '2026-04-22.dahlia',
 });
 const handleCheckoutSessionCompleted = async (sessionData) => {
-    var _a, _b;
+    var _a;
     try {
         console.log('🔔 Processing Checkout Session Completed:', sessionData.id);
         const sessionWithDetails = await stripe.checkout.sessions.retrieve(sessionData.id, {
@@ -36,7 +35,6 @@ const handleCheckoutSessionCompleted = async (sessionData) => {
         const mongoSession = await payment_model_1.Payment.startSession();
         mongoSession.startTransaction();
         try {
-            // Find and lock the payment document
             const payment = await payment_model_1.Payment.findOne({
                 $or: [
                     { paymentIntentId: lookupId },
@@ -47,29 +45,15 @@ const handleCheckoutSessionCompleted = async (sessionData) => {
             if (!payment) {
                 throw new Error(`Payment not found for session: ${sessionWithDetails.id}`);
             }
-            // Check if already processed to avoid duplicates
             if (payment.status === 'succeeded') {
                 await mongoSession.commitTransaction();
                 return;
             }
-            // Update payment
             payment.status = 'succeeded';
             payment.metadata = { ...payment.metadata, ...sessionWithDetails };
             await payment.save({ session: mongoSession });
-            // Update User purchasedMaps if mapId exists in metadata or payment
-            const mapId = payment.mapId || ((_b = sessionWithDetails.metadata) === null || _b === void 0 ? void 0 : _b.mapId);
-            console.log(`Webhook: Processing map purchase update for Map ID: ${mapId}`);
-            if (mapId) {
-                const updatedUser = await user_model_1.User.findByIdAndUpdate(payment.userId, {
-                    $addToSet: { purchasedMaps: mapId }
-                }, { session: mongoSession, new: true });
-                if (updatedUser) {
-                    console.log(`Webhook: User purchasedMaps updated for User ID: ${payment.userId}`);
-                }
-            }
             await mongoSession.commitTransaction();
             console.log(`Successfully processed payment for session: ${sessionWithDetails.id}`);
-            // Send email
             await emailHelper_1.emailHelper.sendEmail({
                 to: payment.userEmail,
                 subject: 'Payment Successful',
@@ -114,22 +98,17 @@ const handleCheckoutSessionExpired = async (session) => {
     }
 };
 const handlePaymentSuccess = async (paymentIntent) => {
-    var _a;
     const mongoSession = await payment_model_1.Payment.startSession();
     mongoSession.startTransaction();
     try {
-        // STRICT LOOKUP: First try paymentIntentId
         let payment = await payment_model_1.Payment.findOne({
             paymentIntentId: paymentIntent.id,
         }).session(mongoSession);
-        // FALLBACK LOOKUP: Use mapId and userId from metadata
         if (!payment) {
             const metadata = paymentIntent.metadata || {};
-            const mapId = metadata.mapId;
             const userId = metadata.userId;
-            if (mapId && userId) {
+            if (userId) {
                 payment = await payment_model_1.Payment.findOne({
-                    mapId,
                     userId,
                     status: 'pending',
                 })
@@ -144,29 +123,15 @@ const handlePaymentSuccess = async (paymentIntent) => {
             await mongoSession.commitTransaction();
             return;
         }
-        // Check if already processed
         if (payment.status === 'succeeded') {
             await mongoSession.commitTransaction();
             return;
         }
-        // Update payment
         payment.status = 'succeeded';
-        // Ensure we don't overwrite crucial metadata if it exists
         payment.metadata = { ...payment.metadata, ...paymentIntent };
         await payment.save({ session: mongoSession });
-        // Update User purchasedMaps if mapId exists
-        const mapId = payment.mapId || ((_a = paymentIntent.metadata) === null || _a === void 0 ? void 0 : _a.mapId);
-        if (mapId) {
-            const updatedUser = await user_model_1.User.findByIdAndUpdate(payment.userId, {
-                $addToSet: { purchasedMaps: mapId }
-            }, { session: mongoSession, new: true });
-            if (updatedUser) {
-                console.log(`Webhook: User purchasedMaps updated for User ID: ${payment.userId}`);
-            }
-        }
         await mongoSession.commitTransaction();
         console.log(`Successfully processed payment intent: ${paymentIntent.id}`);
-        // Send email
         if (payment.userEmail) {
             await emailHelper_1.emailHelper.sendEmail({
                 to: payment.userEmail,
@@ -190,12 +155,6 @@ const handlePaymentFailure = async (paymentIntent) => {
         let payment = await payment_model_1.Payment.findOne({
             paymentIntentId: paymentIntent.id,
         }).session(mongoSession);
-        // Fallback for failure too
-        if (!payment && paymentIntent.metadata && paymentIntent.metadata.mapId) {
-            payment = await payment_model_1.Payment.findOne({
-                mapId: paymentIntent.metadata.mapId
-            }).session(mongoSession);
-        }
         if (payment) {
             payment.status = 'failed';
             payment.metadata = { ...payment.metadata, ...paymentIntent };
@@ -224,8 +183,6 @@ exports.WebhookService = {
                 }
                 catch (err) {
                     console.error('⚠️ Webhook signature verification failed:', err.message);
-                    // Fallback to direct parsing for development if needed, 
-                    // but in production this should probably throw
                     event = JSON.parse(payload.body.toString());
                 }
             }

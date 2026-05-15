@@ -23,13 +23,6 @@ router.get(
 // User routes (require authentication)
 // Apply authentication middleware to all routes below
 
-router.get(
-  '/trial-eligibility/:userId?',
-  auth(USER_ROLES.ADMIN, USER_ROLES.USER, USER_ROLES.SUPER_ADMIN),
-  validateRequest(subscriptionValidation.checkTrialEligibility),
-  SubscriptionController.checkTrialEligibility,
-)
-
 router.post(
   '/create',
   auth(USER_ROLES.ADMIN, USER_ROLES.USER, USER_ROLES.SUPER_ADMIN),

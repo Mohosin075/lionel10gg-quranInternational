@@ -30,19 +30,6 @@ const getPlanById = (0, catchAsync_1.default)(async (req, res) => {
         data: plan,
     });
 });
-// Check trial eligibility
-const checkTrialEligibility = (0, catchAsync_1.default)(async (req, res) => {
-    var _a;
-    const user = req.user;
-    const userId = req.params.userId || ((_a = user.authId) === null || _a === void 0 ? void 0 : _a.toString());
-    const trialInfo = await subscription_service_1.subscriptionService.checkTrialEligibility(userId);
-    (0, sendResponse_1.default)(res, {
-        statusCode: http_status_codes_1.StatusCodes.OK,
-        success: true,
-        message: 'Trial eligibility checked successfully',
-        data: trialInfo,
-    });
-});
 // Create subscription
 const createSubscription = (0, catchAsync_1.default)(async (req, res) => {
     const user = req.user;
@@ -294,7 +281,6 @@ exports.SubscriptionController = {
     getAvailablePlans,
     getPlanById,
     // User endpoints (require authentication)
-    checkTrialEligibility,
     createSubscription,
     getUserSubscription,
     updateSubscription,

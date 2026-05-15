@@ -31,7 +31,6 @@ const subscriptionSchema = new Schema<ISubscription, SubscriptionModel>(
       enum: [
         'incomplete',
         'incomplete_expired',
-        'trialing',
         'active',
         'past_due',
         'canceled',
@@ -48,14 +47,6 @@ const subscriptionSchema = new Schema<ISubscription, SubscriptionModel>(
       type: Date,
       required: true,
     },
-    trialStart: {
-      type: Date,
-      default: null,
-    },
-    trialEnd: {
-      type: Date,
-      default: null,
-    },
     canceledAt: {
       type: Date,
       default: null,
@@ -67,10 +58,6 @@ const subscriptionSchema = new Schema<ISubscription, SubscriptionModel>(
     endedAt: {
       type: Date,
       default: null,
-    },
-    hasUsedTrial: {
-      type: Boolean,
-      default: false,
     },
     metadata: {
       type: Map,
@@ -147,7 +134,7 @@ subscriptionSchema.index({ userId: 1, status: 1 })
 subscriptionSchema.statics.findActiveByUserId = function (userId: string) {
   return this.findOne({
     userId,
-    status: { $in: ['active', 'trialing'] },
+    status: { $in: ['active'] },
   }).populate('planId')
 }
 

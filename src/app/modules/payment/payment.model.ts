@@ -3,15 +3,10 @@ import { IPayment, PaymentModel } from './payment.interface'
 
 const paymentSchema = new Schema<IPayment, PaymentModel>(
   {
-
     userId: {
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
-    },
-    mapId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Map',
     },
     userEmail: {
       type: String,
@@ -32,6 +27,12 @@ const paymentSchema = new Schema<IPayment, PaymentModel>(
       enum: ['stripe'],
       required: true,
       default: 'stripe',
+    },
+    paymentType: {
+      type: String,
+      enum: ['one_time', 'subscription'],
+      required: true,
+      default: 'one_time',
     },
     paymentIntentId: {
       type: String,

@@ -10,11 +10,11 @@ export interface IPaymentFilterables {
 export interface IPayment {
   _id: Types.ObjectId
   userId: Types.ObjectId
-  mapId?: Types.ObjectId
   userEmail: string
   amount: number
   currency: string
   paymentMethod: 'stripe' | 'paypal' | 'bank_transfer'
+  paymentType: 'one_time' | 'subscription'
   paymentIntentId: string
   status: 'pending' | 'succeeded' | 'failed' | 'refunded'
   refundAmount?: number

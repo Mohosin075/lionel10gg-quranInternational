@@ -48,7 +48,6 @@ const subscription_plan_model_1 = require("./subscription-plan.model");
 const stripe_service_1 = require("./stripe.service");
 const email_notification_service_1 = require("./email-notification.service");
 class SubscriptionService {
-    // Get all available subscription plans
     async getAvailablePlans() {
         try {
             const query = { isActive: true };
@@ -63,7 +62,6 @@ class SubscriptionService {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to fetch subscription plans');
         }
     }
-    // Get plan by ID
     async getPlanById(planId) {
         try {
             const plan = await subscription_plan_model_1.SubscriptionPlan.findById(planId);
@@ -79,46 +77,17 @@ class SubscriptionService {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to fetch subscription plan');
         }
     }
-    // Check trial eligibility
-    async checkTrialEligibility(userId) {
-        try {
-            const existingSubscription = await subscription_model_1.Subscription.findOne({
-                userId: new mongoose_1.Types.ObjectId(userId),
-                hasUsedTrial: true,
-            });
-            const isEligible = !existingSubscription;
-            return {
-                isEligible,
-                hasUsedTrial: !!existingSubscription,
-                trialDays: 10, // Default trial period
-                reason: isEligible
-                    ? undefined
-                    : 'User has already used their free trial',
-            };
-        }
-        catch (error) {
-            console.error('Error checking trial eligibility:', error);
-            throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to check trial eligibility');
-        }
-    }
-    // Create subscription
     async createSubscription(userId, request) {
         try {
-            // Validate user exists
             const user = await user_model_1.User.findById(userId).select('+email');
             if (!user) {
                 throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'User not found');
             }
-            // Validate plan exists
             const plan = await this.getPlanById(request.planId);
-            // Check if user already has an active subscription
             const existingSubscription = await subscription_model_1.Subscription.findActiveByUserId(userId);
             if (existingSubscription) {
                 throw new ApiError_1.default(http_status_codes_1.StatusCodes.CONFLICT, 'User already has an active subscription');
             }
-            // Check trial eligibility
-            const trialInfo = await this.checkTrialEligibility(userId);
-            // Create or get Stripe customer
             let stripeCustomerId;
             const existingCustomer = await subscription_model_1.Subscription.findOne({ userId }).select('stripeCustomerId');
             if (existingCustomer === null || existingCustomer === void 0 ? void 0 : existingCustomer.stripeCustomerId) {
@@ -128,27 +97,20 @@ class SubscriptionService {
                 const stripeCustomer = await stripe_service_1.stripeService.createCustomer(user.email, user.fullName || user.name, { userId: userId.toString() });
                 stripeCustomerId = stripeCustomer.id;
             }
-            // Attach payment method if provided
             if (request.paymentMethodId) {
                 await stripe_service_1.stripeService.attachPaymentMethod(request.paymentMethodId, stripeCustomerId);
                 await stripe_service_1.stripeService.setDefaultPaymentMethod(stripeCustomerId, request.paymentMethodId);
             }
             console.log('Metadata', userId, request.planId);
-            // Create Stripe subscription
             const stripeSubscription = await stripe_service_1.stripeService.createSubscription({
                 customerId: stripeCustomerId,
                 priceId: plan.stripePriceId,
-                trialPeriodDays: trialInfo.isEligible
-                    ? plan.trialPeriodDays
-                    : undefined,
                 paymentMethodId: request.paymentMethodId,
                 metadata: {
                     userId: userId.toString(),
                     planId: request.planId,
                 },
             });
-            // Create local subscription record
-            // In newer Stripe API versions (like 2025-08-27.basil), current_period_start/end are moved to items.data[0]
             const subscriptionItem = stripeSubscription.items.data[0];
             const currentPeriodStart = stripeSubscription.current_period_start ||
                 subscriptionItem.current_period_start;
@@ -167,34 +129,21 @@ class SubscriptionService {
                 currentPeriodEnd: currentPeriodEnd
                     ? new Date(currentPeriodEnd * 1000)
                     : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-                trialStart: stripeSubscription.trial_start
-                    ? new Date(stripeSubscription.trial_start * 1000)
-                    : null,
-                trialEnd: stripeSubscription.trial_end
-                    ? new Date(stripeSubscription.trial_end * 1000)
-                    : null,
-                hasUsedTrial: trialInfo.isEligible,
                 metadata: new Map(Object.entries(stripeSubscription.metadata || {})),
             });
             await subscription.save();
-            // Update user profile with subscription info
             await user_model_1.User.findByIdAndUpdate(userId, {
                 stripeCustomerId,
                 subscriptionStatus: stripeSubscription.status,
                 subscriptionTier: this.getSubscriptionTier(plan.name),
-                trialUsed: trialInfo.isEligible,
                 subscriptionExpiresAt: currentPeriodEnd
                     ? new Date(currentPeriodEnd * 1000)
                     : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
             });
-            // Removed Business model references as it doesn't exist in this project
-            // Send welcome email
-            await email_notification_service_1.emailNotificationService.sendSubscriptionWelcomeEmail(subscription, plan, !!stripeSubscription.trial_start);
-            // Get client secret for payment confirmation if needed
+            await email_notification_service_1.emailNotificationService.sendSubscriptionWelcomeEmail(subscription, plan, false);
             let clientSecret;
             console.log('--- Debugging Subscription ---');
             console.log('Subscription Status:', stripeSubscription.status);
-            // Try getting from latest invoice's payment intent
             if (stripeSubscription.latest_invoice &&
                 typeof stripeSubscription.latest_invoice === 'object') {
                 const invoice = stripeSubscription.latest_invoice;
@@ -206,20 +155,7 @@ class SubscriptionService {
                 }
                 else if (invoice.payment_intent &&
                     typeof invoice.payment_intent === 'string') {
-                    // If it's a string, it means it wasn't expanded properly
                     console.log('Payment Intent found as string, but not expanded:', invoice.payment_intent);
-                }
-            }
-            // If still undefined, try setup_intent (common for free trials or setup flow)
-            if (!clientSecret && stripeSubscription.pending_setup_intent) {
-                if (typeof stripeSubscription.pending_setup_intent === 'object') {
-                    clientSecret =
-                        stripeSubscription.pending_setup_intent.client_secret ||
-                            undefined;
-                    console.log('Client Secret found in pending_setup_intent');
-                }
-                else {
-                    console.log('Pending Setup Intent found as string, but not expanded:', stripeSubscription.pending_setup_intent);
                 }
             }
             console.log('Final clientSecret:', clientSecret);
@@ -237,7 +173,6 @@ class SubscriptionService {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to create subscription');
         }
     }
-    // Get user's current subscription
     async getUserSubscription(userId) {
         try {
             const subscription = await subscription_model_1.Subscription.findActiveByUserId(userId);
@@ -248,7 +183,6 @@ class SubscriptionService {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to fetch subscription');
         }
     }
-    // Admin: Get all subscriptions with filters and pagination
     async getAllSubscriptions(query) {
         try {
             const result = await subscription_model_1.Subscription.find().populate(['userId', 'planId']);
@@ -268,10 +202,8 @@ class SubscriptionService {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to fetch all subscriptions');
         }
     }
-    // Update subscription (change plan)
     async updateSubscription(userId, subscriptionId, request) {
         try {
-            // Find existing subscription
             const subscription = await subscription_model_1.Subscription.findOne({
                 _id: subscriptionId,
                 userId: new mongoose_1.Types.ObjectId(userId),
@@ -280,33 +212,27 @@ class SubscriptionService {
                 throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Subscription not found');
             }
             const updateParams = {};
-            // Handle plan change
             if (request.planId) {
                 const newPlan = await this.getPlanById(request.planId);
-                // Get current Stripe subscription to find subscription item ID
                 const stripeSubscription = await stripe_service_1.stripeService.getSubscription(subscription.stripeSubscriptionId);
                 const subscriptionItemId = stripeSubscription.items.data[0].id;
-                // Update Stripe subscription with correct item ID
                 await stripe_service_1.stripeService.updateSubscription(subscription.stripeSubscriptionId, {
                     items: [
                         {
-                            id: subscriptionItemId, // Use subscription item ID, not subscription ID
+                            id: subscriptionItemId,
                             price: newPlan.stripePriceId,
                         },
                     ],
-                    proration_behavior: 'create_prorations', // This handles automatic proration
+                    proration_behavior: 'create_prorations',
                 });
                 updateParams.planId = new mongoose_1.Types.ObjectId(request.planId);
                 updateParams.stripePriceId = newPlan.stripePriceId;
-                // Update user profile with new subscription tier
                 await user_model_1.User.findByIdAndUpdate(userId, {
                     subscriptionTier: this.getSubscriptionTier(newPlan.name),
                 });
-                // Send plan change notification email
-                const { emailNotificationService } = await Promise.resolve().then(() => __importStar(require('./email-notification.service')));
-                await emailNotificationService.sendPlanChangeEmail(subscription, newPlan, stripeSubscription.items.data[0].price);
+                const { emailNotificationService: emailService } = await Promise.resolve().then(() => __importStar(require('./email-notification.service')));
+                await emailService.sendPlanChangeEmail(subscription, newPlan, stripeSubscription.items.data[0].price);
             }
-            // Handle cancellation
             if (request.cancelAtPeriodEnd !== undefined) {
                 await stripe_service_1.stripeService.updateSubscription(subscription.stripeSubscriptionId, {
                     cancel_at_period_end: request.cancelAtPeriodEnd,
@@ -316,7 +242,6 @@ class SubscriptionService {
                     updateParams.canceledAt = new Date();
                 }
             }
-            // Update local subscription
             const updatedSubscription = await subscription_model_1.Subscription.findByIdAndUpdate(subscriptionId, updateParams, { new: true }).populate(['planId']);
             console.log(`Subscription updated: ${subscriptionId}`);
             return updatedSubscription;
@@ -328,7 +253,6 @@ class SubscriptionService {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to update subscription');
         }
     }
-    // Cancel subscription
     async cancelSubscription(userId, subscriptionId, cancelAtPeriodEnd = true) {
         try {
             const subscription = await subscription_model_1.Subscription.findOne({
@@ -338,9 +262,7 @@ class SubscriptionService {
             if (!subscription) {
                 throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Subscription not found');
             }
-            // Cancel in Stripe
             await stripe_service_1.stripeService.cancelSubscription(subscription.stripeSubscriptionId, cancelAtPeriodEnd);
-            // Update local subscription
             const updateData = {
                 cancelAtPeriodEnd,
                 canceledAt: new Date(),
@@ -348,11 +270,9 @@ class SubscriptionService {
             if (!cancelAtPeriodEnd) {
                 updateData.status = 'canceled';
                 updateData.endedAt = new Date();
-                // Update user profile status
                 await user_model_1.User.findByIdAndUpdate(userId, {
                     subscriptionStatus: 'canceled',
                 });
-                // Removed Business model references
             }
             const updatedSubscription = await subscription_model_1.Subscription.findByIdAndUpdate(subscriptionId, updateData, { new: true }).populate(['planId']);
             console.log(`Subscription canceled: ${subscriptionId}`);
@@ -365,7 +285,6 @@ class SubscriptionService {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to cancel subscription');
         }
     }
-    // Reactivate subscription
     async reactivateSubscription(userId, subscriptionId) {
         try {
             const subscription = await subscription_model_1.Subscription.findOne({
@@ -381,19 +300,15 @@ class SubscriptionService {
             if (!subscription.cancelAtPeriodEnd) {
                 throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Subscription is not set to cancel and is already active.');
             }
-            // Reactivate in Stripe
             await stripe_service_1.stripeService.reactivateSubscription(subscription.stripeSubscriptionId);
-            // Update local subscription
             const updatedSubscription = await subscription_model_1.Subscription.findByIdAndUpdate(subscriptionId, {
                 cancelAtPeriodEnd: false,
                 canceledAt: null,
                 resumedAt: new Date(),
             }, { new: true }).populate(['planId']);
-            // Removed Business model references
-            // Send reactivation email
             const plan = updatedSubscription === null || updatedSubscription === void 0 ? void 0 : updatedSubscription.planId;
             if (plan) {
-                await email_notification_service_1.emailNotificationService.sendSubscriptionWelcomeEmail(updatedSubscription, plan, updatedSubscription.status === 'trialing');
+                await email_notification_service_1.emailNotificationService.sendSubscriptionWelcomeEmail(updatedSubscription, plan, false);
             }
             console.log(`Subscription reactivated: ${subscriptionId}`);
             return updatedSubscription;
@@ -405,12 +320,11 @@ class SubscriptionService {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to reactivate subscription');
         }
     }
-    // Get subscription status
     async getSubscriptionStatus(userId) {
         try {
             const subscription = await subscription_model_1.Subscription.findOne({
                 userId: new mongoose_1.Types.ObjectId(userId),
-                status: { $in: ['active', 'trialing'] },
+                status: { $in: ['active'] },
             }).populate('planId');
             if (!subscription) {
                 return {
@@ -424,23 +338,20 @@ class SubscriptionService {
             const now = new Date();
             const endDate = subscription.currentPeriodEnd;
             const daysUntilExpiry = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-            // Ensure planId is populated, if not fetch it separately
             let currentPlan;
             if (subscription.planId &&
                 typeof subscription.planId === 'object' &&
                 'name' in subscription.planId &&
                 'description' in subscription.planId &&
                 'price' in subscription.planId) {
-                // planId is properly populated with plan data
                 currentPlan = subscription.planId;
             }
             else {
-                // Fallback: fetch the plan separately if not populated
                 currentPlan = await this.getPlanById(subscription.planId.toString());
             }
             return {
-                isActive: ['active', 'trialing'].includes(subscription.status),
-                isTrialing: subscription.status === 'trialing',
+                isActive: ['active'].includes(subscription.status),
+                isTrialing: false,
                 isPastDue: subscription.status === 'past_due',
                 isCanceled: subscription.status === 'canceled',
                 daysUntilExpiry: Math.max(0, daysUntilExpiry),
@@ -452,7 +363,6 @@ class SubscriptionService {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to get subscription status');
         }
     }
-    // Create checkout session
     async createCheckoutSession(userId, planId, successUrl, cancelUrl) {
         try {
             const user = await user_model_1.User.findById(userId).select('+email');
@@ -461,8 +371,6 @@ class SubscriptionService {
                 throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'User not found');
             }
             const plan = await this.getPlanById(planId);
-            const trialInfo = await this.checkTrialEligibility(userId);
-            // Create or get Stripe customer
             let stripeCustomerId;
             const existingCustomer = await subscription_model_1.Subscription.findOne({ userId }).select('stripeCustomerId');
             if (existingCustomer === null || existingCustomer === void 0 ? void 0 : existingCustomer.stripeCustomerId) {
@@ -477,9 +385,6 @@ class SubscriptionService {
                 priceId: plan.stripePriceId,
                 successUrl,
                 cancelUrl,
-                trialPeriodDays: trialInfo.isEligible
-                    ? plan.trialPeriodDays
-                    : undefined,
                 metadata: {
                     userId: userId.toString(),
                     planId,
@@ -497,7 +402,6 @@ class SubscriptionService {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to create checkout session');
         }
     }
-    // Admin: Create subscription plan
     async createSubscriptionPlan(planData) {
         var _a, _b;
         try {
@@ -509,7 +413,6 @@ class SubscriptionService {
             }
             const maxPhotos = (_a = planData.maxPhotos) !== null && _a !== void 0 ? _a : 1;
             const priority = (_b = planData.priority) !== null && _b !== void 0 ? _b : 0;
-            // Create Stripe product
             const stripeProduct = await stripe_service_1.stripeService.createProduct({
                 name: planData.name,
                 description: planData.description,
@@ -517,10 +420,9 @@ class SubscriptionService {
                     maxPhotos: maxPhotos.toString(),
                 },
             });
-            // Create Stripe price
             const stripePrice = await stripe_service_1.stripeService.createPrice({
                 productId: stripeProduct.id,
-                unitAmount: planData.price * 100, // Convert to cents
+                unitAmount: planData.price * 100,
                 currency: planData.currency,
                 interval: planData.interval,
                 intervalCount: planData.intervalCount,
@@ -528,7 +430,6 @@ class SubscriptionService {
                     planName: planData.name,
                 },
             });
-            // Create local plan
             const plan = new subscription_plan_model_1.SubscriptionPlan({
                 ...planData,
                 maxPhotos,
@@ -547,21 +448,18 @@ class SubscriptionService {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to create subscription plan');
         }
     }
-    // Admin: Update subscription plan
     async updateSubscriptionPlan(planId, updateData) {
         try {
             const plan = await subscription_plan_model_1.SubscriptionPlan.findById(planId);
             if (!plan) {
                 throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Subscription plan not found');
             }
-            // Update Stripe product if name or description changed
             if (updateData.name || updateData.description) {
                 await stripe_service_1.stripeService.updateProduct(plan.stripeProductId, {
                     name: updateData.name || plan.name,
                     description: updateData.description || plan.description,
                 });
             }
-            // Create new Stripe price if price changed
             if (updateData.price && updateData.price !== plan.price) {
                 const newStripePrice = await stripe_service_1.stripeService.createPrice({
                     productId: plan.stripeProductId,
@@ -570,7 +468,6 @@ class SubscriptionService {
                     interval: updateData.interval || plan.interval,
                     intervalCount: updateData.intervalCount || plan.intervalCount,
                 });
-                // Archive old price
                 await stripe_service_1.stripeService.archivePrice(plan.stripePriceId);
                 updateData.stripePriceId = newStripePrice.id;
             }
@@ -585,22 +482,19 @@ class SubscriptionService {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to update subscription plan');
         }
     }
-    // Admin: Delete subscription plan (soft delete)
     async deleteSubscriptionPlan(planId) {
         try {
             const plan = await subscription_plan_model_1.SubscriptionPlan.findById(planId);
             if (!plan) {
                 throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Subscription plan not found');
             }
-            // Do not allow deleting plans that are currently in active use
             const activeSubscriptions = await subscription_model_1.Subscription.countDocuments({
                 planId: new mongoose_1.Types.ObjectId(planId),
-                status: { $in: ['active', 'trialing'] },
+                status: { $in: ['active'] },
             });
             if (activeSubscriptions > 0) {
                 throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Cannot delete a plan with active subscriptions');
             }
-            // Stripe resources are deactivated instead of permanently deleted.
             await stripe_service_1.stripeService.archivePrice(plan.stripePriceId);
             await stripe_service_1.stripeService.updateProduct(plan.stripeProductId, { active: false });
             const deletedPlan = await subscription_plan_model_1.SubscriptionPlan.findByIdAndUpdate(planId, { isActive: false }, { new: true });
@@ -613,7 +507,6 @@ class SubscriptionService {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to delete subscription plan');
         }
     }
-    // Get subscription analytics
     async getSubscriptionAnalytics(filters) {
         var _a;
         try {
@@ -639,12 +532,10 @@ class SubscriptionService {
                         totalSubscriptions: { $sum: 1 },
                         activeSubscriptions: {
                             $sum: {
-                                $cond: [{ $in: ['$status', ['active', 'trialing']] }, 1, 0],
+                                $cond: [{ $in: ['$status', ['active']] }, 1, 0],
                             },
                         },
-                        trialingSubscriptions: {
-                            $sum: { $cond: [{ $eq: ['$status', 'trialing'] }, 1, 0] },
-                        },
+                        trialingSubscriptions: { $sum: 0 },
                         canceledSubscriptions: {
                             $sum: { $cond: [{ $eq: ['$status', 'canceled'] }, 1, 0] },
                         },
@@ -654,11 +545,10 @@ class SubscriptionService {
                     },
                 },
             ]);
-            // Calculate MRR (Monthly Recurring Revenue)
             const mrrData = await subscription_model_1.Subscription.aggregate([
                 {
                     $match: {
-                        status: { $in: ['active', 'trialing'] },
+                        status: { $in: ['active'] },
                         ...matchStage,
                     },
                 },
@@ -679,7 +569,7 @@ class SubscriptionService {
                                 $cond: [
                                     { $eq: ['$plan.interval', 'month'] },
                                     '$plan.price',
-                                    { $divide: ['$plan.price', 12] }, // Convert yearly to monthly
+                                    { $divide: ['$plan.price', 12] },
                                 ],
                             },
                         },
@@ -706,19 +596,16 @@ class SubscriptionService {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to get subscription analytics');
         }
     }
-    // Retry failed payments
     async retryFailedPayment(subscriptionId) {
         try {
             const subscription = await subscription_model_1.Subscription.findById(subscriptionId);
             if (!subscription) {
                 throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Subscription not found');
             }
-            // Get latest invoice from Stripe
             const stripeSubscription = await stripe_service_1.stripeService.getSubscriptionExpanded(subscription.stripeSubscriptionId);
             if (stripeSubscription.latest_invoice &&
                 typeof stripeSubscription.latest_invoice === 'object') {
                 const invoice = stripeSubscription.latest_invoice;
-                // Retry payment on the invoice
                 await stripe_service_1.stripeService.retryInvoicePayment(invoice.id);
                 console.log(`Payment retry initiated for subscription: ${subscriptionId}`);
             }
@@ -728,7 +615,6 @@ class SubscriptionService {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to retry payment');
         }
     }
-    // Pause subscription (for temporary suspension)
     async pauseSubscription(userId, subscriptionId) {
         try {
             const subscription = await subscription_model_1.Subscription.findOne({
@@ -738,9 +624,7 @@ class SubscriptionService {
             if (!subscription) {
                 throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Subscription not found');
             }
-            // Pause in Stripe
             await stripe_service_1.stripeService.pauseSubscription(subscription.stripeSubscriptionId);
-            // Update local subscription
             const updatedSubscription = await subscription_model_1.Subscription.findByIdAndUpdate(subscriptionId, { status: 'paused' }, { new: true }).populate(['planId']);
             console.log(`Subscription paused: ${subscriptionId}`);
             return updatedSubscription;
@@ -752,7 +636,6 @@ class SubscriptionService {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to pause subscription');
         }
     }
-    // Resume paused subscription
     async resumeSubscription(userId, subscriptionId) {
         try {
             const subscription = await subscription_model_1.Subscription.findOne({
@@ -762,9 +645,7 @@ class SubscriptionService {
             if (!subscription) {
                 throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Subscription not found');
             }
-            // Resume in Stripe
             await stripe_service_1.stripeService.resumeSubscription(subscription.stripeSubscriptionId);
-            // Update local subscription
             const updatedSubscription = await subscription_model_1.Subscription.findByIdAndUpdate(subscriptionId, { status: 'active' }, { new: true }).populate(['planId']);
             console.log(`Subscription resumed: ${subscriptionId}`);
             return updatedSubscription;
@@ -776,10 +657,8 @@ class SubscriptionService {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to resume subscription');
         }
     }
-    // Create billing portal session for payment method management
     async createBillingPortalSession(userId, returnUrl) {
         try {
-            // Get user to find their Stripe customer ID
             const user = await user_model_1.User.findById(userId);
             if (!user) {
                 throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'User not found');
@@ -788,7 +667,6 @@ class SubscriptionService {
             if (!userWithStripe.stripeCustomerId) {
                 throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'User does not have a Stripe customer account');
             }
-            // Create billing portal session
             const session = await stripe_service_1.stripeService.createPortalSession(userWithStripe.stripeCustomerId, returnUrl);
             console.log(`Billing portal session created for user: ${userId}`);
             return { url: session.url };
@@ -800,7 +678,6 @@ class SubscriptionService {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to create billing portal session');
         }
     }
-    // Helper method to determine subscription tier
     getSubscriptionTier(planName) {
         const name = planName.toLowerCase();
         if (name.includes('enterprise') || name.includes('pro')) {

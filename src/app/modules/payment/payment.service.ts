@@ -45,23 +45,21 @@ const createCheckoutSession = async (
       customer_email: user.email,
       metadata: {
         userId: user.authId.toString(),
-        mapId: payload.mapId.toString(),
         ...payload.metadata
       },
     })
 
     await Payment.create({
       userId: user.authId,
-      mapId: payload.mapId,
       userEmail: user.email,
       amount: payload.amount,
       currency: payload.currency || 'EUR',
       paymentMethod: 'stripe',
+      paymentType: payload.paymentType || 'one_time',
       paymentIntentId: session.payment_intent || session.id,
       status: 'pending',
       metadata: {
         checkoutSessionId: session.id,
-        mapId: payload.mapId.toString(),
         ...payload.metadata
       },
     })
@@ -156,23 +154,21 @@ const createPaymentIntent = async (
       metadata: {
         userId: user.authId.toString(),
         userEmail: user.email,
-        mapId: payload.mapId.toString(),
         ...payload.metadata
       },
     })
 
     await Payment.create({
       userId: user.authId,
-      mapId: payload.mapId,
       userEmail: user.email,
       amount: payload.amount,
       currency: (payload.currency || 'EUR').toUpperCase(),
       paymentMethod: 'stripe',
+      paymentType: payload.paymentType || 'one_time',
       paymentIntentId: paymentIntent.id,
       status: 'pending',
       metadata: {
         userId: user.authId.toString(),
-        mapId: payload.mapId.toString(),
         ...payload.metadata
       },
     })

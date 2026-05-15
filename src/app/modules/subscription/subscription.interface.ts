@@ -10,7 +10,6 @@ export interface ISubscriptionPlan {
   currency: string
   interval: 'month' | 'year'
   intervalCount: number
-  trialPeriodDays: number
   features: string[]
   maxPhotos: number
   isActive: boolean
@@ -34,7 +33,6 @@ export interface ISubscription {
   status:
     | 'incomplete'
     | 'incomplete_expired'
-    | 'trialing'
     | 'active'
     | 'past_due'
     | 'canceled'
@@ -42,15 +40,12 @@ export interface ISubscription {
     | 'paused'
   currentPeriodStart: Date
   currentPeriodEnd: Date
-  trialStart?: Date | null
-  trialEnd?: Date | null
   canceledAt?: Date | null
   pausedAt?: Date | null
   resumedAt?: Date | null
   lastSyncedAt?: Date | null
   cancelAtPeriodEnd: boolean
   endedAt?: Date | null
-  hasUsedTrial: boolean
   metadata: Map<string, string>
   lastPaymentDate?: Date | null
   nextPaymentDate?: Date | null
