@@ -1,8 +1,14 @@
 import axios from 'axios';
+import { translate } from '@vitalets/google-translate-api';
 import { Dua } from './dua.model';
 import { IDua } from './dua.interface';
 
 const getAllDuas = async (lang: string = 'en', category?: string) => {
+  // If language is not English, use the on-demand sync logic
+  if (lang !== 'en') {
+    return await getOrSyncDuasByLanguage(lang, category);
+  }
+
   const query: Record<string, unknown> = { lang };
   if (category) {
     query.category = category;
@@ -42,7 +48,8 @@ const getSyncData = async (lang: string = 'en', fromVersion: number = 0) => {
     .lean();
 };
 
-const syncFromExternalSource = async () => {
+// 1. মূল ইংরেজি ডাটা সিঙ্ক
+const syncEnglishDuas = async () => {
   const url =
     'https://raw.githubusercontent.com/wafaaelmaandy/Hisn-Muslim-Json/master/husn_en.json';
   const response = await axios.get(url);
@@ -60,13 +67,8 @@ const syncFromExternalSource = async () => {
 
         // Basic validation
         if (!textItem.ARABIC_TEXT || !textItem.TRANSLATED_TEXT) {
-          console.warn(
-            `Skipping Dua ${externalId} due to missing Arabic text or translation.`
-          );
           continue;
         }
-
-        const existingDua = await Dua.findOne({ externalId, lang: 'en' });
 
         const duaData: Partial<IDua> = {
           externalId,
@@ -76,26 +78,19 @@ const syncFromExternalSource = async () => {
           transliteration: textItem.LANGUAGE_ARABIC_TRANSLATED_TEXT,
           category: categoryTitle,
           audio: textItem.AUDIO,
-          repeat: textItem.REPEAT,
+          repeat: textItem.REPEAT || 1,
           lang: 'en',
         };
 
-        if (existingDua) {
-          // Check if content changed (simple check)
-          const isChanged =
-            existingDua.arabic !== duaData.arabic ||
-            existingDua.translation !== duaData.translation ||
-            existingDua.category !== duaData.category;
+        const result = await Dua.findOneAndUpdate(
+          { externalId, lang: 'en' },
+          { $set: duaData },
+          { upsert: true, new: false }
+        );
 
-          if (isChanged) {
-            await Dua.updateOne(
-              { _id: existingDua._id },
-              { ...duaData, version: existingDua.version + 1 }
-            );
-            updatedCount++;
-          }
+        if (result) {
+          updatedCount++;
         } else {
-          await Dua.create({ ...duaData, version: 1 });
           createdCount++;
         }
       } catch (error) {
@@ -107,6 +102,81 @@ const syncFromExternalSource = async () => {
   return { createdCount, updatedCount };
 };
 
+// 2. ডাইনামিক ল্যাঙ্গুয়েজ সিঙ্ক (অফলাইন সাপোর্ট নিশ্চিত করতে)
+const getOrSyncDuasByLanguage = async (targetLang: string, category?: string) => {
+  // ক) ডাটাবেজে চেক করুন এই ভাষার ডাটা আছে কি না
+  const count = await Dua.countDocuments({ lang: targetLang });
+
+  if (count > 0) {
+    const query: Record<string, unknown> = { lang: targetLang };
+    if (category) {
+      query.category = category;
+    }
+    return await Dua.find(query).lean();
+  }
+
+  // খ) ডাটা না থাকলে ইংরেজি ডাটা থেকে অনুবাদ শুরু করুন
+  let englishDuas = await Dua.find({ lang: 'en' }).lean();
+
+  if (englishDuas.length === 0) {
+    await syncEnglishDuas();
+    englishDuas = await Dua.find({ lang: 'en' }).lean();
+  }
+
+  console.log(`Translating all duas to: ${targetLang}...`);
+
+  // গ) অনুবাদ লজিক (Batch processing for rate limit safety)
+  const BATCH_SIZE = 20;
+  const results: IDua[] = [];
+
+  for (let i = 0; i < englishDuas.length; i += BATCH_SIZE) {
+    const batch = englishDuas.slice(i, i + BATCH_SIZE);
+    const translatedBatch = await Promise.all(
+      batch.map(async (dua) => {
+        try {
+          // টাইটেল এবং ট্রান্সলেশন অনুবাদ করা হচ্ছে
+          const translatedTitle = await translate(dua.title, { to: targetLang });
+          const translatedText = await translate(dua.translation, {
+            to: targetLang,
+          });
+
+          return {
+            externalId: dua.externalId,
+            title: translatedTitle.text,
+            arabic: dua.arabic,
+            translation: translatedText.text,
+            transliteration: dua.transliteration,
+            category: translatedTitle.text,
+            audio: dua.audio,
+            repeat: dua.repeat,
+            lang: targetLang,
+            version: 1,
+          } as IDua;
+        } catch (err) {
+          console.error(`Translation failed for ${dua.externalId}:`, err);
+          return null;
+        }
+      })
+    );
+
+    const validDuas = translatedBatch.filter((d) => d !== null) as IDua[];
+    if (validDuas.length > 0) {
+      await Dua.insertMany(validDuas);
+      results.push(...validDuas);
+    }
+
+    // Delay between batches to avoid rate limits
+    if (i + BATCH_SIZE < englishDuas.length) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+
+  if (category) {
+    return results.filter((d) => d.category === category);
+  }
+  return results;
+};
+
 export const DuaService = {
   getAllDuas,
   getDuaById,
@@ -114,5 +184,6 @@ export const DuaService = {
   getVersion,
   checkSyncMetadata,
   getSyncData,
-  syncFromExternalSource,
+  syncEnglishDuas,
+  getOrSyncDuasByLanguage,
 };

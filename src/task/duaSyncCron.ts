@@ -5,7 +5,7 @@ import { DuaService } from '../app/modules/dua/dua.service';
 cron.schedule('0 3 * * *', async () => {
   console.log('Starting daily Dua synchronization...');
   try {
-    const result = await DuaService.syncFromExternalSource();
+    const result = await DuaService.syncEnglishDuas();
     console.log(
       `Dua synchronization completed. Created: ${result.createdCount}, Updated: ${result.updatedCount}`
     );

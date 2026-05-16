@@ -90,7 +90,7 @@ const downloadSync = catchAsync(async (req: Request, res: Response) => {
 });
 
 const syncDuas = catchAsync(async (req: Request, res: Response) => {
-  const result = await DuaService.syncFromExternalSource();
+  const result = await DuaService.syncEnglishDuas();
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,
