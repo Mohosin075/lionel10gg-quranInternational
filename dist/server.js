@@ -11,6 +11,7 @@ const config_1 = __importDefault(require("./config"));
 const socket_io_1 = require("socket.io");
 const user_service_1 = require("./app/modules/user/user.service");
 const socketHelper_1 = require("./helpers/socketHelper");
+require("./task/duaSyncCron");
 // Uncaught exceptions
 process.on('uncaughtException', error => {
     console.error('🔥 UncaughtException Detected:', error);

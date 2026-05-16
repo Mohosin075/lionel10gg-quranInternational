@@ -1,5 +1,37 @@
 import { ISurahMetadata } from './quran.interface';
 
+export const AUDIO_TRANSLATIONS = [
+  'english_rwwad',
+  'french_rashid',
+  'portuguese_nasr',
+  'dutch_center',
+  'azeri_musayev',
+  'tagalog_rwwad',
+  'chinese_suliman',
+  'vietnamese_rwwad',
+  'persian_ih',
+  'assamese_rafeeq',
+  'sinhalese_mahir',
+  'somali_yacob'
+] as const;
+
+export const LANGUAGE_TO_AUDIO_KEY: Record<string, typeof AUDIO_TRANSLATIONS[number]> = {
+  'en': 'english_rwwad',
+  'fr': 'french_rashid',
+  'pt': 'portuguese_nasr',
+  'nl': 'dutch_center',
+  'az': 'azeri_musayev',
+  'tl': 'tagalog_rwwad',
+  'zh': 'chinese_suliman',
+  'vi': 'vietnamese_rwwad',
+  'fa': 'persian_ih',
+  'as': 'assamese_rafeeq',
+  'si': 'sinhalese_mahir',
+  'so': 'somali_yacob'
+};
+
+export const DEFAULT_AUDIO_KEY = 'english_rwwad';
+
 export const SURAH_LIST: ISurahMetadata[] = [
   { number: 1, name: "سُورَةُ ٱلْفَاتِحَةِ", englishName: "Al-Faatiha", englishNameTranslation: "The Opening", numberOfAyahs: 7, revelationType: "Meccan" },
   { number: 2, name: "سُورَةُ البَقَرَةِ", englishName: "Al-Baqara", englishNameTranslation: "The Cow", numberOfAyahs: 286, revelationType: "Medinan" },

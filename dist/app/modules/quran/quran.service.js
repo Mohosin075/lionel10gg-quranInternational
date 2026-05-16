@@ -158,13 +158,27 @@ const getSurahDetail = async (surahNumber, translationKey = 'english_saheeh', la
         await (0, quran_worker_1.ingestSurahTranslations)(surahNumber, translationKey, targetLang);
         ayahsData = await getSurahTranslations(surahNumber, translationKey);
     }
+    // Determine audio key
+    let audioKey = quran_constants_1.DEFAULT_AUDIO_KEY;
+    // First check if translationKey is in available audio translations
+    if (quran_constants_1.AUDIO_TRANSLATIONS.includes(translationKey)) {
+        audioKey = translationKey;
+    }
+    // Then check if lang (or targetLang) has a mapping
+    else if (lang && quran_constants_1.LANGUAGE_TO_AUDIO_KEY[lang]) {
+        audioKey = quran_constants_1.LANGUAGE_TO_AUDIO_KEY[lang];
+    }
+    // Also check language from translation if available
+    else {
+        const langInfo = await quran_model_1.Language.findOne({ key: translationKey });
+        if (langInfo && quran_constants_1.LANGUAGE_TO_AUDIO_KEY[langInfo.language]) {
+            audioKey = quran_constants_1.LANGUAGE_TO_AUDIO_KEY[langInfo.language];
+        }
+    }
     // 4. Format response
     const ayahs = ayahsData.map((item) => {
         const s = surahNumber.toString().padStart(3, '0');
         const a = item.ayah.toString().padStart(3, '0');
-        // For audio, we use a stable source (QuranEnc Arabic) for all translations
-        // unless it's specifically an Arabic edition.
-        const audioKey = isArabicOnly ? 'english_saheeh' : (translationKey.startsWith('qcom:') ? 'english_saheeh' : translationKey);
         return {
             number: item.ayah,
             text: item.arabicText || '',
@@ -200,7 +214,23 @@ const getAyah = async (surah, ayah, translationKey = 'english_saheeh', lang) => 
     if (result) {
         const s = surah.toString().padStart(3, '0');
         const a = ayah.toString().padStart(3, '0');
-        const audioKey = translationKey.startsWith('qcom:') ? 'english_saheeh' : translationKey;
+        // Determine audio key
+        let audioKey = quran_constants_1.DEFAULT_AUDIO_KEY;
+        // First check if translationKey is in available audio translations
+        if (quran_constants_1.AUDIO_TRANSLATIONS.includes(translationKey)) {
+            audioKey = translationKey;
+        }
+        // Then check if lang (or targetLang) has a mapping
+        else if (lang && quran_constants_1.LANGUAGE_TO_AUDIO_KEY[lang]) {
+            audioKey = quran_constants_1.LANGUAGE_TO_AUDIO_KEY[lang];
+        }
+        // Also check language from translation if available
+        else {
+            const langInfo = await quran_model_1.Language.findOne({ key: translationKey });
+            if (langInfo && quran_constants_1.LANGUAGE_TO_AUDIO_KEY[langInfo.language]) {
+                audioKey = quran_constants_1.LANGUAGE_TO_AUDIO_KEY[langInfo.language];
+            }
+        }
         result.audio = `https://d.quranenc.com/data/audio/${audioKey}/${s}${a}.mp3`;
     }
     return result;

@@ -14,5 +14,6 @@ router.get('/check-sync', dua_controller_1.DuaController.checkSync);
 router.get('/download-sync', dua_controller_1.DuaController.downloadSync);
 router.get('/', dua_controller_1.DuaController.getAllDuas);
 router.get('/:id', dua_controller_1.DuaController.getDuaById);
+router.post('/sync', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), dua_controller_1.DuaController.syncDuas);
 router.post('/', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), dua_controller_1.DuaController.createDua);
 exports.DuaRoutes = router;

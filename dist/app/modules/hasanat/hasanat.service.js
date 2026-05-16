@@ -12,7 +12,11 @@ const collectHasanat = async (userId, amount) => {
     if (!user) {
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'User not found');
     }
-    user.totalHasanat = (user.totalHasanat || 0) + amount;
+    const hasanatAmount = Number(amount);
+    if (isNaN(hasanatAmount)) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Invalid amount');
+    }
+    user.totalHasanat = (user.totalHasanat || 0) + hasanatAmount;
     await user.save();
     return user;
 };
