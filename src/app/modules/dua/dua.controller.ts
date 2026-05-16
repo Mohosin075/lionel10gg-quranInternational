@@ -89,6 +89,17 @@ const downloadSync = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const syncDuas = catchAsync(async (req: Request, res: Response) => {
+  const result = await DuaService.syncFromExternalSource();
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Duas synchronized successfully',
+    data: result,
+  });
+});
+
 export const DuaController = {
   getAllDuas,
   getDuaById,
@@ -96,4 +107,5 @@ export const DuaController = {
   getVersion,
   checkSync,
   downloadSync,
+  syncDuas,
 };

@@ -152,7 +152,7 @@ const handlePaymentFailure = async (paymentIntent) => {
     const mongoSession = await payment_model_1.Payment.startSession();
     mongoSession.startTransaction();
     try {
-        let payment = await payment_model_1.Payment.findOne({
+        const payment = await payment_model_1.Payment.findOne({
             paymentIntentId: paymentIntent.id,
         }).session(mongoSession);
         if (payment) {
