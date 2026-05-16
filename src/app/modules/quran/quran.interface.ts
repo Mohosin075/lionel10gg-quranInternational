@@ -55,7 +55,7 @@ export interface ILanguage {
   iso?: string;
   full_language_name?: string;
   author: string;
-  source: 'quranenc' | 'qurancom';
+  source: 'quranenc' | 'qurancom' | 'local';
   isSynced: boolean;
   lastSyncedAt?: Date;
 }
