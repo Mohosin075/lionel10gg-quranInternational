@@ -182,9 +182,11 @@ const getSurahDetail = async (surahNumber: number, translationKey: string = 'eng
     const s = surahNumber.toString().padStart(3, '0');
     const a = item.ayah.toString().padStart(3, '0');
     
-    // For audio, we use a stable source (QuranEnc Arabic) for all translations
-    // unless it's specifically an Arabic edition.
-    const audioKey = isArabicOnly ? 'english_saheeh' : (translationKey.startsWith('qcom:') ? 'english_saheeh' : translationKey);
+    // For audio, we use a stable source (QuranEnc) for all translations.
+    // 'english_saheeh' does not have audio on the server, using 'english_rwwad' as default.
+    const audioKey = isArabicOnly || translationKey.startsWith('qcom:') || translationKey === 'english_saheeh' 
+      ? 'english_rwwad' 
+      : translationKey;
     
     return {
       number: item.ayah,
@@ -225,7 +227,9 @@ const getAyah = async (surah: number, ayah: number, translationKey: string = 'en
     if (result) {
         const s = surah.toString().padStart(3, '0');
         const a = ayah.toString().padStart(3, '0');
-        const audioKey = translationKey.startsWith('qcom:') ? 'english_saheeh' : translationKey;
+        const audioKey = translationKey.startsWith('qcom:') || translationKey === 'english_saheeh' 
+            ? 'english_rwwad' 
+            : translationKey;
         (result as any).audio = `https://d.quranenc.com/data/audio/${audioKey}/${s}${a}.mp3`;
     }
     

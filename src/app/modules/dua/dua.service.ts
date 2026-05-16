@@ -3,17 +3,41 @@ import { translate } from '@vitalets/google-translate-api';
 import { Dua } from './dua.model';
 import { IDua } from './dua.interface';
 
-const getAllDuas = async (lang: string = 'en', category?: string) => {
-  // If language is not English, use the on-demand sync logic
+const getAllDuas = async (
+  lang: string = 'en',
+  category?: string,
+  page: number = 1,
+  limit: number = 10
+) => {
+  const skip = (page - 1) * limit;
+
+  // Ensure data exists for the language
   if (lang !== 'en') {
-    return await getOrSyncDuasByLanguage(lang, category);
+    const count = await Dua.countDocuments({ lang });
+    if (count === 0) {
+      await getOrSyncDuasByLanguage(lang);
+    }
   }
 
   const query: Record<string, unknown> = { lang };
   if (category) {
     query.category = category;
   }
-  return await Dua.find(query).lean();
+
+  const [data, total] = await Promise.all([
+    Dua.find(query).skip(skip).limit(limit).sort({ title: 1 }).lean(),
+    Dua.countDocuments(query),
+  ]);
+
+  return {
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+    data,
+  };
 };
 
 const getDuaById = async (id: string) => {
