@@ -20,7 +20,8 @@
     "prettier:fix": "prettier --write .",
     "lint-prettier": "npm run lint:check && npm run prettier:check",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "prepare": "husky"
+    "prepare": "husky",
+    "seed:demo-subscription": "npx ts-node demo-subscription-seed.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.940.0",
@@ -43,6 +44,7 @@
     "express-session": "^1.18.2",
     "firebase-admin": "^13.4.0",
     "form-data": "^4.0.4",
+    "googleapis": "^171.4.0",
     "helmet": "^8.1.0",
     "http-status-codes": "^2.3.0",
     "jsonwebtoken": "^9.0.2",
@@ -50,6 +52,7 @@
     "libphonenumber-js": "^1.12.22",
     "mongoose": "^8.9.4",
     "morgan": "^1.10.0",
+    "node-apple-receipt-verify": "^1.15.0",
     "node-cron": "^4.2.1",
     "nodemailer": "^6.9.16",
     "passport-google-oauth20": "^2.0.0",

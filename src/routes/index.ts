@@ -19,7 +19,8 @@ import { DuaRoutes } from '../app/modules/dua/dua.route'
 import { StatusCodes } from 'http-status-codes'
 
 import { DashboardRoutes } from '../app/modules/dashboard/dashboard.route'
-
+import { SubscriptionRoutes } from '../app/modules/subscription/subscription.route'
+import { InAppPurchaseRoutes } from '../app/modules/in-app-purchase/in-app-purchase.route'
 const router = express.Router()
 
 const apiRoutes: { path: string; route: Router }[] = [
@@ -40,6 +41,8 @@ const apiRoutes: { path: string; route: Router }[] = [
   { path: '/prayer-time', route: PrayerTimeRoutes },
   { path: '/hasanat', route: HasanatRoutes },
   { path: '/tafsir', route: TafsirRoutes },
+  { path: '/subscription', route: SubscriptionRoutes },
+  { path: '/in-app-purchase', route: InAppPurchaseRoutes },
   { path: '/dua', route: DuaRoutes },
 ]
 
