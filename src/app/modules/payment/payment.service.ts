@@ -336,26 +336,26 @@ const handlePaymentIntentWebhook = async (
 
 const verifyPaymentIntent = async (paymentIntentId: string): Promise<IPayment> => {
   try {
-    const payment = await Payment.findOne({
+    let payment = await Payment.findOne({
       paymentIntentId,
     })
-
-    if (!payment) {
-      throw new ApiError(StatusCodes.NOT_FOUND, 'Payment not found')
-    }
-
-    if (payment.status === 'succeeded') {
-      return payment
-    }
 
     // Retrieve from stripe
     const pi = await stripe.paymentIntents.retrieve(paymentIntentId)
 
-    if (pi.status === 'succeeded') {
-      const session = await Payment.startSession()
-      session.startTransaction()
+    if (pi.status !== 'succeeded') {
+      throw new ApiError(StatusCodes.BAD_REQUEST, `Payment Intent is not completed on Stripe. Current status: ${pi.status}`)
+    }
 
-      try {
+    if (payment && payment.status === 'succeeded') {
+      return payment
+    }
+
+    const session = await Payment.startSession()
+    session.startTransaction()
+
+    try {
+      if (payment) {
         payment.status = 'succeeded'
         payment.metadata = {
           ...payment.metadata,
@@ -366,33 +366,120 @@ const verifyPaymentIntent = async (paymentIntentId: string): Promise<IPayment> =
 
         // Process subscription provisioning
         await processSubscriptionForPayment(payment, pi, session)
+      } else {
+        // If Payment record doesn't exist (created directly via subscription endpoint)
+        console.log(`Payment not found for Intent ${paymentIntentId}. Checking subscription associated...`)
+        
+        let stripeSubscriptionId = 'sub_' + pi.id.substring(3)
+        let stripeCustomerId = pi.customer as string || 'cus_unknown'
 
-        await session.commitTransaction()
-        console.log(`Payment and subscription processed successfully for intent: ${paymentIntentId}`)
-      } catch (error) {
-        await session.abortTransaction()
-        throw error
-      } finally {
-        session.endSession()
-      }
-
-      if (payment.userEmail) {
-        try {
-          await emailHelper.sendEmail({
-            to: payment.userEmail,
-            subject: 'Payment Successful',
-            html: `<p>Your payment of ${payment.amount} ${payment.currency} was successful and your premium subscription is now active.</p>`
-          })
-        } catch (emailError) {
-          console.error('Failed to send success email:', emailError)
+        if ((pi as any).invoice) {
+          try {
+            const invoice = await stripe.invoices.retrieve((pi as any).invoice as string) as any
+            if (invoice.subscription) {
+              stripeSubscriptionId = invoice.subscription as string
+            }
+            if (invoice.customer) {
+              stripeCustomerId = invoice.customer as string
+            }
+          } catch (e) {
+            console.error('Failed to retrieve invoice from Stripe:', e)
+          }
         }
+
+        let subscription = await Subscription.findOne({ stripeSubscriptionId }).session(session)
+        if (!subscription && pi.customer) {
+          subscription = await Subscription.findOne({ stripeCustomerId }).sort({ createdAt: -1 }).session(session)
+        }
+
+        let userId = null
+        let userEmail = 'unknown@quranapp.com'
+
+        if (subscription) {
+          userId = subscription.userId
+          subscription.status = 'active'
+          subscription.lastPaymentDate = new Date()
+          subscription.stripeSubscriptionId = stripeSubscriptionId
+          await subscription.save({ session })
+
+          const user = await User.findById(userId).session(session)
+          if (user) {
+            userEmail = user.email || userEmail
+            user.subscriptionStatus = 'active'
+            user.subscriptionTier = 'premium'
+            
+            // Expiry based on subscription plan
+            const plan = await SubscriptionPlan.findById(subscription.planId).session(session)
+            const currentPeriodEnd = new Date()
+            if (plan && plan.interval === 'year') {
+              currentPeriodEnd.setFullYear(currentPeriodEnd.getFullYear() + 1)
+            } else {
+              currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + 1)
+            }
+            user.subscriptionExpiresAt = currentPeriodEnd
+            subscription.currentPeriodEnd = currentPeriodEnd
+            await subscription.save({ session })
+            await user.save({ session })
+          }
+        } else {
+          // If no subscription is found, maybe they are just paying, we lookup user by stripe customer id
+          const user = await User.findOne({ stripeCustomerId }).session(session)
+          if (user) {
+            userId = user._id
+            userEmail = user.email || userEmail
+          }
+        }
+
+        // Create Payment record for tracking
+        payment = await Payment.create(
+          [
+            {
+              userId: userId || new Types.ObjectId(),
+              userEmail,
+              amount: pi.amount / 100,
+              currency: pi.currency.toUpperCase(),
+              paymentMethod: 'stripe',
+              paymentType: 'subscription',
+              paymentIntentId: pi.id,
+              status: 'succeeded',
+              metadata: {
+                stripeCustomerId,
+                stripeSubscriptionId,
+                stripeDetails: pi,
+                processedAt: new Date().toISOString(),
+              },
+            },
+          ],
+          { session }
+        ).then(res => res[0])
       }
-    } else {
-      throw new ApiError(StatusCodes.BAD_REQUEST, `Payment Intent is not completed on Stripe. Current status: ${pi.status}`)
+
+      await session.commitTransaction()
+      console.log(`Payment and subscription processed successfully for intent: ${paymentIntentId}`)
+    } catch (error) {
+      await session.abortTransaction()
+      throw error
+    } finally {
+      session.endSession()
+    }
+
+    if (payment && payment.userEmail) {
+      try {
+        await emailHelper.sendEmail({
+          to: payment.userEmail,
+          subject: 'Payment Successful',
+          html: `<p>Your payment of ${payment.amount} ${payment.currency} was successful and your premium subscription is now active.</p>`
+        })
+      } catch (emailError) {
+        console.error('Failed to send success email:', emailError)
+      }
     }
 
     const updatedPayment = await Payment.findOne({ paymentIntentId }).populate('userId', 'name email')
-    return updatedPayment || payment
+    if (!updatedPayment && !payment) {
+      throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, 'Payment could not be created or verified')
+    }
+    return (updatedPayment || payment) as IPayment
   } catch (error: any) {
     console.error(`verifyPaymentIntent failed: ${error.message}`)
     throw error
