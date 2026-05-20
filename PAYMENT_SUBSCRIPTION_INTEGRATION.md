@@ -145,40 +145,90 @@ Use this endpoint for Flutter Stripe SDK integration:
 ```dart
 import 'package:flutter_stripe/flutter_stripe.dart';
 
-// Initialize payment
+// Initialize payment and activate subscription
 Future<void> initPayment() async {
-  // 1. Get payment intent from backend
-  final paymentIntent = await _api.createPaymentIntent(
-    amount: 9.99,
-    currency: 'USD',
-    paymentType: 'subscription',
-  );
-
-  // 2. Get ephemeral key
-  final ephemeralKey = await _api.createEphemeralKey();
-
-  // 3. Present payment sheet
-  await Stripe.instance.initPaymentSheet(
-    paymentSheetParameters: SetupPaymentSheetParameters(
-      paymentIntentClientSecret: paymentIntent.clientSecret,
-      customerEphemeralKeySecret: ephemeralKey.ephemeralKey,
-      merchantDisplayName: 'Quran App',
-    ),
-  );
-
-  // 4. Present payment sheet
   try {
+    // 1. Get payment intent from backend
+    final paymentIntent = await _api.createPaymentIntent(
+      amount: 9.99,
+      currency: 'USD',
+      paymentType: 'subscription',
+    );
+
+    // 2. Get ephemeral key
+    final ephemeralKey = await _api.createEphemeralKey();
+
+    // 3. Initialize payment sheet
+    await Stripe.instance.initPaymentSheet(
+      paymentSheetParameters: SetupPaymentSheetParameters(
+        paymentIntentClientSecret: paymentIntent.clientSecret,
+        customerEphemeralKeySecret: ephemeralKey.ephemeralKey,
+        merchantDisplayName: 'Quran App',
+      ),
+    );
+
+    // 4. Present payment sheet
     await Stripe.instance.presentPaymentSheet();
-    // Payment successful!
+    
+    // 5. Verify payment with backend immediately to activate subscription in MongoDB!
+    final verification = await _api.verifyPaymentIntent(
+      paymentIntentId: paymentIntent.paymentIntentId,
+    );
+
+    if (verification.success) {
+      // Payment and subscription successfully verified and activated!
+      print("Premium subscription successfully active!");
+    } else {
+      print("Verification failed: ${verification.message}");
+    }
   } catch (e) {
-    // Handle error
+    if (e is StripeException) {
+      print("Stripe error: ${e.error.localizedMessage}");
+    } else {
+      print("Generic error: $e");
+    }
   }
 }
 ```
 
 ---
 
-## 👤 Step 5: Get User's Subscription
+## 🔗 Step 5: Verify Payment Intent (Database Subscription Activation)
+
+Use this endpoint immediately after a successful `presentPaymentSheet()` call to verify the Stripe payment status and activate the premium subscription in your local database.
+
+**Endpoint**: `POST /api/v1/payment/verify-payment-intent`
+
+**Auth**: Required (Bearer Token)
+
+**Request Body**:
+```json
+{
+  "paymentIntentId": "pi_..."
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Payment and subscription verified successfully",
+  "data": {
+    "_id": "payment_id",
+    "userId": "user_id",
+    "amount": 9.99,
+    "currency": "USD",
+    "paymentMethod": "stripe",
+    "paymentType": "subscription",
+    "paymentIntentId": "pi_...",
+    "status": "succeeded"
+  }
+}
+```
+
+---
+
+## 👤 Step 6: Get User's Subscription
 
 **Endpoint**: `GET /api/v1/subscription/my-subscription`
 
@@ -223,3 +273,28 @@ Future<void> initPayment() async {
 Instruction : 
 
 donation button a click korle payment option asbe, one time or subscription base
+
+---
+
+## 🎁 Donation Presets Endpoint
+
+Retrieves the available, curated donation amounts for display in the mobile UI.
+
+**Endpoint**: `GET /api/v1/payment/donation-presets`
+
+**Auth**: Required (Bearer Token)
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Donation presets retrieved successfully",
+  "data": [
+    { "amount": 5, "currency": "usd" },
+    { "amount": 10, "currency": "usd" },
+    { "amount": 20, "currency": "usd" },
+    { "amount": 50, "currency": "usd" },
+    { "amount": 100, "currency": "usd" }
+  ]
+}
+```

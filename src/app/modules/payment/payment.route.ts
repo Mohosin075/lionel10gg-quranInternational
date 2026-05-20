@@ -30,6 +30,16 @@ router.get(
 )
 
 router.get(
+  '/donation-presets',
+  auth(
+    USER_ROLES.USER,
+    USER_ROLES.SUPER_ADMIN,
+    USER_ROLES.ADMIN,
+  ),
+  PaymentController.getDonationPresets,
+)
+
+router.get(
   '/:id',
   auth(
     
@@ -84,6 +94,16 @@ router.post(
   ),
   validateRequest(PaymentValidations.create),
   PaymentController.createPaymentIntent,
+)
+
+router.post(
+  '/verify-payment-intent',
+  auth(
+    USER_ROLES.USER,
+    USER_ROLES.SUPER_ADMIN,
+    USER_ROLES.ADMIN,
+  ),
+  PaymentController.verifyPaymentIntent,
 )
 
 //Add SUPER_ADMIN role protection to the ephemeral-key route for enhanced security

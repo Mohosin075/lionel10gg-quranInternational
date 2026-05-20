@@ -10,6 +10,8 @@ import { paginationHelper } from '../../../helpers/paginationHelper'
 import { paymentSearchableFields } from './payment.constants'
 import { Types } from 'mongoose'
 import { User } from '../user/user.model'
+import { Subscription } from '../subscription/subscription.model'
+import { SubscriptionPlan } from '../subscription/subscription-plan.model'
 import config from '../../../config'
 import { WebhookService } from './webhook.service'
 import { emailHelper } from '../../../helpers/emailHelper'
@@ -222,6 +224,70 @@ const createEphemeralKey = async (
   }
 }
 
+const processSubscriptionForPayment = async (
+  payment: any,
+  stripeDetails: any,
+  session: any
+): Promise<void> => {
+  if (payment.paymentType === 'subscription') {
+    // Find matching subscription plan
+    let plan = await SubscriptionPlan.findOne({
+      price: payment.amount,
+      isActive: true,
+    }).session(session)
+
+    if (!plan) {
+      // Fallback: match any active plan or the first active plan
+      plan = await SubscriptionPlan.findOne({ isActive: true }).session(session)
+    }
+
+    if (plan) {
+      const user = await User.findById(payment.userId).session(session)
+      if (user) {
+        const stripeCustomerId = user.stripeCustomerId || stripeDetails.customer || 'cus_unknown'
+        const stripeSubscriptionId = 'sub_' + stripeDetails.id.substring(3)
+
+        const currentPeriodStart = new Date()
+        const currentPeriodEnd = new Date()
+        if (plan.interval === 'year') {
+          currentPeriodEnd.setFullYear(currentPeriodEnd.getFullYear() + 1)
+        } else {
+          currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + 1)
+        }
+
+        // Create or update subscription document
+        await Subscription.findOneAndUpdate(
+          { userId: user._id },
+          {
+            userId: user._id,
+            planId: plan._id,
+            stripeCustomerId,
+            stripeSubscriptionId,
+            stripePriceId: plan.stripePriceId || 'price_unknown',
+            status: 'active',
+            currentPeriodStart,
+            currentPeriodEnd,
+            cancelAtPeriodEnd: false,
+            lastPaymentDate: new Date(),
+            lastSyncedAt: new Date(),
+          },
+          { upsert: true, new: true, session }
+        )
+
+        // Update user fields
+        user.subscriptionStatus = 'active'
+        user.subscriptionTier = 'premium'
+        user.subscriptionExpiresAt = currentPeriodEnd
+        if (!user.stripeCustomerId && stripeDetails.customer) {
+          user.stripeCustomerId = stripeDetails.customer as string
+        }
+        await user.save({ session })
+        console.log(`Successfully activated subscription for user ${user._id} and plan ${plan.name}`)
+      }
+    }
+  }
+}
+
 const handlePaymentIntentWebhook = async (
   paymentIntent: any,
 ): Promise<void> => {
@@ -251,6 +317,9 @@ const handlePaymentIntentWebhook = async (
       }
       await payment.save({ session })
 
+      // Handle subscription logic if needed
+      await processSubscriptionForPayment(payment, paymentIntent, session)
+
       await session.commitTransaction()
       console.log(`Payment processed successfully: ${paymentIntent.id}`)
     } catch (error) {
@@ -261,6 +330,71 @@ const handlePaymentIntentWebhook = async (
     }
   } catch (error: any) {
     console.error(`Webhook processing failed: ${error.message}`)
+    throw error
+  }
+}
+
+const verifyPaymentIntent = async (paymentIntentId: string): Promise<IPayment> => {
+  try {
+    const payment = await Payment.findOne({
+      paymentIntentId,
+    })
+
+    if (!payment) {
+      throw new ApiError(StatusCodes.NOT_FOUND, 'Payment not found')
+    }
+
+    if (payment.status === 'succeeded') {
+      return payment
+    }
+
+    // Retrieve from stripe
+    const pi = await stripe.paymentIntents.retrieve(paymentIntentId)
+
+    if (pi.status === 'succeeded') {
+      const session = await Payment.startSession()
+      session.startTransaction()
+
+      try {
+        payment.status = 'succeeded'
+        payment.metadata = {
+          ...payment.metadata,
+          stripeDetails: pi,
+          processedAt: new Date().toISOString(),
+        }
+        await payment.save({ session })
+
+        // Process subscription provisioning
+        await processSubscriptionForPayment(payment, pi, session)
+
+        await session.commitTransaction()
+        console.log(`Payment and subscription processed successfully for intent: ${paymentIntentId}`)
+      } catch (error) {
+        await session.abortTransaction()
+        throw error
+      } finally {
+        session.endSession()
+      }
+
+      if (payment.userEmail) {
+        try {
+          await emailHelper.sendEmail({
+            to: payment.userEmail,
+            subject: 'Payment Successful',
+            html: `<p>Your payment of ${payment.amount} ${payment.currency} was successful and your premium subscription is now active.</p>`
+          })
+        } catch (emailError) {
+          console.error('Failed to send success email:', emailError)
+        }
+      }
+    } else {
+      throw new ApiError(StatusCodes.BAD_REQUEST, `Payment Intent is not completed on Stripe. Current status: ${pi.status}`)
+    }
+
+    const updatedPayment = await Payment.findOne({ paymentIntentId }).populate('userId', 'name email')
+    return updatedPayment || payment
+  } catch (error: any) {
+    console.error(`verifyPaymentIntent failed: ${error.message}`)
     throw error
   }
 }
@@ -447,6 +581,16 @@ const getMyPayments = async (
   }
 }
 
+const getDonationPresets = async (): Promise<any[]> => {
+  return [
+    { amount: 5, currency: 'usd' },
+    { amount: 10, currency: 'usd' },
+    { amount: 20, currency: 'usd' },
+    { amount: 50, currency: 'usd' },
+    { amount: 100, currency: 'usd' },
+  ]
+}
+
 const generateInvoice = async (id: string): Promise<string | Buffer> => {
   if (!Types.ObjectId.isValid(id)) {
     throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid Payment ID')
@@ -483,9 +627,11 @@ export const PaymentServices = {
   getMyPayments,
   createCheckoutSession,
   verifyCheckoutSession,
+  verifyPaymentIntent,
   handleWebhook: WebhookService.handleWebhook,
   createPaymentIntent,
   createEphemeralKey,
   handlePaymentIntentWebhook,
   generateInvoice,
+  getDonationPresets,
 }
