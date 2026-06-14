@@ -53,3 +53,17 @@ Copy-Paste Friendly Rich Text Editor (Draft/Quill Editor): Since the client and 
 Language Selector Dropdown: When publishing an article, the admin will use a dropdown menu (e.g., German, English, Arabic) to easily tag and assign the article's language.
 
 Read-Only App Security: Data pushed from the Admin Panel will be securely locked inside the cloud database. The mobile application front-end will render this text in a strict "Read-Only" container. Regular app users will have zero technical capability to edit, modify, or tamper with the database text.
+
+
+Based on the client's requirements, the Hadiths will be loaded from a global, official Islamic Hadith API. The system will be architected to support English as the primary/initial language, and it will seamlessly support German and other secondary languages using the exact same underlying logic.
+
+Your backend or mobile application will fetch the data directly from this API. To ensure 100% offline support, your core development logic should be structured as follows:
+
+1. Initial Online Fetch & Multi-Language Caching
+When a user opens the Hadith section for the first time while online, the app will make an API call to fetch the Hadith data. It will look for the English version first, followed by German (or any other language selected by the user). The app will immediately store/cache this fetched data structure directly into the user's phone using a Local Database (such as SQLite, Hive, Room, or Realm).
+
+2. Offline Mode Retrieval
+Once the data is cached locally, the app will always prioritize loading the Hadiths directly from the phone's local storage. This ensures that even if the user completely loses their internet connection or goes offline later, they can continue reading the downloaded Hadiths in their preferred language (English, German, etc.) seamlessly with zero interruptions.
+
+3. Subscription Shield (Access Lock)
+A secure restriction middleware or conditional block will be wrapped tightly around this entire feature. The app will verify the user's payment status before initiating either the API call or fetching from the local storage. If a user does not have an active premium subscription, the system will completely lock the Hadith database and redirect them to the subscription screen.

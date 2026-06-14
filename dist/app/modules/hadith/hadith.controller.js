@@ -105,6 +105,18 @@ const downloadSync = (0, catchAsync_1.default)(async (req, res) => {
         data: paginatedData,
     });
 });
+const syncFromGlobalApi = (0, catchAsync_1.default)(async (req, res) => {
+    const edition = req.body.edition || 'eng-bukhari';
+    const fromHadith = Number(req.body.from) || 1;
+    const toHadith = Number(req.body.to) || 10;
+    const result = await hadith_service_1.HadithServices.syncFromGlobalApi(edition, fromHadith, toHadith);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        success: true,
+        message: 'Hadiths synced from global API successfully',
+        data: result,
+    });
+});
 exports.HadithController = {
     getAllHadiths,
     getHadithById,
@@ -114,4 +126,5 @@ exports.HadithController = {
     getVersion,
     checkSync,
     downloadSync,
+    syncFromGlobalApi,
 };

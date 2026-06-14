@@ -17,38 +17,47 @@ async function testIntegration() {
     console.log('Database connected successfully.\n');
 
     // ==========================================
-    // 1. HADITH INTEGRATION TESTING
+    // 1. HADITH INTEGRATION TESTING (GLOBAL API SYNC)
     // ==========================================
-    console.log('--- Hadith Integration Tests ---');
+    console.log('--- Hadith Integration Tests (Global API) ---');
     
     // Clear previous test records
-    await Hadith.deleteMany({ hadithNo: 'test_999' });
+    await Hadith.deleteMany({ hadithNo: { $regex: '^bukhari_test' } });
+    await Hadith.deleteMany({ lang: 'de', hadithNo: { $regex: '^bukhari_test' } });
 
-    // Seed English Hadith
-    console.log('Seeding test English Hadith...');
-    const englishHadith = await HadithServices.createHadith({
-      hadithNo: 'test_999',
-      source: 'Sahih al-Bukhari',
-      chapter: 'Book of Revelation',
-      arabicText: 'إنما الأعمال بالنيات',
-      translation: 'Actions are judged by intentions.',
-      authenticity: 'Sahih',
-      category: 'Intentions',
-      lang: 'en',
-      version: 1,
-      isActive: true,
+    console.log('Fetching and caching Hadith 1 and 2 from Sahih al-Bukhari using Global API...');
+    // Sync bukhari hadiths 1 to 2
+    const syncRes = await HadithServices.syncFromGlobalApi('eng-bukhari', 1, 2);
+    console.log('Global API Sync Result:', syncRes);
+
+    // Verify they are saved
+    const savedHadiths = await Hadith.find({ lang: 'en', hadithNo: { $in: ['bukhari_1', 'bukhari_2'] } });
+    console.log(`Saved English Hadiths count: ${savedHadiths.length}`);
+    if (savedHadiths.length > 0) {
+      console.log('Hadith 1 English:', {
+        hadithNo: savedHadiths[0].hadithNo,
+        source: savedHadiths[0].source,
+        chapter: savedHadiths[0].chapter,
+        translationPreview: savedHadiths[0].translation.substring(0, 100) + '...',
+        arabicPreview: savedHadiths[0].arabicText.substring(0, 100) + '...',
+      });
+    }
+
+    // Test dynamic translation of fetched global Hadiths to German (de)
+    console.log('\nTesting dynamic translation of fetched global Hadiths to German...');
+    const translatedHadiths = await HadithServices.getOrSyncHadithsByLanguage('de');
+    const deHadith1 = translatedHadiths.find(h => h.hadithNo === 'bukhari_1');
+    console.log('Translated German Hadith 1:', {
+      hadithNo: deHadith1?.hadithNo,
+      source: deHadith1?.source,
+      chapter: deHadith1?.chapter,
+      translationPreview: deHadith1?.translation.substring(0, 100) + '...',
+      category: deHadith1?.category,
     });
-    console.log('English Hadith seeded:', englishHadith._id);
-
-    // Test dynamic translation (translate test Hadith to German)
-    console.log('Testing dynamic translation to German...');
-    const translatedHadith = await HadithServices.getOrSyncHadithsByLanguage('de');
-    const deTestHadith = translatedHadith.find(h => h.hadithNo === 'test_999');
-    console.log('Translated German Hadith:', deTestHadith);
 
     // Test Hadith sync version check
     const syncStatus = await HadithServices.checkSyncMetadata('en', 0);
-    console.log('Hadith Sync Status Check (Client version 0):', syncStatus);
+    console.log('\nHadith Sync Status Check (Client version 0):', syncStatus);
 
     // Test Hadith sync data retrieval
     const syncData = await HadithServices.getSyncData('en', 0);
@@ -95,10 +104,10 @@ async function testIntegration() {
 
     console.log('Knowledge Library tests completed successfully.\n');
 
-    // Clean up test data
-    await Hadith.deleteMany({ hadithNo: 'test_999' });
+    // Clean up test data (We keep the fetched bukhari hadiths for visual proof of database seed, but delete translated ones so next run can test translation again)
+    await Hadith.deleteMany({ lang: 'de', hadithNo: { $in: ['bukhari_1', 'bukhari_2'] } });
     await KnowledgeArticle.deleteMany({ articleId: 'test_art_999' });
-    console.log('Test data cleaned up successfully.');
+    console.log('Test clean up completed.');
 
   } catch (error) {
     console.error('Integration Test Failed:', error);

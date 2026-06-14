@@ -65,4 +65,10 @@ router.delete(
   HadithController.deleteHadith
 );
 
+router.post(
+  '/sync-external',
+  auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  HadithController.syncFromGlobalApi
+);
+
 export const HadithRoutes = router;

@@ -2,6 +2,89 @@ import axios from 'axios';
 import { Hadith } from './hadith.model';
 import { IHadith } from './hadith.interface';
 
+const syncFromGlobalApi = async (edition: string, fromHadith: number, toHadith: number) => {
+  let createdCount = 0;
+  let updatedCount = 0;
+
+  // Derive source name (e.g. 'Sahih al-Bukhari' from 'eng-bukhari')
+  let sourceName = 'Official Hadith';
+  const lowerEdition = edition.toLowerCase();
+  if (lowerEdition.includes('bukhari')) sourceName = 'Sahih al-Bukhari';
+  else if (lowerEdition.includes('muslim')) sourceName = 'Sahih Muslim';
+  else if (lowerEdition.includes('abudawud')) sourceName = 'Sunan Abi Dawud';
+  else if (lowerEdition.includes('tirmidhi')) sourceName = 'Jami at-Tirmidhi';
+  else if (lowerEdition.includes('nasai')) sourceName = 'Sunan an-Nasai';
+  else if (lowerEdition.includes('ibnmajah')) sourceName = 'Sunan Ibn Majah';
+
+  // Derive Arabic edition code (e.g. eng-bukhari -> ara-bukhari)
+  const arabEdition = edition.replace('eng-', 'ara-');
+
+  for (let i = fromHadith; i <= toHadith; i++) {
+    try {
+      // 1. Fetch English edition
+      const engUrl = `https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/${edition}/${i}.json`;
+      const engRes = await axios.get(engUrl);
+      
+      if (!engRes.data || !engRes.data.hadiths || engRes.data.hadiths.length === 0) {
+        continue;
+      }
+      
+      const engHadith = engRes.data.hadiths[0];
+      const chapterName = engRes.data.metadata?.section
+        ? Object.values(engRes.data.metadata.section)[0] as string
+        : 'General';
+
+      // 2. Fetch Arabic edition
+      let arabicText = 'Arabic text unavailable online';
+      try {
+        const araUrl = `https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/${arabEdition}/${i}.json`;
+        const araRes = await axios.get(araUrl);
+        if (araRes.data && araRes.data.hadiths && araRes.data.hadiths.length > 0) {
+          arabicText = araRes.data.hadiths[0].text;
+        }
+      } catch (err) {
+        console.error(`Failed to fetch Arabic text for Hadith ${i}:`, err);
+      }
+
+      // Generate a unique hadithNo (e.g., 'bukhari_1')
+      const hadithBookKey = edition.split('-')[1] || 'hadith';
+      const hadithNo = `${hadithBookKey}_${i}`;
+
+      const hadithData: Partial<IHadith> = {
+        hadithNo,
+        source: sourceName,
+        chapter: chapterName || 'General',
+        arabicText,
+        translation: engHadith.text,
+        authenticity: 'Sahih', // Default
+        category: chapterName || 'General',
+        lang: 'en',
+        version: 1,
+        isActive: true,
+      };
+
+      const result = await Hadith.findOneAndUpdate(
+        { hadithNo, lang: 'en' },
+        { $set: hadithData },
+        { upsert: true, new: false }
+      );
+
+      if (result) {
+        updatedCount++;
+      } else {
+        createdCount++;
+      }
+
+      // Small delay between calls to not overload CDN or get rate limited
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    } catch (error) {
+      console.error(`Error syncing Hadith ${i} from global API:`, error);
+    }
+  }
+
+  return { createdCount, updatedCount };
+};
+
 const getAllHadiths = async (
   lang: string = 'en',
   category?: string,
@@ -10,6 +93,13 @@ const getAllHadiths = async (
   limit: number = 10,
 ) => {
   const skip = (page - 1) * limit;
+
+  // Auto-populate database with some initial Hadiths from global API if empty
+  const totalEnglish = await Hadith.countDocuments({ lang: 'en' });
+  if (totalEnglish === 0) {
+    console.log('Database contains 0 Hadiths. Auto-syncing initial hadiths 1-15 from Sahih al-Bukhari...');
+    await syncFromGlobalApi('eng-bukhari', 1, 15);
+  }
 
   // Ensure data exists for the requested language
   if (lang !== 'en') {
@@ -90,7 +180,7 @@ const getSyncData = async (lang: string = 'en', fromVersion: number = 0) => {
     .lean();
 };
 
-// Dynamic Google translation support for rare languages
+// Dynamic Google translation support for target languages
 const getOrSyncHadithsByLanguage = async (targetLang: string) => {
   const count = await Hadith.countDocuments({ lang: targetLang });
   if (count > 0) {
@@ -100,7 +190,6 @@ const getOrSyncHadithsByLanguage = async (targetLang: string) => {
   // Translate from English source hadiths
   let sourceHadiths = await Hadith.find({ lang: 'en' }).lean();
   if (sourceHadiths.length === 0) {
-    // Fallback if no english hadiths exist in database
     return [];
   }
 
@@ -119,7 +208,7 @@ const getOrSyncHadithsByLanguage = async (targetLang: string) => {
       return translated;
     } catch (error) {
       console.error('Hadith translation API error:', error);
-      return text; // Return original text on translation fail
+      return text;
     }
   };
 
@@ -181,4 +270,5 @@ export const HadithServices = {
   checkSyncMetadata,
   getSyncData,
   getOrSyncHadithsByLanguage,
+  syncFromGlobalApi,
 };
