@@ -1,6 +1,6 @@
-import axios from 'axios';
 import { KnowledgeArticle } from './knowledge-library.model';
 import { IKnowledgeArticle } from './knowledge-library.interface';
+import { TranslationHelper } from '../../../helpers/translationHelper';
 
 const getAllArticles = async (
   lang: string = 'de', // Default to German per spec
@@ -48,7 +48,6 @@ const createArticle = async (payload: Partial<IKnowledgeArticle>) => {
 };
 
 const updateArticle = async (id: string, payload: Partial<IKnowledgeArticle>) => {
-  // Increment version to trigger sync updates on offline clients
   const current = await KnowledgeArticle.findById(id);
   const newVersion = current ? (current.version || 1) + 1 : 1;
   return await KnowledgeArticle.findByIdAndUpdate(
@@ -95,31 +94,10 @@ const getOrSyncArticlesByLanguage = async (targetLang: string) => {
     return await KnowledgeArticle.find({ lang: targetLang }).lean();
   }
 
-  // Fetch all base German articles
-  let baseArticles = await KnowledgeArticle.find({ lang: 'de' }).lean();
-  if (baseArticles.length === 0) {
-    return [];
-  }
+  const baseArticles = await KnowledgeArticle.find({ lang: 'de' }).lean();
+  if (baseArticles.length === 0) return [];
 
-  console.log(`Translating all Knowledge Articles from German to: ${targetLang}...`);
-
-  const translateText = async (text: string, from: string, to: string): Promise<string> => {
-    try {
-      // Clean HTML tags if present, or translate as is. Standard translation gtx can handle HTML tags reasonably.
-      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${from}&tl=${to}&dt=t&q=${encodeURIComponent(text)}`;
-      const res = await axios.get(url);
-      let translated = '';
-      if (res.data && res.data[0]) {
-        for (const segment of res.data[0]) {
-          translated += segment[0];
-        }
-      }
-      return translated;
-    } catch (error) {
-      console.error('Knowledge Article translation API error:', error);
-      return text;
-    }
-  };
+  console.log(`[KnowledgeService] Translating ${baseArticles.length} articles from German to: ${targetLang}...`);
 
   const results: IKnowledgeArticle[] = [];
   const BATCH_SIZE = 5;
@@ -130,11 +108,11 @@ const getOrSyncArticlesByLanguage = async (targetLang: string) => {
 
     for (const article of batch) {
       try {
-        const translatedTitle = await translateText(article.title, 'de', targetLang);
-        await new Promise((resolve) => setTimeout(resolve, 200));
-        const translatedContent = await translateText(article.content, 'de', targetLang);
-        await new Promise((resolve) => setTimeout(resolve, 200));
-        const translatedCategory = await translateText(article.category, 'de', targetLang);
+        const translatedTitle = await TranslationHelper.translateText(article.title, targetLang, 'de');
+        await TranslationHelper.sleep(200);
+        const translatedContent = await TranslationHelper.translateText(article.content, targetLang, 'de');
+        await TranslationHelper.sleep(200);
+        const translatedCategory = await TranslationHelper.translateText(article.category, targetLang, 'de');
 
         translatedBatch.push({
           articleId: article.articleId,
@@ -153,7 +131,7 @@ const getOrSyncArticlesByLanguage = async (targetLang: string) => {
         console.error(`Translation failed for Knowledge Article ${article.articleId}:`, err);
         translatedBatch.push(null);
       }
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await TranslationHelper.sleep(300);
     }
 
     const validArticles = translatedBatch.filter((a) => a !== null) as IKnowledgeArticle[];
@@ -163,7 +141,7 @@ const getOrSyncArticlesByLanguage = async (targetLang: string) => {
     }
     console.log(`Translated ${i + validArticles.length} of ${baseArticles.length} articles`);
     if (i + BATCH_SIZE < baseArticles.length) {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await TranslationHelper.sleep(1500);
     }
   }
 

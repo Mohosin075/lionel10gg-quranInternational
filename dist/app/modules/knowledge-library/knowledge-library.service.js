@@ -1,11 +1,8 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.KnowledgeLibraryServices = void 0;
-const axios_1 = __importDefault(require("axios"));
 const knowledge_library_model_1 = require("./knowledge-library.model");
+const translationHelper_1 = require("../../../helpers/translationHelper");
 const getAllArticles = async (lang = 'de', // Default to German per spec
 category, page = 1, limit = 10) => {
     const skip = (page - 1) * limit;
@@ -41,7 +38,6 @@ const createArticle = async (payload) => {
     return await knowledge_library_model_1.KnowledgeArticle.create(payload);
 };
 const updateArticle = async (id, payload) => {
-    // Increment version to trigger sync updates on offline clients
     const current = await knowledge_library_model_1.KnowledgeArticle.findById(id);
     const newVersion = current ? (current.version || 1) + 1 : 1;
     return await knowledge_library_model_1.KnowledgeArticle.findByIdAndUpdate(id, { ...payload, version: newVersion }, { new: true });
@@ -78,30 +74,10 @@ const getOrSyncArticlesByLanguage = async (targetLang) => {
     if (count > 0) {
         return await knowledge_library_model_1.KnowledgeArticle.find({ lang: targetLang }).lean();
     }
-    // Fetch all base German articles
-    let baseArticles = await knowledge_library_model_1.KnowledgeArticle.find({ lang: 'de' }).lean();
-    if (baseArticles.length === 0) {
+    const baseArticles = await knowledge_library_model_1.KnowledgeArticle.find({ lang: 'de' }).lean();
+    if (baseArticles.length === 0)
         return [];
-    }
-    console.log(`Translating all Knowledge Articles from German to: ${targetLang}...`);
-    const translateText = async (text, from, to) => {
-        try {
-            // Clean HTML tags if present, or translate as is. Standard translation gtx can handle HTML tags reasonably.
-            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${from}&tl=${to}&dt=t&q=${encodeURIComponent(text)}`;
-            const res = await axios_1.default.get(url);
-            let translated = '';
-            if (res.data && res.data[0]) {
-                for (const segment of res.data[0]) {
-                    translated += segment[0];
-                }
-            }
-            return translated;
-        }
-        catch (error) {
-            console.error('Knowledge Article translation API error:', error);
-            return text;
-        }
-    };
+    console.log(`[KnowledgeService] Translating ${baseArticles.length} articles from German to: ${targetLang}...`);
     const results = [];
     const BATCH_SIZE = 5;
     for (let i = 0; i < baseArticles.length; i += BATCH_SIZE) {
@@ -109,11 +85,11 @@ const getOrSyncArticlesByLanguage = async (targetLang) => {
         const translatedBatch = [];
         for (const article of batch) {
             try {
-                const translatedTitle = await translateText(article.title, 'de', targetLang);
-                await new Promise((resolve) => setTimeout(resolve, 200));
-                const translatedContent = await translateText(article.content, 'de', targetLang);
-                await new Promise((resolve) => setTimeout(resolve, 200));
-                const translatedCategory = await translateText(article.category, 'de', targetLang);
+                const translatedTitle = await translationHelper_1.TranslationHelper.translateText(article.title, targetLang, 'de');
+                await translationHelper_1.TranslationHelper.sleep(200);
+                const translatedContent = await translationHelper_1.TranslationHelper.translateText(article.content, targetLang, 'de');
+                await translationHelper_1.TranslationHelper.sleep(200);
+                const translatedCategory = await translationHelper_1.TranslationHelper.translateText(article.category, targetLang, 'de');
                 translatedBatch.push({
                     articleId: article.articleId,
                     slug: `${article.slug}-${targetLang}`,
@@ -132,7 +108,7 @@ const getOrSyncArticlesByLanguage = async (targetLang) => {
                 console.error(`Translation failed for Knowledge Article ${article.articleId}:`, err);
                 translatedBatch.push(null);
             }
-            await new Promise((resolve) => setTimeout(resolve, 300));
+            await translationHelper_1.TranslationHelper.sleep(300);
         }
         const validArticles = translatedBatch.filter((a) => a !== null);
         if (validArticles.length > 0) {
@@ -141,7 +117,7 @@ const getOrSyncArticlesByLanguage = async (targetLang) => {
         }
         console.log(`Translated ${i + validArticles.length} of ${baseArticles.length} articles`);
         if (i + BATCH_SIZE < baseArticles.length) {
-            await new Promise((resolve) => setTimeout(resolve, 1500));
+            await translationHelper_1.TranslationHelper.sleep(1500);
         }
     }
     return results;

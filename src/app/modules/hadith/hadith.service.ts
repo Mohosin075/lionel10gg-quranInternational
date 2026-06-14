@@ -1,27 +1,31 @@
 import axios from 'axios';
 import { Hadith } from './hadith.model';
 import { IHadith } from './hadith.interface';
+import { TranslationHelper } from '../../../helpers/translationHelper';
+
+const EDITION_SOURCE_MAP: Record<string, string> = {
+  bukhari: 'Sahih al-Bukhari',
+  muslim: 'Sahih Muslim',
+  abudawud: 'Sunan Abi Dawud',
+  tirmidhi: 'Jami at-Tirmidhi',
+  nasai: 'Sunan an-Nasai',
+  ibnmajah: 'Sunan Ibn Majah',
+};
+
+const getSourceName = (edition: string): string => {
+  const bookKey = edition.toLowerCase().split('-')[1] || 'hadith';
+  return EDITION_SOURCE_MAP[bookKey] || 'Official Hadith';
+};
 
 const syncFromGlobalApi = async (edition: string, fromHadith: number, toHadith: number) => {
   let createdCount = 0;
   let updatedCount = 0;
 
-  // Derive source name (e.g. 'Sahih al-Bukhari' from 'eng-bukhari')
-  let sourceName = 'Official Hadith';
-  const lowerEdition = edition.toLowerCase();
-  if (lowerEdition.includes('bukhari')) sourceName = 'Sahih al-Bukhari';
-  else if (lowerEdition.includes('muslim')) sourceName = 'Sahih Muslim';
-  else if (lowerEdition.includes('abudawud')) sourceName = 'Sunan Abi Dawud';
-  else if (lowerEdition.includes('tirmidhi')) sourceName = 'Jami at-Tirmidhi';
-  else if (lowerEdition.includes('nasai')) sourceName = 'Sunan an-Nasai';
-  else if (lowerEdition.includes('ibnmajah')) sourceName = 'Sunan Ibn Majah';
-
-  // Derive Arabic edition code (e.g. eng-bukhari -> ara-bukhari)
+  const sourceName = getSourceName(edition);
   const arabEdition = edition.replace('eng-', 'ara-');
 
   for (let i = fromHadith; i <= toHadith; i++) {
     try {
-      // 1. Fetch English edition
       const engUrl = `https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/${edition}/${i}.json`;
       const engRes = await axios.get(engUrl);
       
@@ -31,10 +35,9 @@ const syncFromGlobalApi = async (edition: string, fromHadith: number, toHadith: 
       
       const engHadith = engRes.data.hadiths[0];
       const chapterName = engRes.data.metadata?.section
-        ? Object.values(engRes.data.metadata.section)[0] as string
+        ? (Object.values(engRes.data.metadata.section)[0] as string)
         : 'General';
 
-      // 2. Fetch Arabic edition
       let arabicText = 'Arabic text unavailable online';
       try {
         const araUrl = `https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/${arabEdition}/${i}.json`;
@@ -46,18 +49,17 @@ const syncFromGlobalApi = async (edition: string, fromHadith: number, toHadith: 
         console.error(`Failed to fetch Arabic text for Hadith ${i}:`, err);
       }
 
-      // Generate a unique hadithNo (e.g., 'bukhari_1')
       const hadithBookKey = edition.split('-')[1] || 'hadith';
       const hadithNo = `${hadithBookKey}_${i}`;
 
       const hadithData: Partial<IHadith> = {
         hadithNo,
         source: sourceName,
-        chapter: chapterName || 'General',
+        chapter: chapterName,
         arabicText,
         translation: engHadith.text,
-        authenticity: 'Sahih', // Default
-        category: chapterName || 'General',
+        authenticity: 'Sahih',
+        category: chapterName,
         lang: 'en',
         version: 1,
         isActive: true,
@@ -75,8 +77,7 @@ const syncFromGlobalApi = async (edition: string, fromHadith: number, toHadith: 
         createdCount++;
       }
 
-      // Small delay between calls to not overload CDN or get rate limited
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      await TranslationHelper.sleep(150);
     } catch (error) {
       console.error(`Error syncing Hadith ${i} from global API:`, error);
     }
@@ -94,14 +95,13 @@ const getAllHadiths = async (
 ) => {
   const skip = (page - 1) * limit;
 
-  // Auto-populate database with some initial Hadiths from global API if empty
+  // Auto-populate DB with initial hadiths if empty
   const totalEnglish = await Hadith.countDocuments({ lang: 'en' });
   if (totalEnglish === 0) {
-    console.log('Database contains 0 Hadiths. Auto-syncing initial hadiths 1-15 from Sahih al-Bukhari...');
+    console.log('[HadithService] Auto-syncing initial hadiths 1-15 of Sahih al-Bukhari...');
     await syncFromGlobalApi('eng-bukhari', 1, 15);
   }
 
-  // Ensure data exists for the requested language
   if (lang !== 'en') {
     const count = await Hadith.countDocuments({ lang });
     if (count === 0) {
@@ -110,12 +110,8 @@ const getAllHadiths = async (
   }
 
   const query: Record<string, unknown> = { lang, isActive: true };
-  if (category) {
-    query.category = category;
-  }
-  if (source) {
-    query.source = source;
-  }
+  if (category) query.category = category;
+  if (source) query.source = source;
 
   const [data, total] = await Promise.all([
     Hadith.find(query).skip(skip).limit(limit).sort({ hadithNo: 1 }).lean(),
@@ -123,12 +119,7 @@ const getAllHadiths = async (
   ]);
 
   return {
-    meta: {
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit),
-    },
+    meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
     data,
   };
 };
@@ -142,7 +133,6 @@ const createHadith = async (payload: Partial<IHadith>) => {
 };
 
 const updateHadith = async (id: string, payload: Partial<IHadith>) => {
-  // If editing, increment the version to trigger sync updates on offline clients
   const current = await Hadith.findById(id);
   const newVersion = current ? (current.version || 1) + 1 : 1;
   return await Hadith.findByIdAndUpdate(
@@ -180,37 +170,16 @@ const getSyncData = async (lang: string = 'en', fromVersion: number = 0) => {
     .lean();
 };
 
-// Dynamic Google translation support for target languages
 const getOrSyncHadithsByLanguage = async (targetLang: string) => {
   const count = await Hadith.countDocuments({ lang: targetLang });
   if (count > 0) {
     return await Hadith.find({ lang: targetLang }).lean();
   }
 
-  // Translate from English source hadiths
-  let sourceHadiths = await Hadith.find({ lang: 'en' }).lean();
-  if (sourceHadiths.length === 0) {
-    return [];
-  }
+  const sourceHadiths = await Hadith.find({ lang: 'en' }).lean();
+  if (sourceHadiths.length === 0) return [];
 
-  console.log(`Translating all Hadiths to: ${targetLang}...`);
-
-  const translateText = async (text: string, to: string): Promise<string> => {
-    try {
-      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=${to}&dt=t&q=${encodeURIComponent(text)}`;
-      const res = await axios.get(url);
-      let translated = '';
-      if (res.data && res.data[0]) {
-        for (const segment of res.data[0]) {
-          translated += segment[0];
-        }
-      }
-      return translated;
-    } catch (error) {
-      console.error('Hadith translation API error:', error);
-      return text;
-    }
-  };
+  console.log(`[HadithService] Translating ${sourceHadiths.length} Hadiths to: ${targetLang}...`);
 
   const results: IHadith[] = [];
   const BATCH_SIZE = 5;
@@ -221,11 +190,11 @@ const getOrSyncHadithsByLanguage = async (targetLang: string) => {
 
     for (const hadith of batch) {
       try {
-        const translatedChapter = await translateText(hadith.chapter, targetLang);
-        await new Promise((resolve) => setTimeout(resolve, 200));
-        const translatedTranslation = await translateText(hadith.translation, targetLang);
-        await new Promise((resolve) => setTimeout(resolve, 200));
-        const translatedCategory = await translateText(hadith.category, targetLang);
+        const translatedChapter = await TranslationHelper.translateText(hadith.chapter, targetLang);
+        await TranslationHelper.sleep(200);
+        const translatedTranslation = await TranslationHelper.translateText(hadith.translation, targetLang);
+        await TranslationHelper.sleep(200);
+        const translatedCategory = await TranslationHelper.translateText(hadith.category, targetLang);
 
         translatedBatch.push({
           hadithNo: hadith.hadithNo,
@@ -243,7 +212,7 @@ const getOrSyncHadithsByLanguage = async (targetLang: string) => {
         console.error(`Translation failed for Hadith ${hadith.hadithNo}:`, err);
         translatedBatch.push(null);
       }
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await TranslationHelper.sleep(300);
     }
 
     const validHadiths = translatedBatch.filter((h) => h !== null) as IHadith[];
@@ -253,7 +222,7 @@ const getOrSyncHadithsByLanguage = async (targetLang: string) => {
     }
     console.log(`Translated ${i + validHadiths.length} of ${sourceHadiths.length} Hadiths`);
     if (i + BATCH_SIZE < sourceHadiths.length) {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await TranslationHelper.sleep(1500);
     }
   }
 
