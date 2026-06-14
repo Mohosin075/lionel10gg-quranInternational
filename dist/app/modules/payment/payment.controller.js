@@ -31,6 +31,16 @@ const verifyCheckoutSession = (0, catchAsync_1.default)(async (req, res) => {
         data: result,
     });
 });
+const verifyPaymentIntent = (0, catchAsync_1.default)(async (req, res) => {
+    const { paymentIntentId } = req.body;
+    const result = await payment_service_1.PaymentServices.verifyPaymentIntent(paymentIntentId);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        success: true,
+        message: 'Payment and subscription verified successfully',
+        data: result,
+    });
+});
 const handleWebhook = (0, catchAsync_1.default)(async (req, res) => {
     await payment_service_1.PaymentServices.handleWebhook({
         body: req.body,
@@ -114,6 +124,15 @@ const createEphemeralKey = (0, catchAsync_1.default)(async (req, res) => {
 // ============================================
 // EXISTING CONTROLLERS
 // ============================================
+const getDonationPresets = (0, catchAsync_1.default)(async (req, res) => {
+    const result = await payment_service_1.PaymentServices.getDonationPresets();
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        success: true,
+        message: 'Donation presets retrieved successfully',
+        data: result,
+    });
+});
 const getMyPayments = (0, catchAsync_1.default)(async (req, res) => {
     const user = req.user;
     const paginationOptions = (0, pick_1.default)(req.query, pagination_1.paginationFields);
@@ -160,8 +179,10 @@ exports.PaymentController = {
     getMyPayments,
     createCheckoutSession,
     verifyCheckoutSession,
+    verifyPaymentIntent,
     // Flutter Stripe controllers
     createPaymentIntent,
     createEphemeralKey,
     generateInvoice,
+    getDonationPresets,
 };

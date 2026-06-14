@@ -20,8 +20,13 @@ const chat_routes_1 = require("../app/modules/chat/chat.routes");
 const hasanat_route_1 = require("../app/modules/hasanat/hasanat.route");
 const tafsir_route_1 = require("../app/modules/tafsir/tafsir.route");
 const dua_route_1 = require("../app/modules/dua/dua.route");
+const hadith_route_1 = require("../app/modules/hadith/hadith.route");
+const knowledge_library_route_1 = require("../app/modules/knowledge-library/knowledge-library.route");
 const http_status_codes_1 = require("http-status-codes");
 const dashboard_route_1 = require("../app/modules/dashboard/dashboard.route");
+const subscription_route_1 = require("../app/modules/subscription/subscription.route");
+const in_app_purchase_route_1 = require("../app/modules/in-app-purchase/in-app-purchase.route");
+const payment_route_1 = require("../app/modules/payment/payment.route");
 const router = express_1.default.Router();
 const apiRoutes = [
     { path: '/user', route: user_route_1.UserRoutes },
@@ -40,7 +45,12 @@ const apiRoutes = [
     { path: '/prayer-time', route: prayer_time_route_1.PrayerTimeRoutes },
     { path: '/hasanat', route: hasanat_route_1.HasanatRoutes },
     { path: '/tafsir', route: tafsir_route_1.TafsirRoutes },
+    { path: '/subscription', route: subscription_route_1.SubscriptionRoutes },
+    { path: '/in-app-purchase', route: in_app_purchase_route_1.InAppPurchaseRoutes },
+    { path: '/payment', route: payment_route_1.PaymentRoutes },
     { path: '/dua', route: dua_route_1.DuaRoutes },
+    { path: '/hadith', route: hadith_route_1.HadithRoutes },
+    { path: '/knowledge-library', route: knowledge_library_route_1.KnowledgeLibraryRoutes },
 ];
 apiRoutes.forEach(route => {
     router.use(route.path, route.route);

@@ -2,6 +2,7 @@
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
+var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
@@ -35,6 +36,13 @@ exports.default = {
         stripePublicKey: process.env.STRIPE_PUBLIC_KEY,
         paymentWebhookSecret: process.env.STRIPE_PAYMENT_WEBHOOK_SECRET,
         subscriptionWebhookSecret: process.env.STRIPE_SUBSCRIPTION_WEBHOOK_SECRET,
+        inAppPurchaseWebhookSecret: process.env.STRIPE_IN_APP_PURCHASE_WEBHOOK_SECRET,
+    },
+    iap: {
+        apple_shared_secret: process.env.APPLE_SHARED_SECRET,
+        google_play_package_name: process.env.GOOGLE_PLAY_PACKAGE_NAME,
+        google_play_service_account_email: process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL,
+        google_play_service_account_private_key: (_a = process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY) === null || _a === void 0 ? void 0 : _a.replace(/\\n/g, '\n'),
     },
     jwt: {
         jwt_secret: process.env.JWT_SECRET,

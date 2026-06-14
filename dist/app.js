@@ -5,7 +5,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
-const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const express_1 = __importDefault(require("express"));
 const http_status_codes_1 = require("http-status-codes");
 const path_1 = __importDefault(require("path"));
@@ -20,12 +19,12 @@ const app = (0, express_1.default)();
 // Set security HTTP headers
 app.use((0, helmet_1.default)());
 // Rate limiting: prevent abuse
-const limiter = (0, express_rate_limit_1.default)({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
-    message: 'Too many requests from this IP, please try again after 15 minutes',
-});
-app.use('/api', limiter);
+// const limiter = rateLimit({
+//   windowMs: 15 * 60 * 1000, // 15 minutes
+//   max: 100, // limit each IP to 100 requests per windowMs
+//   message: 'Too many requests from this IP, please try again after 15 minutes',
+// })
+// app.use('/api', limiter)
 // -------------------- Middleware --------------------
 // Body parsers
 app.use(express_1.default.json());

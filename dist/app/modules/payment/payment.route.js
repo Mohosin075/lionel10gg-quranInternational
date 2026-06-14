@@ -13,6 +13,7 @@ const user_1 = require("../../../enum/user");
 const router = express_1.default.Router();
 router.get('/', (0, auth_1.default)(user_1.USER_ROLES.USER, user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN), payment_controller_1.PaymentController.getAllPayments);
 router.get('/my-payments', (0, auth_1.default)(user_1.USER_ROLES.USER, user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN), payment_controller_1.PaymentController.getMyPayments);
+router.get('/donation-presets', (0, auth_1.default)(user_1.USER_ROLES.USER, user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN), payment_controller_1.PaymentController.getDonationPresets);
 router.get('/:id', (0, auth_1.default)(user_1.USER_ROLES.USER), payment_controller_1.PaymentController.getSinglePayment);
 router.get('/:id/invoice', (0, auth_1.default)(user_1.USER_ROLES.USER, user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN), payment_controller_1.PaymentController.generateInvoice);
 // ✅ ONLY THIS - Checkout Session
@@ -22,6 +23,7 @@ router.get('/verify-checkout/:sessionId', (0, auth_1.default)(user_1.USER_ROLES.
 // FLUTTER STRIPE ROUTES
 // ============================================
 router.post('/create-payment-intent', (0, auth_1.default)(user_1.USER_ROLES.USER, user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN), (0, validateRequest_1.default)(payment_validation_1.PaymentValidations.create), payment_controller_1.PaymentController.createPaymentIntent);
+router.post('/verify-payment-intent', (0, auth_1.default)(user_1.USER_ROLES.USER, user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN), payment_controller_1.PaymentController.verifyPaymentIntent);
 //Add SUPER_ADMIN role protection to the ephemeral-key route for enhanced security
 router.post('/ephemeral-key', (0, auth_1.default)(user_1.USER_ROLES.USER, user_1.USER_ROLES.SUPER_ADMIN), payment_controller_1.PaymentController.createEphemeralKey);
 // ============================================

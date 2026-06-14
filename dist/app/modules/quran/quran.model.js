@@ -24,7 +24,7 @@ const LanguageSchema = new mongoose_1.Schema({
     iso: { type: String },
     full_language_name: { type: String },
     author: { type: String },
-    source: { type: String, enum: ['quranenc', 'qurancom'], required: true },
+    source: { type: String, enum: ['quranenc', 'qurancom', 'local'], required: true },
     isSynced: { type: Boolean, default: false },
     lastSyncedAt: { type: Date },
 }, { timestamps: true });
