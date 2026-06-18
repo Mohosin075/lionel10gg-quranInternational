@@ -10,17 +10,30 @@ const getAllArticles = async (
 ) => {
   const skip = (page - 1) * limit;
 
-  // Ensure data exists for the requested language
+  // Ensure data exists and is up to date for the requested language
   if (lang !== 'de') {
-    const count = await KnowledgeArticle.countDocuments({ lang });
-    if (count === 0) {
-      await getOrSyncArticlesByLanguage(lang);
-    }
+    await getOrSyncArticlesByLanguage(lang);
   }
 
-  const query: Record<string, unknown> = { lang, isActive: true };
+  const query: Record<string, any> = { lang, isActive: true };
   if (category) {
-    query.category = category;
+    const categoryRegex = new RegExp(category.trim(), 'i');
+    
+    // Check if category matches any base German articles to fetch by articleId
+    const baseArticles = await KnowledgeArticle.find({
+      lang: 'de',
+      category: { $regex: categoryRegex }
+    }).select('articleId').lean();
+
+    if (baseArticles.length > 0) {
+      const articleIds = baseArticles.map(a => a.articleId);
+      query.$or = [
+        { category: { $regex: categoryRegex } },
+        { articleId: { $in: articleIds } }
+      ];
+    } else {
+      query.category = { $regex: categoryRegex };
+    }
   }
 
   const [data, total] = await Promise.all([
@@ -62,6 +75,9 @@ const deleteArticle = async (id: string) => {
 };
 
 const getVersion = async (lang: string = 'de') => {
+  if (lang !== 'de') {
+    await getOrSyncArticlesByLanguage(lang);
+  }
   const latest = await KnowledgeArticle.findOne({ lang })
     .sort({ version: -1 })
     .select('version');
@@ -79,6 +95,9 @@ const checkSyncMetadata = async (lang: string = 'de', clientVersion: number) => 
 };
 
 const getSyncData = async (lang: string = 'de', fromVersion: number = 0) => {
+  if (lang !== 'de') {
+    await getOrSyncArticlesByLanguage(lang);
+  }
   return await KnowledgeArticle.find({
     lang,
     version: { $gt: fromVersion },
@@ -89,23 +108,37 @@ const getSyncData = async (lang: string = 'de', fromVersion: number = 0) => {
 
 // Automatic dynamic translation helper from German (de) to target language
 const getOrSyncArticlesByLanguage = async (targetLang: string) => {
-  const count = await KnowledgeArticle.countDocuments({ lang: targetLang });
-  if (count > 0) {
-    return await KnowledgeArticle.find({ lang: targetLang }).lean();
-  }
-
-  const baseArticles = await KnowledgeArticle.find({ lang: 'de' }).lean();
+  const baseArticles = await KnowledgeArticle.find({ lang: 'de', isActive: true }).lean();
   if (baseArticles.length === 0) return [];
 
-  console.log(`[KnowledgeService] Translating ${baseArticles.length} articles from German to: ${targetLang}...`);
+  console.log(`[KnowledgeService] Checking/translating articles from German to: ${targetLang}...`);
 
   const results: IKnowledgeArticle[] = [];
+  
+  // Find all existing translated articles for targetLang
+  const existingArticles = await KnowledgeArticle.find({ lang: targetLang }).lean();
+  const existingMap = new Map(existingArticles.map(a => [a.articleId, a]));
+
+  const articlesToTranslate: IKnowledgeArticle[] = [];
+  for (const base of baseArticles) {
+    const existing = existingMap.get(base.articleId);
+    if (!existing || existing.version < base.version) {
+      articlesToTranslate.push(base as unknown as IKnowledgeArticle);
+    } else {
+      results.push(existing as unknown as IKnowledgeArticle);
+    }
+  }
+
+  if (articlesToTranslate.length === 0) {
+    return results;
+  }
+
+  console.log(`[KnowledgeService] Translating ${articlesToTranslate.length} out-of-date/new articles to: ${targetLang}...`);
   const BATCH_SIZE = 5;
 
-  for (let i = 0; i < baseArticles.length; i += BATCH_SIZE) {
-    const batch = baseArticles.slice(i, i + BATCH_SIZE);
-    const translatedBatch: (IKnowledgeArticle | null)[] = [];
-
+  for (let i = 0; i < articlesToTranslate.length; i += BATCH_SIZE) {
+    const batch = articlesToTranslate.slice(i, i + BATCH_SIZE);
+    
     for (const article of batch) {
       try {
         const translatedTitle = await TranslationHelper.translateText(article.title, targetLang, 'de');
@@ -114,7 +147,7 @@ const getOrSyncArticlesByLanguage = async (targetLang: string) => {
         await TranslationHelper.sleep(200);
         const translatedCategory = await TranslationHelper.translateText(article.category, targetLang, 'de');
 
-        translatedBatch.push({
+        const translatedDoc = {
           articleId: article.articleId,
           slug: `${article.slug}-${targetLang}`,
           title: translatedTitle,
@@ -124,23 +157,27 @@ const getOrSyncArticlesByLanguage = async (targetLang: string) => {
           imageUrl: article.imageUrl,
           audioUrl: article.audioUrl,
           lang: targetLang,
-          version: 1,
+          version: article.version, // Keep version aligned with German base
           isActive: article.isActive,
-        } as IKnowledgeArticle);
+        };
+
+        const updated = await KnowledgeArticle.findOneAndUpdate(
+          { articleId: article.articleId, lang: targetLang },
+          { $set: translatedDoc },
+          { upsert: true, new: true }
+        ).lean();
+
+        if (updated) {
+          results.push(updated as unknown as IKnowledgeArticle);
+        }
       } catch (err) {
-        console.error(`Translation failed for Knowledge Article ${article.articleId}:`, err);
-        translatedBatch.push(null);
+        console.error(`Translation failed for Knowledge Article ${article.articleId} to ${targetLang}:`, err);
       }
       await TranslationHelper.sleep(300);
     }
-
-    const validArticles = translatedBatch.filter((a) => a !== null) as IKnowledgeArticle[];
-    if (validArticles.length > 0) {
-      await KnowledgeArticle.insertMany(validArticles);
-      results.push(...validArticles);
-    }
-    console.log(`Translated ${i + validArticles.length} of ${baseArticles.length} articles`);
-    if (i + BATCH_SIZE < baseArticles.length) {
+    
+    console.log(`Translated ${Math.min(i + BATCH_SIZE, articlesToTranslate.length)} of ${articlesToTranslate.length} articles`);
+    if (i + BATCH_SIZE < articlesToTranslate.length) {
       await TranslationHelper.sleep(1500);
     }
   }
