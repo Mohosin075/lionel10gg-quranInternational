@@ -9,6 +9,35 @@ import { SURAH_LIST, AUDIO_TRANSLATIONS, LANGUAGE_TO_AUDIO_KEY, DEFAULT_AUDIO_KE
 const QURAN_ENC_URL = 'https://quranenc.com/api/v1';
 const QURAN_COM_URL = 'https://api.quran.com/api/v4';
 
+const resolveAudioUrl = (
+  surahNumber: number,
+  ayahNumber: number,
+  translationKey: string,
+  lang?: string,
+  dbLangInfo?: any
+): string => {
+  const s = surahNumber.toString().padStart(3, '0');
+  const a = ayahNumber.toString().padStart(3, '0');
+
+  // Check if translationKey is directly in AUDIO_TRANSLATIONS
+  if ((AUDIO_TRANSLATIONS as readonly string[]).includes(translationKey)) {
+    return `https://d.quranenc.com/data/audio/${translationKey}/${s}${a}.mp3`;
+  }
+
+  // Check if lang has a mapping
+  if (lang && LANGUAGE_TO_AUDIO_KEY[lang]) {
+    return `https://d.quranenc.com/data/audio/${LANGUAGE_TO_AUDIO_KEY[lang]}/${s}${a}.mp3`;
+  }
+
+  // Check if dbLangInfo has a mapping
+  if (dbLangInfo && LANGUAGE_TO_AUDIO_KEY[dbLangInfo.language]) {
+    return `https://d.quranenc.com/data/audio/${LANGUAGE_TO_AUDIO_KEY[dbLangInfo.language]}/${s}${a}.mp3`;
+  }
+
+  // Fallback: Arabic recitation (Mishary Rashid Alafasy)
+  return `https://everyayah.com/data/Alafasy_128kbps/${s}${a}.mp3`;
+};
+
 const fetchLanguages = async (page: number = 1, limit: number = 200, language?: string, localization?: string, edition?: string) => {
   const skip = (page - 1) * limit;
 
@@ -177,36 +206,17 @@ const getSurahDetail = async (surahNumber: number, translationKey: string = 'eng
     ayahsData = await getSurahTranslations(surahNumber, translationKey);
   }
 
-  // Determine audio key
-  let audioKey = DEFAULT_AUDIO_KEY;
-  
-  // First check if translationKey is in available audio translations
-  if ((AUDIO_TRANSLATIONS as readonly string[]).includes(translationKey)) {
-    audioKey = translationKey;
-  } 
-  // Then check if lang (or targetLang) has a mapping
-  else if (lang && LANGUAGE_TO_AUDIO_KEY[lang]) {
-    audioKey = LANGUAGE_TO_AUDIO_KEY[lang];
-  } 
-  // Also check language from translation if available
-  else {
-    const langInfo = await Language.findOne({ key: translationKey });
-    if (langInfo && LANGUAGE_TO_AUDIO_KEY[langInfo.language]) {
-      audioKey = LANGUAGE_TO_AUDIO_KEY[langInfo.language];
-    }
-  }
+  // Fetch language info from DB (for audio resolution)
+  const dbLangInfo = await Language.findOne({ key: translationKey });
 
   // 4. Format response
   const ayahs = ayahsData.map((item) => {
-    const s = surahNumber.toString().padStart(3, '0');
-    const a = item.ayah.toString().padStart(3, '0');
-    
     return {
       number: item.ayah,
       text: item.arabicText || '',
-      translation: isArabicOnly ? undefined : (item.text || ''),
-      footnotes: isArabicOnly ? undefined : (item.footnotes || ''),
-      audio: `https://d.quranenc.com/data/audio/${audioKey}/${s}${a}.mp3`,
+      translation: isArabicOnly ? '' : (item.text || ''),
+      footnotes: isArabicOnly ? '' : (item.footnotes || ''),
+      audio: resolveAudioUrl(surahNumber, item.ayah, translationKey, lang, dbLangInfo),
     };
   });
 
@@ -238,29 +248,8 @@ const getAyah = async (surah: number, ayah: number, translationKey: string = 'en
     }
     
     if (result) {
-        const s = surah.toString().padStart(3, '0');
-        const a = ayah.toString().padStart(3, '0');
-        
-        // Determine audio key
-        let audioKey = DEFAULT_AUDIO_KEY;
-        
-        // First check if translationKey is in available audio translations
-        if ((AUDIO_TRANSLATIONS as readonly string[]).includes(translationKey)) {
-          audioKey = translationKey;
-        } 
-        // Then check if lang (or targetLang) has a mapping
-        else if (lang && LANGUAGE_TO_AUDIO_KEY[lang]) {
-          audioKey = LANGUAGE_TO_AUDIO_KEY[lang];
-        } 
-        // Also check language from translation if available
-        else {
-          const langInfo = await Language.findOne({ key: translationKey });
-          if (langInfo && LANGUAGE_TO_AUDIO_KEY[langInfo.language]) {
-            audioKey = LANGUAGE_TO_AUDIO_KEY[langInfo.language];
-          }
-        }
-        
-        (result as any).audio = `https://d.quranenc.com/data/audio/${audioKey}/${s}${a}.mp3`;
+        const dbLangInfo = await Language.findOne({ key: translationKey });
+        (result as any).audio = resolveAudioUrl(surah, ayah, translationKey, lang, dbLangInfo);
     }
     
     return result;
@@ -348,10 +337,19 @@ const checkSyncMetadata = async (translationKey: string, clientVersion: number) 
 
 const getSyncData = async (translationKey: string, fromVersion: number = 0) => {
     // Fetch translations that have a version greater than client version
-    return await Translation.find({
+    const data = await Translation.find({
         edition: translationKey,
         version: { $gt: fromVersion }
     }).sort({ surah: 1, ayah: 1 }).lean();
+
+    const dbLangInfo = await Language.findOne({ key: translationKey });
+
+    return data.map((item) => {
+      return {
+        ...item,
+        audio: resolveAudioUrl(item.surah, item.ayah, translationKey, undefined, dbLangInfo),
+      };
+    });
 };
 
 const syncEdition = async (edition: string) => {
