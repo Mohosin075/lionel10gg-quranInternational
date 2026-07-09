@@ -108,7 +108,7 @@ const getSyncData = async (lang: string = 'de', fromVersion: number = 0) => {
 
 // Automatic dynamic translation helper from German (de) to target language
 const getOrSyncArticlesByLanguage = async (targetLang: string) => {
-  const baseArticles = await KnowledgeArticle.find({ lang: 'de', isActive: true }).lean();
+  const baseArticles = await KnowledgeArticle.find({ lang: 'de', isActive: true, source: 'manual' }).lean();
   if (baseArticles.length === 0) return [];
 
   console.log(`[KnowledgeService] Checking/translating articles from German to: ${targetLang}...`);
