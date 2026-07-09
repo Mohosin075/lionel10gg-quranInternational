@@ -6,12 +6,92 @@ import { Subscription } from './src/app/modules/subscription/subscription.model'
 
 // Demo data
 const demoUserEmail = 'demo@quranapp.com'
-const demoPlanName = 'Premium Monthly'
 const demoSubscription = {
   stripeCustomerId: 'cus_demo_12345',
   stripeSubscriptionId: 'sub_demo_12345',
-  stripePriceId: 'price_demo_12345',
+  stripePriceId: 'price_tier_999',
 }
+
+const demoTiers = [
+  {
+    name: 'Premium Support (€0.99)',
+    description: 'Unlock 14 features and support Quran App',
+    price: 0.99,
+    currency: 'eur',
+    interval: 'month' as const,
+    intervalCount: 1,
+    features: ['Unlock all 14 premium features'],
+    isActive: true,
+    stripePriceId: 'price_tier_099',
+    stripeProductId: 'prod_premium_tier',
+    priority: 1,
+  },
+  {
+    name: 'Premium Support (€1.99)',
+    description: 'Unlock 14 features and support Quran App',
+    price: 1.99,
+    currency: 'eur',
+    interval: 'month' as const,
+    intervalCount: 1,
+    features: ['Unlock all 14 premium features'],
+    isActive: true,
+    stripePriceId: 'price_tier_199',
+    stripeProductId: 'prod_premium_tier',
+    priority: 2,
+  },
+  {
+    name: 'Premium Support (€4.99)',
+    description: 'Unlock 14 features and support Quran App',
+    price: 4.99,
+    currency: 'eur',
+    interval: 'month' as const,
+    intervalCount: 1,
+    features: ['Unlock all 14 premium features'],
+    isActive: true,
+    stripePriceId: 'price_tier_499',
+    stripeProductId: 'prod_premium_tier',
+    priority: 3,
+  },
+  {
+    name: 'Premium Support (€9.99)',
+    description: 'Unlock 14 features and support Quran App',
+    price: 9.99,
+    currency: 'eur',
+    interval: 'month' as const,
+    intervalCount: 1,
+    features: ['Unlock all 14 premium features'],
+    isActive: true,
+    stripePriceId: 'price_tier_999',
+    stripeProductId: 'prod_premium_tier',
+    priority: 4,
+  },
+  {
+    name: 'Premium Support (€19.99)',
+    description: 'Unlock 14 features and support Quran App',
+    price: 19.99,
+    currency: 'eur',
+    interval: 'month' as const,
+    intervalCount: 1,
+    features: ['Unlock all 14 premium features'],
+    isActive: true,
+    stripePriceId: 'price_tier_1999',
+    stripeProductId: 'prod_premium_tier',
+    priority: 5,
+  },
+  {
+    name: 'Premium Support (€49.99)',
+    description: 'Unlock 14 features and support Quran App',
+    price: 49.99,
+    currency: 'eur',
+    interval: 'month' as const,
+    intervalCount: 1,
+    features: ['Unlock all 14 premium features'],
+    isActive: true,
+    stripePriceId: 'price_tier_4999',
+    stripeProductId: 'prod_premium_tier',
+    priority: 6,
+  },
+]
 
 async function seedDemoSubscription() {
   try {
@@ -39,31 +119,20 @@ async function seedDemoSubscription() {
       console.log('ℹ️ Demo user already exists:', demoUser.email)
     }
 
-    // 2. Create a demo subscription plan (if not exists)
-    let demoPlan = await SubscriptionPlan.findOne({ name: demoPlanName })
-    if (!demoPlan) {
-      demoPlan = await SubscriptionPlan.create({
-        name: demoPlanName,
-        description: 'Premium features for Quran App',
-        price: 9.99,
-        currency: 'usd',
-        interval: 'month',
-        intervalCount: 1,
-        features: [
-          'Unlimited bookmarks',
-          'Offline Quran translations',
-          'Premium dua collection',
-        ],
-        maxPhotos: 100,
-        isActive: true,
-        stripePriceId: demoSubscription.stripePriceId,
-        stripeProductId: 'prod_demo_12345',
-        priority: 1,
-      })
-      console.log('✅ Demo subscription plan created:', demoPlan.name)
-    } else {
-      console.log('ℹ️ Demo plan already exists:', demoPlan.name)
+    // 2. Create the 6 dynamic price tiers (overwrite/upsert)
+    console.log('Clearing existing subscription plans...')
+    await SubscriptionPlan.deleteMany({})
+
+    console.log('Seeding 6 dynamic subscription tiers...')
+    const createdPlans = []
+    for (const tier of demoTiers) {
+      const plan = await SubscriptionPlan.create(tier)
+      createdPlans.push(plan)
+      console.log(`✅ Created tier: ${plan.name} (${plan.price} ${plan.currency})`)
     }
+
+    // Pick Tier 4 (€9.99) as the active plan for demo user
+    const selectedPlan = createdPlans.find(p => p.price === 9.99) || createdPlans[0]
 
     // 3. Create a demo subscription for the user (if not exists)
     let userSubscription = await Subscription.findOne({ userId: demoUser._id })
@@ -74,17 +143,17 @@ async function seedDemoSubscription() {
 
       userSubscription = await Subscription.create({
         userId: demoUser._id,
-        planId: demoPlan._id,
+        planId: selectedPlan._id,
         stripeCustomerId: demoSubscription.stripeCustomerId,
         stripeSubscriptionId: demoSubscription.stripeSubscriptionId,
-        stripePriceId: demoSubscription.stripePriceId,
+        stripePriceId: selectedPlan.stripePriceId,
         status: 'active',
         currentPeriodStart: now,
         currentPeriodEnd: endDate,
         lastPaymentDate: now,
         nextPaymentDate: endDate,
       })
-      console.log('✅ Demo subscription created for user')
+      console.log('✅ Demo subscription created for user using tier:', selectedPlan.name)
     } else {
       console.log('ℹ️ Demo subscription already exists for user')
     }
