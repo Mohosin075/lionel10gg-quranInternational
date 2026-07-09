@@ -25,6 +25,10 @@ const createCheckoutSession = async (
   user: any,
   payload: any,
 ): Promise<{ sessionId: string; url: string }> => {
+  throw new ApiError(
+    StatusCodes.BAD_REQUEST,
+    'One-time payments are disabled. Please use recurring subscriptions.',
+  )
   try {
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -149,6 +153,10 @@ const createPaymentIntent = async (
   user: any,
   payload: any,
 ): Promise<{ clientSecret: string; paymentIntentId: string; amount: number }> => {
+  throw new ApiError(
+    StatusCodes.BAD_REQUEST,
+    'One-time payments are disabled. Please use recurring subscriptions.',
+  )
   try {
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(payload.amount * 100),

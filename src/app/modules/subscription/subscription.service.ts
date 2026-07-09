@@ -5,7 +5,7 @@ import { Types } from 'mongoose'
 import ApiError from '../../../errors/ApiError'
 import { User } from '../user/user.model'
 import { Subscription } from './subscription.model'
-import { SubscriptionPlan } from './subscription-plan.model'
+import { SubscriptionPlan, PremiumBenefit } from './subscription-plan.model'
 import { stripeService } from './stripe.service'
 import { emailNotificationService } from './email-notification.service'
 import {
@@ -15,6 +15,7 @@ import {
   UpdateSubscriptionRequest,
   SubscriptionResponse,
   SubscriptionStatus,
+  IPremiumBenefit,
 } from './subscription.interface'
 
 class SubscriptionService {
@@ -526,6 +527,7 @@ class SubscriptionService {
         priceId: plan.stripePriceId,
         successUrl,
         cancelUrl,
+        trialPeriodDays: 30, // Golden Month: 30 days trial period
         metadata: {
           userId: userId.toString(),
           planId,
@@ -939,6 +941,43 @@ class SubscriptionService {
       return 'basic'
     }
     return 'free'
+  }
+
+  // Premium Benefit CRUD methods
+  async getAllPremiumBenefits(): Promise<IPremiumBenefit[]> {
+    try {
+      return await PremiumBenefit.find({ isActive: true }).sort({ serialNumber: 1 }).lean()
+    } catch (error) {
+      console.error('Error fetching premium benefits:', error)
+      throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to fetch premium benefits')
+    }
+  }
+
+  async createPremiumBenefit(payload: IPremiumBenefit): Promise<IPremiumBenefit> {
+    try {
+      return await PremiumBenefit.create(payload)
+    } catch (error) {
+      console.error('Error creating premium benefit:', error)
+      throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to create premium benefit')
+    }
+  }
+
+  async updatePremiumBenefit(id: string, payload: Partial<IPremiumBenefit>): Promise<IPremiumBenefit | null> {
+    try {
+      return await PremiumBenefit.findByIdAndUpdate(id, payload, { new: true })
+    } catch (error) {
+      console.error('Error updating premium benefit:', error)
+      throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to update premium benefit')
+    }
+  }
+
+  async deletePremiumBenefit(id: string): Promise<IPremiumBenefit | null> {
+    try {
+      return await PremiumBenefit.findByIdAndUpdate(id, { isActive: false }, { new: true })
+    } catch (error) {
+      console.error('Error deleting premium benefit:', error)
+      throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to delete premium benefit')
+    }
   }
 }
 

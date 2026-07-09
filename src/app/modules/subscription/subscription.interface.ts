@@ -110,3 +110,14 @@ export interface SubscriptionStatus {
   daysUntilExpiry: number
   currentPlan?: ISubscriptionPlan
 }
+
+// Premium Benefit Interface (Dynamic 14 Premium Features Text)
+export interface IPremiumBenefit {
+  _id?: Types.ObjectId;
+  serialNumber: number;
+  text: string;
+  isActive: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+

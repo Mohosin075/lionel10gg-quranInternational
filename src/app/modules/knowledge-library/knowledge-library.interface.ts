@@ -8,6 +8,7 @@ export interface IKnowledgeArticle {
   imageUrl?: string;
   audioUrl?: string;
   lang: string;
+  source: 'islamhouse' | 'manual';
   version: number;
   isActive: boolean;
 }

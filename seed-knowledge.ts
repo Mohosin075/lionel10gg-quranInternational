@@ -126,7 +126,7 @@ async function seedKnowledge() {
       console.log(`Upserting German article: "${article.title}"...`);
       await KnowledgeArticle.findOneAndUpdate(
         { articleId: article.articleId, lang: 'de' },
-        { $set: article },
+        { $set: { ...article, source: 'manual' } },
         { upsert: true, new: true }
       );
     }

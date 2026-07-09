@@ -3,6 +3,7 @@ import { SubscriptionController } from './subscription.controller'
 import validateRequest from '../../middleware/validateRequest'
 import auth from '../../middleware/auth'
 import { subscriptionValidation } from './subscription.validation'
+import { SubscriptionBenefitValidations } from './subscription-benefit.validation'
 import { USER_ROLES } from '../../../enum/user'
 
 const router = express.Router()
@@ -19,6 +20,11 @@ router.get(
   validateRequest(subscriptionValidation.planParams),
   SubscriptionController.getPlanById,
 ) //✅tested
+
+router.get(
+  '/premium-benefits',
+  SubscriptionController.getAllPremiumBenefits,
+)
 
 // User routes (require authentication)
 // Apply authentication middleware to all routes below
@@ -155,6 +161,26 @@ router.post(
   auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
   validateRequest(subscriptionValidation.subscriptionParams),
   SubscriptionController.retryFailedPayment,
+)
+
+router.post(
+  '/admin/premium-benefits',
+  auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  validateRequest(SubscriptionBenefitValidations.createBenefitZodSchema),
+  SubscriptionController.createPremiumBenefit,
+)
+
+router.patch(
+  '/admin/premium-benefits/:id',
+  auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  validateRequest(SubscriptionBenefitValidations.updateBenefitZodSchema),
+  SubscriptionController.updatePremiumBenefit,
+)
+
+router.delete(
+  '/admin/premium-benefits/:id',
+  auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  SubscriptionController.deletePremiumBenefit,
 )
 
 export const SubscriptionRoutes = router

@@ -157,6 +157,7 @@ const getOrSyncArticlesByLanguage = async (targetLang: string) => {
           imageUrl: article.imageUrl,
           audioUrl: article.audioUrl,
           lang: targetLang,
+          source: article.source || 'manual',
           version: article.version, // Keep version aligned with German base
           isActive: article.isActive,
         };

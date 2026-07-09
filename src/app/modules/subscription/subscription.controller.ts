@@ -376,10 +376,53 @@ const createBillingPortal = catchAsync(async (req: Request, res: Response) => {
   })
 })
 
+const getAllPremiumBenefits = catchAsync(async (req: Request, res: Response) => {
+  const result = await subscriptionService.getAllPremiumBenefits()
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Premium benefits fetched successfully',
+    data: result,
+  })
+})
+
+const createPremiumBenefit = catchAsync(async (req: Request, res: Response) => {
+  const result = await subscriptionService.createPremiumBenefit(req.body)
+  sendResponse(res, {
+    statusCode: StatusCodes.CREATED,
+    success: true,
+    message: 'Premium benefit created successfully',
+    data: result,
+  })
+})
+
+const updatePremiumBenefit = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params
+  const result = await subscriptionService.updatePremiumBenefit(id, req.body)
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Premium benefit updated successfully',
+    data: result,
+  })
+})
+
+const deletePremiumBenefit = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params
+  const result = await subscriptionService.deletePremiumBenefit(id)
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Premium benefit deleted successfully',
+    data: result,
+  })
+})
+
 export const SubscriptionController = {
   // Public endpoints
   getAvailablePlans,
   getPlanById,
+  getAllPremiumBenefits,
 
   // User endpoints (require authentication)
   createSubscription,
@@ -406,4 +449,7 @@ export const SubscriptionController = {
   getAllSubscriptions,
   getSubscriptionAnalytics,
   retryFailedPayment,
+  createPremiumBenefit,
+  updatePremiumBenefit,
+  deletePremiumBenefit,
 }

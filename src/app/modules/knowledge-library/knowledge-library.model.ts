@@ -12,6 +12,7 @@ const KnowledgeArticleSchema = new Schema<IKnowledgeArticle>(
     imageUrl: { type: String },
     audioUrl: { type: String },
     lang: { type: String, required: true, default: 'de' }, // Initial content in German
+    source: { type: String, enum: ['islamhouse', 'manual'], required: true, default: 'manual' },
     version: { type: Number, required: true, default: 1 },
     isActive: { type: Boolean, required: true, default: true },
   },

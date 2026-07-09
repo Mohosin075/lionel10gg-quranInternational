@@ -18,6 +18,7 @@ import { TafsirRoutes } from '../app/modules/tafsir/tafsir.route'
 import { DuaRoutes } from '../app/modules/dua/dua.route'
 import { HadithRoutes } from '../app/modules/hadith/hadith.route'
 import { KnowledgeLibraryRoutes } from '../app/modules/knowledge-library/knowledge-library.route'
+import { SheikhContentRoutes } from '../app/modules/sheikh-content/sheikh-content.route'
 import { StatusCodes } from 'http-status-codes'
 
 import { DashboardRoutes } from '../app/modules/dashboard/dashboard.route'
@@ -50,6 +51,7 @@ const apiRoutes: { path: string; route: Router }[] = [
   { path: '/dua', route: DuaRoutes },
   { path: '/hadith', route: HadithRoutes },
   { path: '/knowledge-library', route: KnowledgeLibraryRoutes },
+  { path: '/sheikh-content', route: SheikhContentRoutes },
 ]
 
 apiRoutes.forEach(route => {

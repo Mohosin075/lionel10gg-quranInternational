@@ -79,3 +79,33 @@ export const SubscriptionPlan = model<ISubscriptionPlan, SubscriptionPlanModel>(
   'SubscriptionPlan',
   subscriptionPlanSchema,
 )
+
+// Premium Benefit Schema for dynamic benefit points text
+import { IPremiumBenefit } from './subscription.interface'
+
+const premiumBenefitSchema = new Schema<IPremiumBenefit>(
+  {
+    serialNumber: {
+      type: Number,
+      required: true,
+      unique: true,
+    },
+    text: {
+      type: String,
+      required: true,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
+)
+
+premiumBenefitSchema.index({ serialNumber: 1 })
+premiumBenefitSchema.index({ isActive: 1 })
+
+export const PremiumBenefit = model<IPremiumBenefit>('PremiumBenefit', premiumBenefitSchema)
+
