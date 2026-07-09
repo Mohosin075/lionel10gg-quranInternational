@@ -56,6 +56,7 @@ const deleteContent = async (id: string): Promise<ISheikhContent | null> => {
 
 const SPEAKER_YOUTUBE_CHANNELS: Record<string, string> = {
   'abu alia': 'UCY4bNa8fwU9WRzsJh84FA5A',
+  'abul baraa': 'UCRsfPhTdW-GBdqHjj-29tvQ',
 };
 
 const getSpeakerContent = async (speakerName: string) => {
