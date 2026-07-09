@@ -30,15 +30,15 @@ const demoSheikhContent = [
   {
     speakerName: 'Abu Alia',
     type: 'audio_travel' as const,
-    title: 'Reise-Audio: Die Vorzüge von Geduld (Sabr)',
-    url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+    title: 'Reise-Audio: Das Aqidah-Gedicht Al-Haiyyah (Einleitung)',
+    url: 'https://d1.islamhouse.com/data/de/ih_sounds/chain/das-aqidah-gedicht-al-haiyyah/de-01-das-aqidah-gedicht-al-haiyyah.mp3',
     isActive: true
   },
   {
     speakerName: 'Abu Alia',
     type: 'audio_travel' as const,
-    title: 'Reise-Audio: Dankbarkeit gegenüber Allah',
-    url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+    title: 'Reise-Audio: Das Aqidah-Gedicht Al-Haiyyah (Vers 2 - 3)',
+    url: 'https://d1.islamhouse.com/data/de/ih_sounds/chain/das-aqidah-gedicht-al-haiyyah/de-02-das-aqidah-gedicht-al-haiyyah.mp3',
     isActive: true
   }
 ];
