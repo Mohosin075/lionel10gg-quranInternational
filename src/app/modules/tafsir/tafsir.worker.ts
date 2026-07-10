@@ -19,25 +19,24 @@ export async function ingestSurahTafsir(surahNumber: number, edition: string, la
       throw new Error(`Failed to fetch tafsir for Surah ${surahNumber} from QuranEnc`);
     }
 
-    const batch: ITafsir[] = [];
-    
-    for (const item of response.data.result) {
-      let text = item.translation; // Arabic tafsir text
-      
-      if (lang !== 'ar') {
-        // Translate from Arabic to the target language
-        text = await TranslationHelper.translateText(text, lang, 'ar');
-      }
-      
-      batch.push({
-        surah: Number(item.sura),
-        ayah: Number(item.aya),
-        lang: lang,
-        edition: edition,
-        text: text,
-        version: 1,
-      });
+    const rawTafsirs = response.data.result;
+    let translatedTexts: string[] = [];
+
+    if (lang !== 'ar') {
+      const textsToTranslate = rawTafsirs.map(item => item.translation);
+      translatedTexts = await translateBatch(textsToTranslate, lang, 'ar');
+    } else {
+      translatedTexts = rawTafsirs.map(item => item.translation);
     }
+
+    const batch: ITafsir[] = rawTafsirs.map((item, idx) => ({
+      surah: Number(item.sura),
+      ayah: Number(item.aya),
+      lang: lang,
+      edition: edition,
+      text: translatedTexts[idx] || item.translation,
+      version: 1,
+    }));
 
     if (batch.length > 0) {
       await Tafsir.bulkWrite(
@@ -60,4 +59,38 @@ export async function ingestSurahTafsir(surahNumber: number, edition: string, la
     console.error(`Failed to ingest Tafsir for Surah ${surahNumber}:`, error);
     throw error;
   }
+}
+
+async function translateBatch(texts: string[], targetLang: string, sourceLang: string = 'ar'): Promise<string[]> {
+  const BATCH_SIZE = 15;
+  const chunks: string[][] = [];
+  for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+    chunks.push(texts.slice(i, i + BATCH_SIZE));
+  }
+
+  const promises = chunks.map(async (chunk) => {
+    const joinedText = chunk.join(' ||| ');
+    try {
+      const translatedJoined = await TranslationHelper.translateText(joinedText, targetLang, sourceLang);
+      const translatedChunk = translatedJoined.split('|||').map(t => t.trim());
+      
+      if (translatedChunk.length === chunk.length) {
+        return translatedChunk;
+      }
+      console.warn(`[TafsirWorker] Split length mismatch (${translatedChunk.length} vs ${chunk.length}). Falling back to sequential translation for this chunk.`);
+    } catch (e) {
+      console.error('[TafsirWorker] Error in batch chunk translation:', e);
+    }
+    
+    // Fallback if batch translation failed/split mismatched
+    const fallbackChunk: string[] = [];
+    for (const item of chunk) {
+      const single = await TranslationHelper.translateText(item, targetLang, sourceLang);
+      fallbackChunk.push(single);
+    }
+    return fallbackChunk;
+  });
+
+  const resolvedChunks = await Promise.all(promises);
+  return resolvedChunks.flat();
 }

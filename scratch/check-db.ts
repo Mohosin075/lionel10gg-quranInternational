@@ -8,17 +8,17 @@ async function checkDb() {
   try {
     await mongoose.connect(process.env.DATABASE_URL as string);
     console.log('Connected.');
-    const { Tafsir } = require('../src/app/modules/tafsir/tafsir.model');
     const { TafsirService } = require('../src/app/modules/tafsir/tafsir.service');
+    const { Tafsir } = require('../src/app/modules/tafsir/tafsir.model');
 
-    console.log('Cleaning up non-Arabic Tafsirs from DB...');
-    const deleteResult = await Tafsir.deleteMany({ lang: { $ne: 'ar' } });
-    console.log(`Deleted ${deleteResult.deletedCount} non-Arabic Tafsirs.`);
+    console.log('Cleaning up Turkish Tafsirs from DB...');
+    await Tafsir.deleteMany({ lang: 'tr' });
 
-    console.log('Fetching Surah 1 Tafsir for arabic_moyassar / bn (Bengali)...');
-    const resultBn = await TafsirService.getSurahTafsir(1, 'arabic_moyassar', 'bn');
-    console.log('Result BN count:', resultBn?.length);
-    console.log('Sample Ayah 1 BN Tafsir text:', resultBn?.[0]?.text);
+    const startTime = Date.now();
+    console.log('Fetching Surah 2 Ayah 8 Tafsir for qcom:124 / tr (Turkish)...');
+    const resultTr = await TafsirService.getTafsir(2, 8, 'qcom:124', 'tr');
+    const elapsed = Date.now() - startTime;
+    console.log(`Result Tafsir fetched in ${elapsed}ms:`, resultTr);
 
     await mongoose.disconnect();
   } catch (error) {
