@@ -163,6 +163,12 @@ router.post(
   SubscriptionController.retryFailedPayment,
 )
 
+router.get(
+  '/admin/premium-benefits',
+  auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  SubscriptionController.getAdminPremiumBenefits,
+)
+
 router.post(
   '/admin/premium-benefits',
   auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),

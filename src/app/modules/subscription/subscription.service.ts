@@ -19,9 +19,9 @@ import {
 } from './subscription.interface'
 
 class SubscriptionService {
-  async getAvailablePlans(): Promise<ISubscriptionPlan[]> {
+  async getAvailablePlans(includeInactive = false): Promise<ISubscriptionPlan[]> {
     try {
-      const query: any = { isActive: true }
+      const query: any = includeInactive ? {} : { isActive: true }
 
       const plans = await SubscriptionPlan.find(query).sort({
         priority: 1,
@@ -949,6 +949,15 @@ class SubscriptionService {
       return await PremiumBenefit.find({ isActive: true }).sort({ serialNumber: 1 }).lean()
     } catch (error) {
       console.error('Error fetching premium benefits:', error)
+      throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to fetch premium benefits')
+    }
+  }
+
+  async getAdminPremiumBenefits(): Promise<IPremiumBenefit[]> {
+    try {
+      return await PremiumBenefit.find().sort({ serialNumber: 1 }).lean()
+    } catch (error) {
+      console.error('Error fetching admin premium benefits:', error)
       throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to fetch premium benefits')
     }
   }

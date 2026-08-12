@@ -218,7 +218,7 @@ const deleteSubscriptionPlan = catchAsync(
 // Admin: Get all plans (including inactive)
 const getAllPlans = catchAsync(async (req: Request, res: Response) => {
   // For admin, get all plans including inactive ones
-  const plans = await subscriptionService.getAvailablePlans()
+  const plans = await subscriptionService.getAvailablePlans(true)
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,
@@ -386,6 +386,16 @@ const getAllPremiumBenefits = catchAsync(async (req: Request, res: Response) => 
   })
 })
 
+const getAdminPremiumBenefits = catchAsync(async (req: Request, res: Response) => {
+  const result = await subscriptionService.getAdminPremiumBenefits()
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Premium benefits fetched successfully',
+    data: result,
+  })
+})
+
 const createPremiumBenefit = catchAsync(async (req: Request, res: Response) => {
   const result = await subscriptionService.createPremiumBenefit(req.body)
   sendResponse(res, {
@@ -449,6 +459,7 @@ export const SubscriptionController = {
   getAllSubscriptions,
   getSubscriptionAnalytics,
   retryFailedPayment,
+  getAdminPremiumBenefits,
   createPremiumBenefit,
   updatePremiumBenefit,
   deletePremiumBenefit,
