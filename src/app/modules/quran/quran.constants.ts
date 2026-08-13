@@ -148,3 +148,22 @@ export const SURAH_LIST: ISurahMetadata[] = [
   { number: 113, name: "سُورَةُ الفَلَقِ", englishName: "Al-Falaq", englishNameTranslation: "The Daybreak", numberOfAyahs: 5, revelationType: "Meccan" },
   { number: 114, name: "سُورَةُ النَّاسِ", englishName: "An-Naas", englishNameTranslation: "Mankind", numberOfAyahs: 6, revelationType: "Meccan" },
 ];
+
+export const POPULAR_RECITERS = [
+  { id: 'alafasy', name: 'Mishary Rashid Alafasy', urlKey: 'Alafasy_128kbps' },
+  { id: 'abdul_basit_murattal', name: 'Abdul Basit (Murattal)', urlKey: 'Abdul_Basit_Murattal_192kbps' },
+  { id: 'abdul_basit_mujawwad', name: 'Abdul Basit (Mujawwad)', urlKey: 'Abdul_Basit_Mujawwad_128kbps' },
+  { id: 'hudhaify', name: 'Ali Al-Hudhaify', urlKey: 'Hudhaify_128kbps' },
+  { id: 'husary', name: 'Mahmoud Khalil Al-Husary', urlKey: 'Husary_64kbps' },
+  { id: 'minshawy', name: 'Mohamed Siddiq El-Minshawi', urlKey: 'Minshawy_Murattal_128kbps' },
+  { id: 'shuraym', name: 'Saood ash-Shuraym', urlKey: 'Saood_ash-Shuraym_128kbps' },
+  { id: 'sudais', name: 'Abdurrahmaan As-Sudais', urlKey: 'Abdurrahmaan_As-Sudais_192kbps' },
+  { id: 'maher', name: 'Maher Al Muaiqly', urlKey: 'Maher_AlMuaiqly_64kbps' },
+  { id: 'ghamadi', name: 'Saad Al-Ghamdi', urlKey: 'Ghamadi_40kbps' },
+  { id: 'menshawi_mujawwad', name: 'El-Minshawi (Mujawwad)', urlKey: 'Minshawy_Mujawwad_128kbps' },
+  { id: 'shatri', name: 'Abu Bakr Al-Shatri', urlKey: 'Abu_Bakr_Al_Shatri_128kbps' },
+  { id: 'ayyoub', name: 'Muhammad Ayyoub', urlKey: 'Muhammad_Ayyoub_128kbps' },
+  { id: 'jibreel', name: 'Muhammad Jibreel', urlKey: 'Muhammad_Jebril_128kbps' },
+  { id: 'basfar', name: 'Abdullah Basfar', urlKey: 'Abdullah_Basfar_192kbps' },
+  { id: 'rifai', name: 'Hani Ar-Rifai', urlKey: 'Hani_Ar_Rifai_192kbps' }
+];

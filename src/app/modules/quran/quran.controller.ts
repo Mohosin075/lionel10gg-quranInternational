@@ -3,6 +3,7 @@ import { StatusCodes } from 'http-status-codes';
 import catchAsync from '../../../shared/catchAsync';
 import sendResponse from '../../../shared/sendResponse';
 import { QuranServices } from './quran.service';
+import { POPULAR_RECITERS } from './quran.constants';
 
 const getLanguages = catchAsync(async (req: Request, res: Response) => {
   const page = Number(req.query.page) || 1;
@@ -40,7 +41,8 @@ const getSurahDetail = catchAsync(async (req: Request, res: Response) => {
   const { number } = req.params;
   const edition = req.query.edition as string || 'english_saheeh';
   const lang = req.query.lang as string || 'en';
-  const result = await QuranServices.getSurahDetail(Number(number), edition, lang);
+  const reciter = req.query.reciter as string;
+  const result = await QuranServices.getSurahDetail(Number(number), edition, lang, reciter);
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
@@ -80,7 +82,8 @@ const getAyah = catchAsync(async (req: Request, res: Response) => {
   const { surah, ayah } = req.params;
   const edition = req.query.edition as string || 'english_saheeh';
   const lang = req.query.lang as string || 'en';
-  const result = await QuranServices.getAyah(Number(surah), Number(ayah), edition, lang);
+  const reciter = req.query.reciter as string;
+  const result = await QuranServices.getAyah(Number(surah), Number(ayah), edition, lang, reciter);
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
@@ -159,6 +162,15 @@ const downloadSync = catchAsync(async (req: Request, res: Response) => {
     });
 });
 
+const getReciters = catchAsync(async (req: Request, res: Response) => {
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Reciters fetched successfully',
+    data: POPULAR_RECITERS,
+  });
+});
+
 export const QuranController = {
   getLanguages,
   getSurahs,
@@ -169,5 +181,6 @@ export const QuranController = {
   getVersion,
   syncLanguages,
   checkSync,
-  downloadSync
+  downloadSync,
+  getReciters
 };

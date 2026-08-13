@@ -30,7 +30,7 @@ const subscriptionPlanSchema = new Schema<
     },
     interval: {
       type: String,
-      enum: ['month', 'year'],
+      enum: ['month', 'year', 'lifetime'],
       required: true,
     },
     intervalCount: {
@@ -47,6 +47,10 @@ const subscriptionPlanSchema = new Schema<
     maxPhotos: {
       type: Number,
       default: 1,
+    },
+    trialPeriodDays: {
+      type: Number,
+      default: 0,
     },
     isActive: {
       type: Boolean,

@@ -8,8 +8,9 @@ export interface ISubscriptionPlan {
   description: string
   price: number
   currency: string
-  interval: 'month' | 'year'
+  interval?: 'month' | 'year' | 'lifetime'
   intervalCount: number
+  trialPeriodDays?: number
   features: string[]
   maxPhotos: number
   isActive: boolean

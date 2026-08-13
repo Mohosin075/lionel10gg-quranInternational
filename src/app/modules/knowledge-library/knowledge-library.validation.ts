@@ -34,7 +34,59 @@ const updateArticleZodSchema = z.object({
   }),
 });
 
+const createBookZodSchema = z.object({
+  body: z.object({
+    bookId: z.string({ required_error: 'bookId is required' }),
+    title: z.string({ required_error: 'title is required' }),
+    author: z.string().optional(),
+    content: z.string({ required_error: 'content is required' }),
+    lang: z.string().optional(),
+    source: z.enum(['islamhouse', 'manual']).optional(),
+    version: z.number().optional(),
+    isActive: z.boolean().optional(),
+  }),
+});
+
+const updateBookZodSchema = z.object({
+  body: z.object({
+    bookId: z.string().optional(),
+    title: z.string().optional(),
+    author: z.string().optional(),
+    content: z.string().optional(),
+    lang: z.string().optional(),
+    source: z.enum(['islamhouse', 'manual']).optional(),
+    version: z.number().optional(),
+    isActive: z.boolean().optional(),
+  }),
+});
+
+const createFatwaZodSchema = z.object({
+  body: z.object({
+    fatwaId: z.string({ required_error: 'fatwaId is required' }),
+    question: z.string({ required_error: 'question is required' }),
+    answer: z.string({ required_error: 'answer is required' }),
+    scholar: z.string().optional(),
+    lang: z.string().optional(),
+    isActive: z.boolean().optional(),
+  }),
+});
+
+const updateFatwaZodSchema = z.object({
+  body: z.object({
+    fatwaId: z.string().optional(),
+    question: z.string().optional(),
+    answer: z.string().optional(),
+    scholar: z.string().optional(),
+    lang: z.string().optional(),
+    isActive: z.boolean().optional(),
+  }),
+});
+
 export const KnowledgeLibraryValidations = {
   createArticleZodSchema,
   updateArticleZodSchema,
+  createBookZodSchema,
+  updateBookZodSchema,
+  createFatwaZodSchema,
+  updateFatwaZodSchema,
 };

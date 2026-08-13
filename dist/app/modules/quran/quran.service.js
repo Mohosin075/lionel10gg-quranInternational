@@ -12,6 +12,18 @@ const quran_worker_1 = require("./quran.worker");
 const quran_constants_1 = require("./quran.constants");
 const QURAN_ENC_URL = 'https://quranenc.com/api/v1';
 const QURAN_COM_URL = 'https://api.quran.com/api/v4';
+const resolveAudioUrl = (surahNumber, ayahNumber, reciterId) => {
+    const s = surahNumber.toString().padStart(3, '0');
+    const a = ayahNumber.toString().padStart(3, '0');
+    if (reciterId) {
+        const reciter = quran_constants_1.POPULAR_RECITERS.find((r) => r.id === reciterId.toLowerCase() || r.urlKey.toLowerCase() === reciterId.toLowerCase());
+        if (reciter) {
+            return `https://everyayah.com/data/${reciter.urlKey}/${s}${a}.mp3`;
+        }
+    }
+    // Global Audio Logic: Recitation is always in original Arabic. Default is Mishary Rashid Alafasy.
+    return `https://everyayah.com/data/Alafasy_128kbps/${s}${a}.mp3`;
+};
 const fetchLanguages = async (page = 1, limit = 200, language, localization, edition) => {
     const skip = (page - 1) * limit;
     // 1. Try to fetch from DB first
@@ -129,7 +141,7 @@ const fetchSurahs = async (page = 1, limit = 10, language) => {
         data
     };
 };
-const getSurahDetail = async (surahNumber, translationKey = 'english_saheeh', lang) => {
+const getSurahDetail = async (surahNumber, translationKey = 'english_saheeh', lang, reciter) => {
     // 1. Get Surah Metadata from local constant
     const surahInfo = quran_constants_1.SURAH_LIST.find((s) => s.number === surahNumber);
     if (!surahInfo) {
@@ -158,33 +170,14 @@ const getSurahDetail = async (surahNumber, translationKey = 'english_saheeh', la
         await (0, quran_worker_1.ingestSurahTranslations)(surahNumber, translationKey, targetLang);
         ayahsData = await getSurahTranslations(surahNumber, translationKey);
     }
-    // Determine audio key
-    let audioKey = quran_constants_1.DEFAULT_AUDIO_KEY;
-    // First check if translationKey is in available audio translations
-    if (quran_constants_1.AUDIO_TRANSLATIONS.includes(translationKey)) {
-        audioKey = translationKey;
-    }
-    // Then check if lang (or targetLang) has a mapping
-    else if (lang && quran_constants_1.LANGUAGE_TO_AUDIO_KEY[lang]) {
-        audioKey = quran_constants_1.LANGUAGE_TO_AUDIO_KEY[lang];
-    }
-    // Also check language from translation if available
-    else {
-        const langInfo = await quran_model_1.Language.findOne({ key: translationKey });
-        if (langInfo && quran_constants_1.LANGUAGE_TO_AUDIO_KEY[langInfo.language]) {
-            audioKey = quran_constants_1.LANGUAGE_TO_AUDIO_KEY[langInfo.language];
-        }
-    }
     // 4. Format response
     const ayahs = ayahsData.map((item) => {
-        const s = surahNumber.toString().padStart(3, '0');
-        const a = item.ayah.toString().padStart(3, '0');
         return {
             number: item.ayah,
             text: item.arabicText || '',
-            translation: isArabicOnly ? undefined : (item.text || ''),
-            footnotes: isArabicOnly ? undefined : (item.footnotes || ''),
-            audio: `https://d.quranenc.com/data/audio/${audioKey}/${s}${a}.mp3`,
+            translation: isArabicOnly ? '' : (item.text || ''),
+            footnotes: isArabicOnly ? '' : (item.footnotes || ''),
+            audio: resolveAudioUrl(surahNumber, item.ayah, reciter),
         };
     });
     return {
@@ -193,7 +186,7 @@ const getSurahDetail = async (surahNumber, translationKey = 'english_saheeh', la
         edition: translationKey,
     };
 };
-const getAyah = async (surah, ayah, translationKey = 'english_saheeh', lang) => {
+const getAyah = async (surah, ayah, translationKey = 'english_saheeh', lang, reciter) => {
     let result = await quran_model_1.Translation.findOne({ surah, ayah, edition: translationKey }).lean();
     if (!result) {
         // Determine the correct language for this edition
@@ -212,26 +205,9 @@ const getAyah = async (surah, ayah, translationKey = 'english_saheeh', lang) => 
         result = await quran_model_1.Translation.findOne({ surah, ayah, edition: translationKey }).lean();
     }
     if (result) {
-        const s = surah.toString().padStart(3, '0');
-        const a = ayah.toString().padStart(3, '0');
-        // Determine audio key
-        let audioKey = quran_constants_1.DEFAULT_AUDIO_KEY;
-        // First check if translationKey is in available audio translations
-        if (quran_constants_1.AUDIO_TRANSLATIONS.includes(translationKey)) {
-            audioKey = translationKey;
-        }
-        // Then check if lang (or targetLang) has a mapping
-        else if (lang && quran_constants_1.LANGUAGE_TO_AUDIO_KEY[lang]) {
-            audioKey = quran_constants_1.LANGUAGE_TO_AUDIO_KEY[lang];
-        }
-        // Also check language from translation if available
-        else {
-            const langInfo = await quran_model_1.Language.findOne({ key: translationKey });
-            if (langInfo && quran_constants_1.LANGUAGE_TO_AUDIO_KEY[langInfo.language]) {
-                audioKey = quran_constants_1.LANGUAGE_TO_AUDIO_KEY[langInfo.language];
-            }
-        }
-        result.audio = `https://d.quranenc.com/data/audio/${audioKey}/${s}${a}.mp3`;
+        result.audio = resolveAudioUrl(surah, ayah, reciter);
+        result.shareUrl = `quraninternational://surah/${surah}/ayah/${ayah}`;
+        result.shareText = `${result.arabicText || ''}\n[Quran ${surah}:${ayah}]`;
     }
     return result;
 };
@@ -302,10 +278,17 @@ const checkSyncMetadata = async (translationKey, clientVersion) => {
 };
 const getSyncData = async (translationKey, fromVersion = 0) => {
     // Fetch translations that have a version greater than client version
-    return await quran_model_1.Translation.find({
+    const data = await quran_model_1.Translation.find({
         edition: translationKey,
         version: { $gt: fromVersion }
     }).sort({ surah: 1, ayah: 1 }).lean();
+    const dbLangInfo = await quran_model_1.Language.findOne({ key: translationKey });
+    return data.map((item) => {
+        return {
+            ...item,
+            audio: resolveAudioUrl(item.surah, item.ayah),
+        };
+    });
 };
 const syncEdition = async (edition) => {
     // Run in background

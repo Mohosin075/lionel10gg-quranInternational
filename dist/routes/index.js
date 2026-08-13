@@ -22,6 +22,7 @@ const tafsir_route_1 = require("../app/modules/tafsir/tafsir.route");
 const dua_route_1 = require("../app/modules/dua/dua.route");
 const hadith_route_1 = require("../app/modules/hadith/hadith.route");
 const knowledge_library_route_1 = require("../app/modules/knowledge-library/knowledge-library.route");
+const sheikh_content_route_1 = require("../app/modules/sheikh-content/sheikh-content.route");
 const http_status_codes_1 = require("http-status-codes");
 const dashboard_route_1 = require("../app/modules/dashboard/dashboard.route");
 const subscription_route_1 = require("../app/modules/subscription/subscription.route");
@@ -51,6 +52,7 @@ const apiRoutes = [
     { path: '/dua', route: dua_route_1.DuaRoutes },
     { path: '/hadith', route: hadith_route_1.HadithRoutes },
     { path: '/knowledge-library', route: knowledge_library_route_1.KnowledgeLibraryRoutes },
+    { path: '/sheikh-content', route: sheikh_content_route_1.SheikhContentRoutes },
 ];
 apiRoutes.forEach(route => {
     router.use(route.path, route.route);

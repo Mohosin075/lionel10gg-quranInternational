@@ -11,6 +11,7 @@ const quran_validation_1 = require("./quran.validation");
 const router = express_1.default.Router();
 // Public Routes
 router.get('/languages', quran_controller_1.QuranController.getLanguages);
+router.get('/reciters', quran_controller_1.QuranController.getReciters);
 router.get('/surahs', quran_controller_1.QuranController.getSurahs); // List all surahs
 // router.get('/surah', QuranController.getSurahs); // Alias for list
 router.get('/surah/:number', (0, validateRequest_1.default)(quran_validation_1.QuranValidations.getSurahDetailValidationSchema), quran_controller_1.QuranController.getSurahDetail);

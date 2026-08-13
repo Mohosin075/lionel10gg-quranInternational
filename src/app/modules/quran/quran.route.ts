@@ -7,6 +7,7 @@ const router = express.Router();
 
 // Public Routes
 router.get('/languages', QuranController.getLanguages);
+router.get('/reciters', QuranController.getReciters);
 router.get('/surahs', QuranController.getSurahs); // List all surahs
 // router.get('/surah', QuranController.getSurahs); // Alias for list
 

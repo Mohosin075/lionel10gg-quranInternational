@@ -1,5 +1,7 @@
 import { KnowledgeArticle } from './knowledge-library.model';
-import { IKnowledgeArticle } from './knowledge-library.interface';
+import { KnowledgeBook } from './knowledge-book.model';
+import { KnowledgeFatwa } from './knowledge-fatwa.model';
+import { IKnowledgeArticle, IKnowledgeBook, IKnowledgeFatwa } from './knowledge-library.interface';
 import { TranslationHelper } from '../../../helpers/translationHelper';
 
 const getAllArticles = async (
@@ -174,16 +176,104 @@ const getOrSyncArticlesByLanguage = async (targetLang: string) => {
       } catch (err) {
         console.error(`Translation failed for Knowledge Article ${article.articleId} to ${targetLang}:`, err);
       }
-      await TranslationHelper.sleep(300);
-    }
-    
-    console.log(`Translated ${Math.min(i + BATCH_SIZE, articlesToTranslate.length)} of ${articlesToTranslate.length} articles`);
-    if (i + BATCH_SIZE < articlesToTranslate.length) {
-      await TranslationHelper.sleep(1500);
     }
   }
 
   return results;
+};
+
+// ==========================================
+// BOOKS SERVICES
+// ==========================================
+const getAllBooks = async (
+  lang: string = 'de',
+  page: number = 1,
+  limit: number = 10,
+) => {
+  const skip = (page - 1) * limit;
+  const query = { lang, isActive: true };
+  const [data, total] = await Promise.all([
+    KnowledgeBook.find(query).skip(skip).limit(limit).sort({ createdAt: -1 }).lean(),
+    KnowledgeBook.countDocuments(query),
+  ]);
+
+  return {
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+    data,
+  };
+};
+
+const getBookById = async (id: string) => {
+  return await KnowledgeBook.findById(id).lean();
+};
+
+const createBook = async (payload: Partial<IKnowledgeBook>) => {
+  return await KnowledgeBook.create(payload);
+};
+
+const updateBook = async (id: string, payload: Partial<IKnowledgeBook>) => {
+  const current = await KnowledgeBook.findById(id);
+  const newVersion = current ? (current.version || 1) + 1 : 1;
+  return await KnowledgeBook.findByIdAndUpdate(
+    id,
+    { ...payload, version: newVersion },
+    { new: true },
+  );
+};
+
+const deleteBook = async (id: string) => {
+  return await KnowledgeBook.findByIdAndUpdate(id, { isActive: false }, { new: true });
+};
+
+// ==========================================
+// FATWAS SERVICES
+// ==========================================
+const getAllFatwas = async (
+  lang: string = 'de',
+  page: number = 1,
+  limit: number = 10,
+) => {
+  const skip = (page - 1) * limit;
+  const query = { lang, isActive: true };
+  const [data, total] = await Promise.all([
+    KnowledgeFatwa.find(query).skip(skip).limit(limit).sort({ createdAt: -1 }).lean(),
+    KnowledgeFatwa.countDocuments(query),
+  ]);
+
+  return {
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+    data,
+  };
+};
+
+const getFatwaById = async (id: string) => {
+  return await KnowledgeFatwa.findById(id).lean();
+};
+
+const createFatwa = async (payload: Partial<IKnowledgeFatwa>) => {
+  return await KnowledgeFatwa.create(payload);
+};
+
+const updateFatwa = async (id: string, payload: Partial<IKnowledgeFatwa>) => {
+  return await KnowledgeFatwa.findByIdAndUpdate(
+    id,
+    payload,
+    { new: true },
+  );
+};
+
+const deleteFatwa = async (id: string) => {
+  return await KnowledgeFatwa.findByIdAndUpdate(id, { isActive: false }, { new: true });
 };
 
 export const KnowledgeLibraryServices = {
@@ -196,4 +286,16 @@ export const KnowledgeLibraryServices = {
   checkSyncMetadata,
   getSyncData,
   getOrSyncArticlesByLanguage,
+  // Books
+  getAllBooks,
+  getBookById,
+  createBook,
+  updateBook,
+  deleteBook,
+  // Fatwas
+  getAllFatwas,
+  getFatwaById,
+  createFatwa,
+  updateFatwa,
+  deleteFatwa,
 };

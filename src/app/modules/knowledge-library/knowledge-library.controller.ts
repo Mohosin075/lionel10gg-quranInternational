@@ -118,6 +118,126 @@ const downloadSync = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+// ==========================================
+// BOOKS CONTROLLERS
+// ==========================================
+const getAllBooks = catchAsync(async (req: Request, res: Response) => {
+  const lang = (req.query.lang as string) || 'de';
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 10;
+  const result = await KnowledgeLibraryServices.getAllBooks(lang, page, limit);
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Books fetched successfully',
+    meta: result.meta,
+    data: result.data,
+  });
+});
+
+const getBookById = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const result = await KnowledgeLibraryServices.getBookById(id);
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Book fetched successfully',
+    data: result,
+  });
+});
+
+const createBook = catchAsync(async (req: Request, res: Response) => {
+  const result = await KnowledgeLibraryServices.createBook(req.body);
+  sendResponse(res, {
+    statusCode: StatusCodes.CREATED,
+    success: true,
+    message: 'Book created successfully',
+    data: result,
+  });
+});
+
+const updateBook = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const result = await KnowledgeLibraryServices.updateBook(id, req.body);
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Book updated successfully',
+    data: result,
+  });
+});
+
+const deleteBook = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const result = await KnowledgeLibraryServices.deleteBook(id);
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Book deleted successfully',
+    data: result,
+  });
+});
+
+// ==========================================
+// FATWAS CONTROLLERS
+// ==========================================
+const getAllFatwas = catchAsync(async (req: Request, res: Response) => {
+  const lang = (req.query.lang as string) || 'de';
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 10;
+  const result = await KnowledgeLibraryServices.getAllFatwas(lang, page, limit);
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Fatwas fetched successfully',
+    meta: result.meta,
+    data: result.data,
+  });
+});
+
+const getFatwaById = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const result = await KnowledgeLibraryServices.getFatwaById(id);
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Fatwa fetched successfully',
+    data: result,
+  });
+});
+
+const createFatwa = catchAsync(async (req: Request, res: Response) => {
+  const result = await KnowledgeLibraryServices.createFatwa(req.body);
+  sendResponse(res, {
+    statusCode: StatusCodes.CREATED,
+    success: true,
+    message: 'Fatwa created successfully',
+    data: result,
+  });
+});
+
+const updateFatwa = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const result = await KnowledgeLibraryServices.updateFatwa(id, req.body);
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Fatwa updated successfully',
+    data: result,
+  });
+});
+
+const deleteFatwa = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const result = await KnowledgeLibraryServices.deleteFatwa(id);
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Fatwa deleted successfully',
+    data: result,
+  });
+});
+
 export const KnowledgeLibraryController = {
   getAllArticles,
   getArticleById,
@@ -127,4 +247,16 @@ export const KnowledgeLibraryController = {
   getVersion,
   checkSync,
   downloadSync,
+  // Books
+  getAllBooks,
+  getBookById,
+  createBook,
+  updateBook,
+  deleteBook,
+  // Fatwas
+  getAllFatwas,
+  getFatwaById,
+  createFatwa,
+  updateFatwa,
+  deleteFatwa,
 };

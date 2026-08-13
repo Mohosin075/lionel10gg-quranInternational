@@ -156,7 +156,7 @@ const deleteSubscriptionPlan = (0, catchAsync_1.default)(async (req, res) => {
 // Admin: Get all plans (including inactive)
 const getAllPlans = (0, catchAsync_1.default)(async (req, res) => {
     // For admin, get all plans including inactive ones
-    const plans = await subscription_service_1.subscriptionService.getAvailablePlans();
+    const plans = await subscription_service_1.subscriptionService.getAvailablePlans(true);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_codes_1.StatusCodes.OK,
         success: true,
@@ -276,10 +276,58 @@ const createBillingPortal = (0, catchAsync_1.default)(async (req, res) => {
         data: portalSession,
     });
 });
+const getAllPremiumBenefits = (0, catchAsync_1.default)(async (req, res) => {
+    const result = await subscription_service_1.subscriptionService.getAllPremiumBenefits();
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        success: true,
+        message: 'Premium benefits fetched successfully',
+        data: result,
+    });
+});
+const getAdminPremiumBenefits = (0, catchAsync_1.default)(async (req, res) => {
+    const result = await subscription_service_1.subscriptionService.getAdminPremiumBenefits();
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        success: true,
+        message: 'Premium benefits fetched successfully',
+        data: result,
+    });
+});
+const createPremiumBenefit = (0, catchAsync_1.default)(async (req, res) => {
+    const result = await subscription_service_1.subscriptionService.createPremiumBenefit(req.body);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_codes_1.StatusCodes.CREATED,
+        success: true,
+        message: 'Premium benefit created successfully',
+        data: result,
+    });
+});
+const updatePremiumBenefit = (0, catchAsync_1.default)(async (req, res) => {
+    const { id } = req.params;
+    const result = await subscription_service_1.subscriptionService.updatePremiumBenefit(id, req.body);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        success: true,
+        message: 'Premium benefit updated successfully',
+        data: result,
+    });
+});
+const deletePremiumBenefit = (0, catchAsync_1.default)(async (req, res) => {
+    const { id } = req.params;
+    const result = await subscription_service_1.subscriptionService.deletePremiumBenefit(id);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        success: true,
+        message: 'Premium benefit deleted successfully',
+        data: result,
+    });
+});
 exports.SubscriptionController = {
     // Public endpoints
     getAvailablePlans,
     getPlanById,
+    getAllPremiumBenefits,
     // User endpoints (require authentication)
     createSubscription,
     getUserSubscription,
@@ -303,4 +351,8 @@ exports.SubscriptionController = {
     getAllSubscriptions,
     getSubscriptionAnalytics,
     retryFailedPayment,
+    getAdminPremiumBenefits,
+    createPremiumBenefit,
+    updatePremiumBenefit,
+    deletePremiumBenefit,
 };

@@ -4,7 +4,7 @@ import axios from 'axios';
 import { Translation, Language } from './quran.model';
 import { ITranslation, ILanguage } from './quran.interface';
 import { ingestSurahTranslations, syncLanguage, syncAllLanguages } from './quran.worker';
-import { SURAH_LIST, AUDIO_TRANSLATIONS, LANGUAGE_TO_AUDIO_KEY, DEFAULT_AUDIO_KEY } from './quran.constants';
+import { SURAH_LIST, AUDIO_TRANSLATIONS, LANGUAGE_TO_AUDIO_KEY, DEFAULT_AUDIO_KEY, POPULAR_RECITERS } from './quran.constants';
 
 const QURAN_ENC_URL = 'https://quranenc.com/api/v1';
 const QURAN_COM_URL = 'https://api.quran.com/api/v4';
@@ -12,29 +12,21 @@ const QURAN_COM_URL = 'https://api.quran.com/api/v4';
 const resolveAudioUrl = (
   surahNumber: number,
   ayahNumber: number,
-  translationKey: string,
-  lang?: string,
-  dbLangInfo?: any
+  reciterId?: string
 ): string => {
   const s = surahNumber.toString().padStart(3, '0');
   const a = ayahNumber.toString().padStart(3, '0');
 
-  // Check if translationKey is directly in AUDIO_TRANSLATIONS
-  if ((AUDIO_TRANSLATIONS as readonly string[]).includes(translationKey)) {
-    return `https://d.quranenc.com/data/audio/${translationKey}/${s}${a}.mp3`;
+  if (reciterId) {
+    const reciter = POPULAR_RECITERS.find(
+      (r) => r.id === reciterId.toLowerCase() || r.urlKey.toLowerCase() === reciterId.toLowerCase()
+    );
+    if (reciter) {
+      return `https://everyayah.com/data/${reciter.urlKey}/${s}${a}.mp3`;
+    }
   }
 
-  // Check if lang has a mapping
-  if (lang && LANGUAGE_TO_AUDIO_KEY[lang]) {
-    return `https://d.quranenc.com/data/audio/${LANGUAGE_TO_AUDIO_KEY[lang]}/${s}${a}.mp3`;
-  }
-
-  // Check if dbLangInfo has a mapping
-  if (dbLangInfo && LANGUAGE_TO_AUDIO_KEY[dbLangInfo.language]) {
-    return `https://d.quranenc.com/data/audio/${LANGUAGE_TO_AUDIO_KEY[dbLangInfo.language]}/${s}${a}.mp3`;
-  }
-
-  // Fallback: Arabic recitation (Mishary Rashid Alafasy)
+  // Global Audio Logic: Recitation is always in original Arabic. Default is Mishary Rashid Alafasy.
   return `https://everyayah.com/data/Alafasy_128kbps/${s}${a}.mp3`;
 };
 
@@ -172,7 +164,7 @@ const fetchSurahs = async (page: number = 1, limit: number = 10, language?: stri
   };
 };
 
-const getSurahDetail = async (surahNumber: number, translationKey: string = 'english_saheeh', lang?: string) => {
+const getSurahDetail = async (surahNumber: number, translationKey: string = 'english_saheeh', lang?: string, reciter?: string) => {
   // 1. Get Surah Metadata from local constant
   const surahInfo = SURAH_LIST.find((s) => s.number === surahNumber);
 
@@ -206,9 +198,6 @@ const getSurahDetail = async (surahNumber: number, translationKey: string = 'eng
     ayahsData = await getSurahTranslations(surahNumber, translationKey);
   }
 
-  // Fetch language info from DB (for audio resolution)
-  const dbLangInfo = await Language.findOne({ key: translationKey });
-
   // 4. Format response
   const ayahs = ayahsData.map((item) => {
     return {
@@ -216,7 +205,7 @@ const getSurahDetail = async (surahNumber: number, translationKey: string = 'eng
       text: item.arabicText || '',
       translation: isArabicOnly ? '' : (item.text || ''),
       footnotes: isArabicOnly ? '' : (item.footnotes || ''),
-      audio: resolveAudioUrl(surahNumber, item.ayah, translationKey, lang, dbLangInfo),
+      audio: resolveAudioUrl(surahNumber, item.ayah, reciter),
     };
   });
 
@@ -227,7 +216,7 @@ const getSurahDetail = async (surahNumber: number, translationKey: string = 'eng
   };
 };
 
-const getAyah = async (surah: number, ayah: number, translationKey: string = 'english_saheeh', lang?: string) => {
+const getAyah = async (surah: number, ayah: number, translationKey: string = 'english_saheeh', lang?: string, reciter?: string) => {
     let result = await Translation.findOne({ surah, ayah, edition: translationKey }).lean();
     
     if (!result) {
@@ -248,8 +237,9 @@ const getAyah = async (surah: number, ayah: number, translationKey: string = 'en
     }
     
     if (result) {
-        const dbLangInfo = await Language.findOne({ key: translationKey });
-        (result as any).audio = resolveAudioUrl(surah, ayah, translationKey, lang, dbLangInfo);
+        (result as any).audio = resolveAudioUrl(surah, ayah, reciter);
+        (result as any).shareUrl = `quraninternational://surah/${surah}/ayah/${ayah}`;
+        (result as any).shareText = `${result.arabicText || ''}\n[Quran ${surah}:${ayah}]`;
     }
     
     return result;
@@ -347,7 +337,7 @@ const getSyncData = async (translationKey: string, fromVersion: number = 0) => {
     return data.map((item) => {
       return {
         ...item,
-        audio: resolveAudioUrl(item.surah, item.ayah, translationKey, undefined, dbLangInfo),
+        audio: resolveAudioUrl(item.surah, item.ayah),
       };
     });
 };

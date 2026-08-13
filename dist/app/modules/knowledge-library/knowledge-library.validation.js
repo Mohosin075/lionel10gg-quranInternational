@@ -13,6 +13,7 @@ const createArticleZodSchema = zod_1.z.object({
         imageUrl: zod_1.z.string().optional(),
         audioUrl: zod_1.z.string().optional(),
         lang: zod_1.z.string().optional(),
+        source: zod_1.z.enum(['islamhouse', 'manual']).optional(),
         version: zod_1.z.number().optional(),
         isActive: zod_1.z.boolean().optional(),
     }),
@@ -28,11 +29,60 @@ const updateArticleZodSchema = zod_1.z.object({
         imageUrl: zod_1.z.string().optional(),
         audioUrl: zod_1.z.string().optional(),
         lang: zod_1.z.string().optional(),
+        source: zod_1.z.enum(['islamhouse', 'manual']).optional(),
         version: zod_1.z.number().optional(),
+        isActive: zod_1.z.boolean().optional(),
+    }),
+});
+const createBookZodSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        bookId: zod_1.z.string({ required_error: 'bookId is required' }),
+        title: zod_1.z.string({ required_error: 'title is required' }),
+        author: zod_1.z.string().optional(),
+        content: zod_1.z.string({ required_error: 'content is required' }),
+        lang: zod_1.z.string().optional(),
+        source: zod_1.z.enum(['islamhouse', 'manual']).optional(),
+        version: zod_1.z.number().optional(),
+        isActive: zod_1.z.boolean().optional(),
+    }),
+});
+const updateBookZodSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        bookId: zod_1.z.string().optional(),
+        title: zod_1.z.string().optional(),
+        author: zod_1.z.string().optional(),
+        content: zod_1.z.string().optional(),
+        lang: zod_1.z.string().optional(),
+        source: zod_1.z.enum(['islamhouse', 'manual']).optional(),
+        version: zod_1.z.number().optional(),
+        isActive: zod_1.z.boolean().optional(),
+    }),
+});
+const createFatwaZodSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        fatwaId: zod_1.z.string({ required_error: 'fatwaId is required' }),
+        question: zod_1.z.string({ required_error: 'question is required' }),
+        answer: zod_1.z.string({ required_error: 'answer is required' }),
+        scholar: zod_1.z.string().optional(),
+        lang: zod_1.z.string().optional(),
+        isActive: zod_1.z.boolean().optional(),
+    }),
+});
+const updateFatwaZodSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        fatwaId: zod_1.z.string().optional(),
+        question: zod_1.z.string().optional(),
+        answer: zod_1.z.string().optional(),
+        scholar: zod_1.z.string().optional(),
+        lang: zod_1.z.string().optional(),
         isActive: zod_1.z.boolean().optional(),
     }),
 });
 exports.KnowledgeLibraryValidations = {
     createArticleZodSchema,
     updateArticleZodSchema,
+    createBookZodSchema,
+    updateBookZodSchema,
+    createFatwaZodSchema,
+    updateFatwaZodSchema,
 };

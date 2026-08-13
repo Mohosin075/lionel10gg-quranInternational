@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SubscriptionPlan = void 0;
+exports.PremiumBenefit = exports.SubscriptionPlan = void 0;
 const mongoose_1 = require("mongoose");
 const subscriptionPlanSchema = new mongoose_1.Schema({
     name: {
@@ -24,7 +24,7 @@ const subscriptionPlanSchema = new mongoose_1.Schema({
     },
     interval: {
         type: String,
-        enum: ['month', 'year'],
+        enum: ['month', 'year', 'lifetime'],
         required: true,
     },
     intervalCount: {
@@ -41,6 +41,10 @@ const subscriptionPlanSchema = new mongoose_1.Schema({
     maxPhotos: {
         type: Number,
         default: 1,
+    },
+    trialPeriodDays: {
+        type: Number,
+        default: 0,
     },
     isActive: {
         type: Boolean,
@@ -66,3 +70,23 @@ const subscriptionPlanSchema = new mongoose_1.Schema({
 subscriptionPlanSchema.index({ isActive: 1 });
 subscriptionPlanSchema.index({ stripePriceId: 1 });
 exports.SubscriptionPlan = (0, mongoose_1.model)('SubscriptionPlan', subscriptionPlanSchema);
+const premiumBenefitSchema = new mongoose_1.Schema({
+    serialNumber: {
+        type: Number,
+        required: true,
+        unique: true,
+    },
+    text: {
+        type: String,
+        required: true,
+    },
+    isActive: {
+        type: Boolean,
+        default: true,
+    },
+}, {
+    timestamps: true,
+});
+premiumBenefitSchema.index({ serialNumber: 1 });
+premiumBenefitSchema.index({ isActive: 1 });
+exports.PremiumBenefit = (0, mongoose_1.model)('PremiumBenefit', premiumBenefitSchema);

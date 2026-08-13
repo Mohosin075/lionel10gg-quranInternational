@@ -8,6 +8,7 @@ const http_status_codes_1 = require("http-status-codes");
 const catchAsync_1 = __importDefault(require("../../../shared/catchAsync"));
 const sendResponse_1 = __importDefault(require("../../../shared/sendResponse"));
 const quran_service_1 = require("./quran.service");
+const quran_constants_1 = require("./quran.constants");
 const getLanguages = (0, catchAsync_1.default)(async (req, res) => {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 200;
@@ -40,7 +41,8 @@ const getSurahDetail = (0, catchAsync_1.default)(async (req, res) => {
     const { number } = req.params;
     const edition = req.query.edition || 'english_saheeh';
     const lang = req.query.lang || 'en';
-    const result = await quran_service_1.QuranServices.getSurahDetail(Number(number), edition, lang);
+    const reciter = req.query.reciter;
+    const result = await quran_service_1.QuranServices.getSurahDetail(Number(number), edition, lang, reciter);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_codes_1.StatusCodes.OK,
         success: true,
@@ -76,7 +78,8 @@ const getAyah = (0, catchAsync_1.default)(async (req, res) => {
     const { surah, ayah } = req.params;
     const edition = req.query.edition || 'english_saheeh';
     const lang = req.query.lang || 'en';
-    const result = await quran_service_1.QuranServices.getAyah(Number(surah), Number(ayah), edition, lang);
+    const reciter = req.query.reciter;
+    const result = await quran_service_1.QuranServices.getAyah(Number(surah), Number(ayah), edition, lang, reciter);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_codes_1.StatusCodes.OK,
         success: true,
@@ -147,6 +150,14 @@ const downloadSync = (0, catchAsync_1.default)(async (req, res) => {
         data: paginatedData,
     });
 });
+const getReciters = (0, catchAsync_1.default)(async (req, res) => {
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        success: true,
+        message: 'Reciters fetched successfully',
+        data: quran_constants_1.POPULAR_RECITERS,
+    });
+});
 exports.QuranController = {
     getLanguages,
     getSurahs,
@@ -157,5 +168,6 @@ exports.QuranController = {
     getVersion,
     syncLanguages,
     checkSync,
-    downloadSync
+    downloadSync,
+    getReciters
 };

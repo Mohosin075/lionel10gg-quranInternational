@@ -104,6 +104,116 @@ const downloadSync = (0, catchAsync_1.default)(async (req, res) => {
         data: paginatedData,
     });
 });
+// ==========================================
+// BOOKS CONTROLLERS
+// ==========================================
+const getAllBooks = (0, catchAsync_1.default)(async (req, res) => {
+    const lang = req.query.lang || 'de';
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
+    const result = await knowledge_library_service_1.KnowledgeLibraryServices.getAllBooks(lang, page, limit);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        success: true,
+        message: 'Books fetched successfully',
+        meta: result.meta,
+        data: result.data,
+    });
+});
+const getBookById = (0, catchAsync_1.default)(async (req, res) => {
+    const { id } = req.params;
+    const result = await knowledge_library_service_1.KnowledgeLibraryServices.getBookById(id);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        success: true,
+        message: 'Book fetched successfully',
+        data: result,
+    });
+});
+const createBook = (0, catchAsync_1.default)(async (req, res) => {
+    const result = await knowledge_library_service_1.KnowledgeLibraryServices.createBook(req.body);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_codes_1.StatusCodes.CREATED,
+        success: true,
+        message: 'Book created successfully',
+        data: result,
+    });
+});
+const updateBook = (0, catchAsync_1.default)(async (req, res) => {
+    const { id } = req.params;
+    const result = await knowledge_library_service_1.KnowledgeLibraryServices.updateBook(id, req.body);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        success: true,
+        message: 'Book updated successfully',
+        data: result,
+    });
+});
+const deleteBook = (0, catchAsync_1.default)(async (req, res) => {
+    const { id } = req.params;
+    const result = await knowledge_library_service_1.KnowledgeLibraryServices.deleteBook(id);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        success: true,
+        message: 'Book deleted successfully',
+        data: result,
+    });
+});
+// ==========================================
+// FATWAS CONTROLLERS
+// ==========================================
+const getAllFatwas = (0, catchAsync_1.default)(async (req, res) => {
+    const lang = req.query.lang || 'de';
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
+    const result = await knowledge_library_service_1.KnowledgeLibraryServices.getAllFatwas(lang, page, limit);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        success: true,
+        message: 'Fatwas fetched successfully',
+        meta: result.meta,
+        data: result.data,
+    });
+});
+const getFatwaById = (0, catchAsync_1.default)(async (req, res) => {
+    const { id } = req.params;
+    const result = await knowledge_library_service_1.KnowledgeLibraryServices.getFatwaById(id);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        success: true,
+        message: 'Fatwa fetched successfully',
+        data: result,
+    });
+});
+const createFatwa = (0, catchAsync_1.default)(async (req, res) => {
+    const result = await knowledge_library_service_1.KnowledgeLibraryServices.createFatwa(req.body);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_codes_1.StatusCodes.CREATED,
+        success: true,
+        message: 'Fatwa created successfully',
+        data: result,
+    });
+});
+const updateFatwa = (0, catchAsync_1.default)(async (req, res) => {
+    const { id } = req.params;
+    const result = await knowledge_library_service_1.KnowledgeLibraryServices.updateFatwa(id, req.body);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        success: true,
+        message: 'Fatwa updated successfully',
+        data: result,
+    });
+});
+const deleteFatwa = (0, catchAsync_1.default)(async (req, res) => {
+    const { id } = req.params;
+    const result = await knowledge_library_service_1.KnowledgeLibraryServices.deleteFatwa(id);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        success: true,
+        message: 'Fatwa deleted successfully',
+        data: result,
+    });
+});
 exports.KnowledgeLibraryController = {
     getAllArticles,
     getArticleById,
@@ -113,4 +223,16 @@ exports.KnowledgeLibraryController = {
     getVersion,
     checkSync,
     downloadSync,
+    // Books
+    getAllBooks,
+    getBookById,
+    createBook,
+    updateBook,
+    deleteBook,
+    // Fatwas
+    getAllFatwas,
+    getFatwaById,
+    createFatwa,
+    updateFatwa,
+    deleteFatwa,
 };

@@ -48,9 +48,9 @@ const subscription_plan_model_1 = require("./subscription-plan.model");
 const stripe_service_1 = require("./stripe.service");
 const email_notification_service_1 = require("./email-notification.service");
 class SubscriptionService {
-    async getAvailablePlans() {
+    async getAvailablePlans(includeInactive = false) {
         try {
-            const query = { isActive: true };
+            const query = includeInactive ? {} : { isActive: true };
             const plans = await subscription_plan_model_1.SubscriptionPlan.find(query).sort({
                 priority: 1,
                 price: 1,
@@ -380,11 +380,14 @@ class SubscriptionService {
                 const stripeCustomer = await stripe_service_1.stripeService.createCustomer(user.email, user.fullName || user.name, { userId: userId.toString() });
                 stripeCustomerId = stripeCustomer.id;
             }
+            const isLifetime = plan.interval === 'lifetime';
             const session = await stripe_service_1.stripeService.createCheckoutSession({
                 customerId: stripeCustomerId,
                 priceId: plan.stripePriceId,
                 successUrl,
                 cancelUrl,
+                mode: isLifetime ? 'payment' : 'subscription',
+                trialPeriodDays: isLifetime ? 0 : 30, // Golden Month: 30 days trial period for month/year plans
                 metadata: {
                     userId: userId.toString(),
                     planId,
@@ -687,6 +690,52 @@ class SubscriptionService {
             return 'basic';
         }
         return 'free';
+    }
+    // Premium Benefit CRUD methods
+    async getAllPremiumBenefits() {
+        try {
+            return await subscription_plan_model_1.PremiumBenefit.find({ isActive: true }).sort({ serialNumber: 1 }).lean();
+        }
+        catch (error) {
+            console.error('Error fetching premium benefits:', error);
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to fetch premium benefits');
+        }
+    }
+    async getAdminPremiumBenefits() {
+        try {
+            return await subscription_plan_model_1.PremiumBenefit.find().sort({ serialNumber: 1 }).lean();
+        }
+        catch (error) {
+            console.error('Error fetching admin premium benefits:', error);
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to fetch premium benefits');
+        }
+    }
+    async createPremiumBenefit(payload) {
+        try {
+            return await subscription_plan_model_1.PremiumBenefit.create(payload);
+        }
+        catch (error) {
+            console.error('Error creating premium benefit:', error);
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to create premium benefit');
+        }
+    }
+    async updatePremiumBenefit(id, payload) {
+        try {
+            return await subscription_plan_model_1.PremiumBenefit.findByIdAndUpdate(id, payload, { new: true });
+        }
+        catch (error) {
+            console.error('Error updating premium benefit:', error);
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to update premium benefit');
+        }
+    }
+    async deletePremiumBenefit(id) {
+        try {
+            return await subscription_plan_model_1.PremiumBenefit.findByIdAndUpdate(id, { isActive: false }, { new: true });
+        }
+        catch (error) {
+            console.error('Error deleting premium benefit:', error);
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to delete premium benefit');
+        }
     }
 }
 exports.subscriptionService = new SubscriptionService();

@@ -22,7 +22,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepare": "husky",
     "seed:demo-subscription": "npx ts-node demo-subscription-seed.ts",
-    "seed:islamhouse": "npx ts-node seed-islamhouse-articles.ts"
+    "seed:islamhouse": "npx ts-node seed-islamhouse-articles.ts",
+    "seed:spelling-corrections": "npx ts-node seed-spelling-corrections.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.940.0",

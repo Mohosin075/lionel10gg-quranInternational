@@ -522,12 +522,14 @@ class SubscriptionService {
         stripeCustomerId = stripeCustomer.id
       }
 
+      const isLifetime = plan.interval === 'lifetime';
       const session = await stripeService.createCheckoutSession({
         customerId: stripeCustomerId,
         priceId: plan.stripePriceId,
         successUrl,
         cancelUrl,
-        trialPeriodDays: 30, // Golden Month: 30 days trial period
+        mode: isLifetime ? 'payment' : 'subscription',
+        trialPeriodDays: isLifetime ? 0 : 30, // Golden Month: 30 days trial period for month/year plans
         metadata: {
           userId: userId.toString(),
           planId,

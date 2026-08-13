@@ -227,6 +227,7 @@ class StripeService {
     priceId: string
     successUrl: string
     cancelUrl: string
+    mode?: 'subscription' | 'payment'
     trialPeriodDays?: number
     metadata?: Record<string, string>
   }): Promise<any> {
@@ -240,20 +241,22 @@ class StripeService {
             quantity: 1,
           },
         ],
-        mode: 'subscription',
+        mode: params.mode || 'subscription',
         success_url: params.successUrl,
         cancel_url: params.cancelUrl,
         metadata: params.metadata || {},
       }
 
-      if (params.trialPeriodDays && params.trialPeriodDays > 0) {
-        sessionParams.subscription_data = {
-          trial_period_days: params.trialPeriodDays,
-          metadata: params.metadata || {},
-        }
-      } else {
-        sessionParams.subscription_data = {
-          metadata: params.metadata || {},
+      if (sessionParams.mode === 'subscription') {
+        if (params.trialPeriodDays && params.trialPeriodDays > 0) {
+          sessionParams.subscription_data = {
+            trial_period_days: params.trialPeriodDays,
+            metadata: params.metadata || {},
+          }
+        } else {
+          sessionParams.subscription_data = {
+            metadata: params.metadata || {},
+          }
         }
       }
 
@@ -332,21 +335,26 @@ class StripeService {
     productId: string
     unitAmount: number
     currency: string
-    interval: 'month' | 'year'
+    interval?: 'month' | 'year' | 'lifetime'
     intervalCount?: number
     metadata?: Record<string, string>
   }): Promise<any> {
     try {
-      const price = await this.stripe.prices.create({
+      const priceParams: any = {
         product: params.productId,
         unit_amount: params.unitAmount,
         currency: params.currency,
-        recurring: {
+        metadata: params.metadata || {},
+      }
+
+      if (params.interval && params.interval !== 'lifetime') {
+        priceParams.recurring = {
           interval: params.interval,
           interval_count: params.intervalCount || 1,
-        },
-        metadata: params.metadata || {},
-      })
+        }
+      }
+
+      const price = await this.stripe.prices.create(priceParams)
 
       console.log(`Stripe price created: ${price.id}`)
       return price

@@ -9,11 +9,13 @@ const subscription_controller_1 = require("./subscription.controller");
 const validateRequest_1 = __importDefault(require("../../middleware/validateRequest"));
 const auth_1 = __importDefault(require("../../middleware/auth"));
 const subscription_validation_1 = require("./subscription.validation");
+const subscription_benefit_validation_1 = require("./subscription-benefit.validation");
 const user_1 = require("../../../enum/user");
 const router = express_1.default.Router();
 // Public routes (no authentication required)
 router.get('/plans', (0, validateRequest_1.default)(subscription_validation_1.subscriptionValidation.getPlansQuery), subscription_controller_1.SubscriptionController.getAvailablePlans); //✅tested
 router.get('/plans/:planId', (0, validateRequest_1.default)(subscription_validation_1.subscriptionValidation.planParams), subscription_controller_1.SubscriptionController.getPlanById); //✅tested
+router.get('/premium-benefits', subscription_controller_1.SubscriptionController.getAllPremiumBenefits);
 // User routes (require authentication)
 // Apply authentication middleware to all routes below
 router.post('/create', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER, user_1.USER_ROLES.SUPER_ADMIN), (0, validateRequest_1.default)(subscription_validation_1.subscriptionValidation.createSubscription), subscription_controller_1.SubscriptionController.createSubscription); //if payment is handle from frontend then this route will be used
@@ -36,4 +38,8 @@ router.get('/admin/plans', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.U
 router.get('/admin/all-subscriptions', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), subscription_controller_1.SubscriptionController.getAllSubscriptions);
 router.get('/admin/analytics', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), (0, validateRequest_1.default)(subscription_validation_1.subscriptionValidation.subscriptionAnalytics), subscription_controller_1.SubscriptionController.getSubscriptionAnalytics);
 router.post('/admin/:subscriptionId/retry-payment', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), (0, validateRequest_1.default)(subscription_validation_1.subscriptionValidation.subscriptionParams), subscription_controller_1.SubscriptionController.retryFailedPayment);
+router.get('/admin/premium-benefits', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), subscription_controller_1.SubscriptionController.getAdminPremiumBenefits);
+router.post('/admin/premium-benefits', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), (0, validateRequest_1.default)(subscription_benefit_validation_1.SubscriptionBenefitValidations.createBenefitZodSchema), subscription_controller_1.SubscriptionController.createPremiumBenefit);
+router.patch('/admin/premium-benefits/:id', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), (0, validateRequest_1.default)(subscription_benefit_validation_1.SubscriptionBenefitValidations.updateBenefitZodSchema), subscription_controller_1.SubscriptionController.updatePremiumBenefit);
+router.delete('/admin/premium-benefits/:id', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), subscription_controller_1.SubscriptionController.deletePremiumBenefit);
 exports.SubscriptionRoutes = router;

@@ -70,7 +70,7 @@ const getPrayerTimes = async (city: string, country: string) => {
 const getPrayerSettings = async (userId?: string) => {
   if (!userId) {
     return {
-      location: { city: 'Dhaka', country: 'Bangladesh' },
+      location: { city: 'Vienna', country: 'Austria' },
       calculationMethod: 'ISNA',
       activePrayers: ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'],
       selectedRecitationId: 'makkah',

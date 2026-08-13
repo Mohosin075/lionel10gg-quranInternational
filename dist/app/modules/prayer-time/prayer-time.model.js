@@ -10,8 +10,8 @@ const prayerSettingsSchema = new mongoose_1.Schema({
         unique: true,
     },
     location: {
-        city: { type: String, required: true, default: 'Dhaka' },
-        country: { type: String, required: true, default: 'Bangladesh' },
+        city: { type: String, required: true, default: 'Vienna' },
+        country: { type: String, required: true, default: 'Austria' },
         coordinates: {
             latitude: { type: Number },
             longitude: { type: Number },

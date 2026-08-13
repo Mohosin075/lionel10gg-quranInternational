@@ -19,8 +19,12 @@ exports.TranslationHelper = {
         if (!text || !text.trim())
             return '';
         try {
-            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&q=${encodeURIComponent(text)}`;
-            const res = await axios_1.default.get(url);
+            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t`;
+            const res = await axios_1.default.post(url, new URLSearchParams({ q: text }).toString(), {
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+            });
             let translated = '';
             if (res.data && res.data[0]) {
                 for (const segment of res.data[0]) {

@@ -23,6 +23,7 @@ const stripe = new stripe_1.default(config_1.default.stripe.stripeSecretKey, {
     apiVersion: '2026-04-22.dahlia',
 });
 const createCheckoutSession = async (user, payload) => {
+    throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'One-time payments are disabled. Please use recurring subscriptions.');
     try {
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
@@ -128,6 +129,7 @@ const verifyCheckoutSession = async (sessionId) => {
     }
 };
 const createPaymentIntent = async (user, payload) => {
+    throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'One-time payments are disabled. Please use recurring subscriptions.');
     try {
         const paymentIntent = await stripe.paymentIntents.create({
             amount: Math.round(payload.amount * 100),
