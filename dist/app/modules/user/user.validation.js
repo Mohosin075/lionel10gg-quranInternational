@@ -15,6 +15,11 @@ const pointSchema = zod_1.z.object({
     type: zod_1.z.literal('Point').default('Point'),
     coordinates: zod_1.z.tuple([zod_1.z.number(), zod_1.z.number()]).optional(), // [longitude, latitude]
 });
+const settingsSchema = zod_1.z.object({
+    pushNotification: zod_1.z.boolean().optional(),
+    emailNotification: zod_1.z.boolean().optional(),
+    locationService: zod_1.z.boolean().optional(),
+});
 // ------------------ UPDATE USER VALIDATION ------------------
 exports.updateUserSchema = zod_1.z.object({
     body: zod_1.z
@@ -26,6 +31,7 @@ exports.updateUserSchema = zod_1.z.object({
         specialties: zod_1.z.array(zod_1.z.string()).optional(),
         address: addressSchema.optional(),
         location: pointSchema.optional(),
+        settings: settingsSchema.optional(),
         appId: zod_1.z.string().optional(),
         deviceToken: zod_1.z.string().optional(),
         dateOfBirth: zod_1.z.string().datetime().optional(),

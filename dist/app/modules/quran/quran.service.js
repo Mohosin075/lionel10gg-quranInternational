@@ -233,12 +233,13 @@ const searchQuran = async (keyword, translationKey = 'english_saheeh', page = 1,
     };
 };
 const getDailyInspiration = async (translationKey = 'english_saheeh') => {
-    const randomAyahNumber = Math.floor(Math.random() * 6236) + 1;
-    // For simplicity, we fetch a random one from DB if available, otherwise fallback
-    let ayah = await quran_model_1.Translation.findOne({ edition: translationKey }).skip(randomAyahNumber).lean();
+    const count = await quran_model_1.Translation.countDocuments({ edition: translationKey });
+    if (count === 0) {
+        return { surah: 1, ayah: 1, text: 'In the name of Allah, the Entirely Merciful, the Especially Merciful.' };
+    }
+    const randomSkip = Math.floor(Math.random() * count);
+    let ayah = await quran_model_1.Translation.findOne({ edition: translationKey }).skip(randomSkip).lean();
     if (!ayah) {
-        // If not in DB, we could fetch from API, but better to just pick from what we have
-        // or return a default for now.
         return { surah: 1, ayah: 1, text: 'In the name of Allah, the Entirely Merciful, the Especially Merciful.' };
     }
     return ayah;

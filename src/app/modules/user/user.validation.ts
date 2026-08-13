@@ -15,6 +15,12 @@ const pointSchema = z.object({
   coordinates: z.tuple([z.number(), z.number()]).optional(), // [longitude, latitude]
 })
 
+const settingsSchema = z.object({
+  pushNotification: z.boolean().optional(),
+  emailNotification: z.boolean().optional(),
+  locationService: z.boolean().optional(),
+})
+
 // ------------------ UPDATE USER VALIDATION ------------------
 export const updateUserSchema = z.object({
   body: z
@@ -27,6 +33,7 @@ export const updateUserSchema = z.object({
 
       address: addressSchema.optional(),
       location: pointSchema.optional(),
+      settings: settingsSchema.optional(),
 
       appId: z.string().optional(),
       deviceToken: z.string().optional(),

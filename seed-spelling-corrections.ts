@@ -4,6 +4,7 @@ import { Translation } from './src/app/modules/quran/quran.model';
 import { KnowledgeArticle } from './src/app/modules/knowledge-library/knowledge-library.model';
 import { KnowledgeBook } from './src/app/modules/knowledge-library/knowledge-book.model';
 import { KnowledgeFatwa } from './src/app/modules/knowledge-library/knowledge-fatwa.model';
+import { SheikhContent } from './src/app/modules/sheikh-content/sheikh-content.model';
 
 const spellingReplacements = [
   { search: /Koran/g, replace: 'Quran' },
@@ -109,6 +110,22 @@ async function seedSpellingCorrections() {
       fatwaCount++;
     }
     console.log(`✅ Corrected ${fatwaCount} fatwas.`);
+
+    // 5. Clean up Rick Astley, Gangnam Style, and incorrect Abu Alia audios
+    console.log('Cleaning up unwanted audios and music tracks...');
+    const deletedMusic = await SheikhContent.deleteMany({
+      $or: [
+        { title: /Rick Astley|Gangnam Style|Never Gonna Give You Up/i },
+        { url: /youtube\.com.*(rick|gangnam|never gonna)/i }
+      ]
+    });
+    console.log(`✅ Removed ${deletedMusic.deletedCount} unwanted music tracks.`);
+
+    const deletedAbuAliaAudios = await SheikhContent.deleteMany({
+      speakerName: { $regex: /^Abu Alia$/i },
+      type: 'audio_travel'
+    });
+    console.log(`✅ Removed ${deletedAbuAliaAudios.deletedCount} incorrect Abu Alia audios.`);
 
     console.log('🎉 Spelling corrections script completed successfully!');
   } catch (error) {
