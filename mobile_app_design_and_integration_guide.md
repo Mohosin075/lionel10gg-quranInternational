@@ -1,166 +1,312 @@
-# Premium Flutter Mobile App Integration & Design Specification
-**Version:** 2.0 (Flutter Edition)  
-**Last Updated:** August 2026  
-**Author:** Antigravity AI  
+# Flutter Mobile App Integration Guide
+**Version:** 3.1  
+**Last Updated:** 15 August 2026  
+**Backend:** Quran International API (`/api/v1`)
 
-This document serves as the official integration guide for the **Flutter Mobile App Developers**. It specifies design layouts, API routes, request/response structures, and flow-control instructions to be merged into the existing Flutter codebase.
-
----
-
-## 🎨 1. Layout & UI/UX Design Specifications
-
-### A. Samsung Navigation Bar Overlap Resolution
-* **Problem:** Software system navigation bars on devices (especially Samsung Galaxy Series running One UI) overlap floating action widgets at the bottom.
-* **Instruction:** Wrap the bottom floating action panel (e.g. bookmarks or share bar) with a Padding/SafeArea inset that detects and offsets system padding.
-* **Layout Design Map:**
-  ```
-  +-----------------------------------+
-  |          App Content              |
-  |                                   |
-  +-----------------------------------+
-  | [🟢 Add to Bookmark] [🟢 Share]   | <-- Raised Action Buttons (Bottom Padding: 16.0 + SafeAreaInset)
-  +-----------------------------------+
-  |    |<   O   >|  (System Bar)      | <-- Samsung Navigation bar area (Protected)
-  +-----------------------------------+
-  ```
-* **Flutter Integration:** Instead of hardcoded heights, query the system insets dynamically using `MediaQuery.of(context).padding.bottom` and apply it as bottom padding (ensure a minimum fallback height of `16.0` if no insets exist).
-
-### B. Global Text & Translation Corrections
-Ensure all static asset text, localization bundles (`assets/translations/*.json`), and dynamic UI components apply the following correct spelling rules:
-1. **Spelling Correction 1:** Replace all references of **"Koran"** (case-insensitive) ➔ **"Quran"**.
-2. **Spelling Correction 2 (German):** Correct references of **"Milchschwestern"** ➔ **"Milchschwester"** (singular form).
-3. **Spelling Correction 3 (Hungarian):** Correct references of **"konyv"** ➔ **"könyv"** (with exact accents).
-*(Note: These spelling corrections have also been seeded in the backend database fields for Articles, Books, and Fatwas).*
-
-### C. Unified Free Quran Access
-* **Instruction:** Surah Al-Baqarah and all other 114 Surahs must remain **100% free and unlocked** for all users.
-* **Action:** Remove any lock badges (`🔒`), billing overlays, or premium checks from the Surah selector and Reciter listing components.
+This is the integration guide for the Flutter app. The backend is **offline-first**: most content is public. Login is required only for payment and for syncing account-specific data.
 
 ---
 
-## ⚙️ 2. API Integration & Routing Specifications
+## 1. Auth model (read this first)
 
-### A. Global Language translation Sync
-To sync resource translations dynamically on change (e.g. articles or books):
-* **Request Format:** Append query parameter `lang` dynamically to library endpoints (e.g., `de`, `en`, `tr`).
-* **Cache Management:** When the user changes their language setting, invalidate/clear the local offline cache boxes (e.g. Hive or SQLite). Fetch the translated data immediately from the backend.
+The app must work without an account. Store Quran, Hadith, Dua, Tafsir, Knowledge Library, Sheikh content, and prayer times in local cache (Hive / SQLite). Show a login screen only when the user starts a payment (Stripe checkout or IAP).
 
----
+### Public (no `Authorization` header)
 
-### B. Subscription & Paywall Verification
-To verify if the user is a premium member to unlock exclusive premium assets (like Hadiths):
-* **Endpoint:** `GET /api/v1/subscription/my-subscription`
-* **Headers:** `Authorization: Bearer <Token>`
-* **Response Payload Schema:**
-  ```json
-  {
-    "success": true,
-    "message": "Subscription details retrieved",
-    "data": {
-      "subscriptionTier": "premium", // Value check: If 'premium', unlock all features
-      "status": "active",
-      "subscriptionExpiresAt": "2126-08-15T00:00:00.000Z"
-    }
-  }
-  ```
+| Area | Endpoints |
+| --- | --- |
+| Quran | `GET /quran/languages`, `/quran/reciters`, `/quran/surahs`, `/quran/surah/:number`, `/quran/ayah/:surah/:ayah`, `/quran/translation/:surah/:ayah` (alias), `/quran/search`, `/quran/daily-inspiration`, `/quran/version`, `/quran/sync/check`, `/quran/sync/download` |
+| Hadith | `GET /hadith`, `/hadith/:id`, `/hadith/version`, `/hadith/check-sync`, `/hadith/download-sync` |
+| Dua | `GET /dua`, `/dua/:id`, `/dua/version`, `/dua/check-sync`, `/dua/download-sync` |
+| Tafsir | `GET /tafsir/:surah`, `/tafsir/:surah/:ayah`, `/tafsir/version`, `/tafsir/check-sync`, `/tafsir/download-sync` |
+| Knowledge Library | `GET /knowledge-library`, `/knowledge-library/books`, `/knowledge-library/books/:id`, `/knowledge-library/fatwas`, `/knowledge-library/fatwas/:id`, `/knowledge-library/:id`, `/knowledge-library/version`, `/knowledge-library/check-sync`, `/knowledge-library/download-sync` |
+| Sheikh | `GET /sheikh-content` |
+| Prayer | `GET /prayer-time`, `/prayer-time/recitations` |
+| Catalog | `GET /subscription/plans`, `/subscription/plans/:planId`, `/subscription/premium-benefits` |
+| IAP catalog | `GET /in-app-purchase/plans`, `/in-app-purchase/plans/:planId` |
+| Donations | `GET /payment/donation-presets` |
+| FAQ | `GET /public/faq/all`, `/public/faq/single/:id` |
 
----
+Do **not** lock Hadith, Knowledge Library, or Quran behind a paywall or login gate.
 
-### C. Dynamic Paywall Benefits List
-To display the premium features list dynamically on the Supporter screen:
-* **Endpoint:** `GET /api/v1/subscription/premium-benefits`
-* **Method:** `GET`
-* **Response Payload Schema:**
-  ```json
-  {
-    "success": true,
-    "data": [
-      {
-        "_id": "64b0f...",
-        "serialNumber": 1,
-        "text": "Full Audio Offline Downloads",
-        "isActive": true
-      },
-      {
-        "_id": "64b1f...",
-        "serialNumber": 2,
-        "text": "Access to Verification Engine",
-        "isActive": true
-      }
-    ]
-  }
-  ```
-* **Instruction:** Order the list on the UI based on `serialNumber` ascending.
+`GET /prayer-time` without a token returns Vienna, Austria defaults. After login, it uses the user’s saved city/country.
+
+### Requires `Authorization: Bearer <accessToken>`
+
+| Area | When to call |
+| --- | --- |
+| `POST /subscription/checkout-session` | User taps Stripe subscribe / donate |
+| `POST /subscription/create` | Only if payment is collected on-device and you already have a Stripe payment method |
+| `GET /subscription/my-subscription`, `GET /subscription/status` | After login, to show supporter status |
+| `GET /payment/verify-checkout/:sessionId` | After Stripe Checkout WebView returns |
+| `POST /in-app-purchase/verify` | After StoreKit / Play Billing success |
+| `GET /in-app-purchase/my-purchases` | Purchase history |
+| `GET /payment/my-payments` | Payment history |
+| Profile, bookmark, highlight, last-read, hasanat, notifications | Cloud sync only. Keep a local copy when logged out. |
+
+If a sync call returns `401`, keep local data and prompt login later. Do not block reading.
 
 ---
 
-### D. Quran Reciters and Audio Player
-* **Reciter List Endpoint:** `GET /api/v1/quran/reciters`
-* **Surah Detail Endpoint:** `GET /api/v1/quran/surah/:surahNumber?reciter={reciterId}`
-* **Instruction:** Regardless of the app's selected translation language, the recitation audio file url must always play the **original Arabic recitation** mapped to the selected reciter.
+## 2. Layout and copy
+
+### A. Samsung navigation bar overlap
+Wrap bottom action bars (bookmark / share) with `SafeArea` / `MediaQuery.of(context).padding.bottom` (minimum `16.0`).
+
+### B. Spelling
+1. **Koran** → **Quran** (all locales).
+2. German: **Milchschwestern** → **Milchschwester**.
+3. Hungarian: **konyv** → **könyv**.
+
+### C. Free Quran
+All 114 surahs stay unlocked. No lock badges or billing overlays on the surah or reciter lists.
 
 ---
 
-### E. Deep Linking & Specific Verse Jump
-* **Deep Link Scheme:** `quraninternational://surah/{surahNumber}/ayah/{ayahNumber}`
-* **Instruction:**
-  1. Capture deep link arguments on app launch/resume.
-  2. Load the Surah Reader page for the requested `surahNumber`.
-  3. Once data is fetched, trigger the scroll view to scroll directly to the index of `ayahNumber` using a `ScrollController` or index anchor offset.
+## 3. Auth APIs
+
+Base path: `/api/v1/auth`  
+Password minimum: **8 characters** (signup, login, reset, change).
+
+Login, social login, and account-verify all return tokens in the JSON body. Store both:
+
+```json
+{
+  "accessToken": "<jwt>",
+  "refreshToken": "<jwt>",
+  "role": "USER"
+}
+```
+
+Do not rely on the `refreshToken` cookie. Flutter should send the stored refresh token in the body.
+
+### Signup
+`POST /auth/signup`
+
+```json
+{
+  "email": "user@example.com",
+  "password": "atleast8",
+  "name": "Optional name",
+  "interest": ["quran", "hadith"]
+}
+```
+
+Allowed `interest` values: `quran`, `hadith`, `tafsir`, `dua`, `prayer`, `tajweed`, `islamic_history`, `kids`.
+
+### Login
+`POST /auth/login`  
+`POST /auth/custom-login` is the same handler (legacy alias).
+
+```json
+{
+  "email": "user@example.com",
+  "password": "atleast8",
+  "deviceToken": "fcm-token"
+}
+```
+
+### Social login (breaking change)
+Do **not** send `appId`. Verify the provider token on device, then send:
+
+`POST /auth/social-login`
+
+```json
+{
+  "provider": "google",
+  "idToken": "<Google ID token or Apple identity token>",
+  "deviceToken": "<FCM token>"
+}
+```
+
+`provider` must be `google` or `apple`. `deviceToken` is required.
+
+### OTP / password reset
+Reset is email-only. Phone reset is rejected.
+
+1. `POST /auth/forget-password` — `{ "email": "user@example.com" }`
+2. `POST /auth/verify-account` — `{ "email", "oneTimeCode" }`  
+   For an already-verified user this returns `data.token` (reset token), not an access token.
+3. `POST /auth/reset-password` — `{ "newPassword", "confirmPassword" }` and  
+   `Authorization: Bearer <reset token from step 2>`.
+
+Also:
+- `POST /auth/verify-account` after signup returns `accessToken` + `refreshToken` (new account).
+- `POST /auth/resend-otp` — `{ "email", "authType": "createAccount" | "resetPassword" }`
+
+### Session
+- `POST /auth/refresh-token` — `{ "refreshToken": "<stored refresh jwt>" }`  
+  Response: `{ "accessToken": "<new access jwt>" }`.
+- `POST /auth/logout` — Bearer required. After logout, old access tokens are rejected.
+- `POST /auth/change-password` — Bearer + `{ "currentPassword", "newPassword", "confirmPassword" }`
+- `DELETE /auth/delete-account` — Bearer + `{ "password" }`
+
+Store `accessToken` securely. Send `Authorization: Bearer <accessToken>` on protected routes.
+
+Google **web** callback no longer puts tokens in the URL query. Mobile should use `/auth/social-login` with `idToken`, not the web callback.
 
 ---
 
-### F. Hasanat Points Counter
-To update the user's progress coins:
-* **Endpoint:** `POST /api/v1/hasanat`
-* **Headers:** 
-  * `Authorization: Bearer <Token>`
-  * `Content-Type: application/json`
-* **Request Body:**
-  ```json
-  {
-    "amount": 10
-  }
-  ```
-* **Response Payload Schema:**
-  ```json
-  {
-    "success": true,
-    "message": "Hasanat collected successfully",
-    "data": {
-      "totalHasanat": 130
-    }
-  }
-  ```
-* **Instruction:** Fire this endpoint whenever a reading/audio travel session finishes. The backend does not cap or limit requests.
+## 4. Language sync
+
+Append `?lang=de` (or `en`, `tr`, …) on library endpoints. When the user changes language, clear the local cache and re-fetch.
 
 ---
 
-### G. Push Notifications & Real-Time Sync
+## 5. Subscription and IAP
 
-#### 1. REST Endpoints for Notification Management
-* **Get User Notifications:** `GET /api/v1/notifications` (Headers: `Authorization: Bearer <Token>`)
-* **Mark Single Notification as Read:** `PATCH /api/v1/notifications/:id/read`
-* **Mark All Notifications as Read:** `PATCH /api/v1/notifications/read-all`
-* **Delete Notification:** `DELETE /api/v1/notifications/:id`
+### Show plans without login
+- `GET /subscription/plans`
+- `GET /subscription/premium-benefits` — sort UI by `serialNumber` ascending.
+- `GET /in-app-purchase/plans`
+- `GET /payment/donation-presets`
 
-#### 2. Socket.io Connection & Event Sync
-To capture instant notifications when the app is active in the foreground:
-* **Socket Host:** Root server domain (e.g. `https://your-backend-domain.com`)
-* **Connection Handshake Options:** Set transport protocol to `websocket`.
-* **Action Steps:**
-  1. Emit connection lifecycle events.
-  2. Upon connection success, emit a `'join'` event passing the authenticated user's `userId` (MongoDB ObjectId string).
-     * **Event Payload:** `userId` (string)
-  3. Listen to the `'notification'` event broadcasted by the server.
-     * **Event Schema:**
-       ```json
-       {
-         "type": "NEW_NOTIFICATION",
-         "data": {
-           "title": "Daily Reminders",
-           "message": "It is time to read Surah Al-Kahf"
-         }
-       }
-       ```
-  4. Trigger a local UI snackbar/banner notification upon receiving the event.
+### After the user taps pay
+1. If there is no token, open login / social login.
+2. Then call one of:
+   - Stripe: `POST /subscription/checkout-session` (Bearer)
+   - Native IAP: complete StoreKit / Play Billing, then `POST /in-app-purchase/verify` (Bearer)
+
+`POST /subscription/checkout-session`
+
+```json
+{
+  "planId": "<mongo plan id>",
+  "successUrl": "https://your-app/success",
+  "cancelUrl": "https://your-app/cancel"
+}
+```
+
+Response `data`: `{ "sessionId", "url" }`. Open `url` in a WebView / Custom Tab. After return, confirm with `GET /payment/verify-checkout/:sessionId` (Bearer).
+
+`POST /in-app-purchase/verify`
+
+```json
+{
+  "planId": "<mongo plan id>",
+  "platform": "ios",
+  "receiptData": "<iOS receipt or Android purchase token>",
+  "productId": "<store product id>"
+}
+```
+
+`platform`: `ios` | `android`.
+
+A successful verify sets the user to premium (`subscriptionStatus: active`, `subscriptionTier: premium`, `subscriptionExpiresAt`).
+
+`POST /subscription/create` (Bearer) is only for on-device Stripe payment methods:
+
+```json
+{ "planId": "<mongo plan id>", "paymentMethodId": "pm_...", "couponId": "optional" }
+```
+
+### Check supporter status (logged in only)
+`GET /subscription/my-subscription` — active subscription document, or `{}` if none.  
+`GET /subscription/status` — `{ isActive, isTrialing, isPastDue, isCanceled, daysUntilExpiry, currentPlan }`.
+
+Use these for a “Supporter” badge, not to lock Hadith or library content.
+
+Removed (do not call):
+- `POST /payment/create-checkout-session`
+- `POST /payment/create-payment-intent`
+
+---
+
+## 6. Quran audio and deep links
+
+- Reciters: `GET /quran/reciters`
+- Surah: `GET /quran/surah/:surahNumber?reciter={reciterId}`
+- Recitation URL is always the original Arabic audio for the selected reciter, regardless of translation language.
+
+Deep link: `quraninternational://surah/{surahNumber}/ayah/{ayahNumber}`  
+On launch/resume, open that surah and scroll to the ayah.
+
+---
+
+## 7. Hasanat
+
+Do **not** call `POST /hasanat`. The route is:
+
+`POST /hasanat/collect`  
+Headers: `Authorization: Bearer <Token>`
+
+```json
+{ "amount": 10 }
+```
+
+`amount` must be a positive number.
+
+If the user is logged out, increment a local counter. Sync with `/hasanat/collect` after login.
+
+---
+
+## 8. Cloud sync (optional, logged in)
+
+Keep these local-first. Sync when a token exists.
+
+### Bookmarks — `/bookmark`
+- `GET /bookmark`
+- `POST /bookmark` — `{ "surahNumber", "ayahNumber", "text?", "translation?", "editionIdentifier?" }`
+- `DELETE /bookmark/:id`
+
+### Highlights — `/highlight`
+- `GET /highlight`
+- `POST /highlight` — `{ "surahNumber", "ayahNumber", "color": "#FFAA00", "text?" }`  
+  There is no delete route.
+
+### Last read — `/last-read`
+- `GET /last-read`
+- `PATCH /last-read` — `{ "surahNumber", "ayahNumber", "editionIdentifier?" }`
+
+### Prayer settings
+- `PATCH /prayer-time/settings` (Bearer) — city, country, recitation, active prayers
+
+### Profile
+- `GET /user/profile`
+- `PATCH /user/profile` — multipart (name, image, interests, deviceToken, …)
+- `POST /user/interest` — `{ "interest": ["quran", "hadith"] }`
+
+---
+
+## 9. Notifications and sockets
+
+### REST (Bearer required)
+- `GET /notifications`
+- `PATCH /notifications/:id/read`
+- `PATCH /notifications/read-all`
+- `DELETE /notifications/:id`
+
+### Socket.IO
+Connect only when the user is logged in.
+
+- Host: API origin (same host as REST).
+- Transport: `websocket`.
+- Handshake: send the access token as `auth.token` or `Authorization: Bearer <token>`. Connection is rejected without a valid token.
+
+On connect the server already joins `user:<authId>`. Listen for `notification` (`{ type: "NEW_NOTIFICATION", data }`). Do not emit a user-id join for that.
+
+Chat rooms (support chat only):
+- Join: emit `join-room` with the chat document `_id` (Mongo ObjectId). The user must be a participant.
+- Leave: emit `leave-room` with the same id.
+- After joining, listen for `getMessage::<chatId>` on that room only. Chat list updates arrive on `updateChatList::<yourUserId>` via the auto-joined `user:<authId>` room.
+- These events are not broadcast to every socket.
+- Do **not** emit `join` with a raw `userId`. That event is not handled.
+
+Listen for `socket_error` if join fails.
+
+---
+
+## 10. Flutter checklist
+
+- [ ] App opens and reads Quran / Hadith / Dua / Tafsir / library with no login.
+- [ ] Login sheet appears only on subscribe / IAP / donate.
+- [ ] Social login sends `provider` + `idToken` + `deviceToken`.
+- [ ] Passwords are at least 8 characters.
+- [ ] Interest chips use the new enum values.
+- [ ] Store `refreshToken` from the login body; refresh with `POST /auth/refresh-token` `{ refreshToken }`.
+- [ ] Password reset: forget-password → verify-account → use `data.token` on reset-password.
+- [ ] Stripe checkout sends `planId`, `successUrl`, `cancelUrl`, then verifies the session.
+- [ ] Hasanat uses `POST /hasanat/collect`.
+- [ ] IAP success calls `/in-app-purchase/verify`.
+- [ ] Socket connects with JWT and listens for `notification`.
+- [ ] Logged-out bookmark / last-read / hasanat stay on device.

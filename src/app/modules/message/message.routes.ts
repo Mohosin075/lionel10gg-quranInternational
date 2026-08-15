@@ -7,8 +7,8 @@ const router = express.Router()
 
 router.post(
   '/',
-  fileAndBodyProcessorUsingDiskStorage(),
   auth(USER_ROLES.USER, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  fileAndBodyProcessorUsingDiskStorage(),
   MessageController.sendMessage,
 )
 router.get(

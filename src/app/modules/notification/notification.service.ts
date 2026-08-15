@@ -9,7 +9,7 @@ const createNotification = async (payload: Partial<INotification>): Promise<INot
 
   // Send real-time notification via socket
   if (io && result.userId) {
-    io.to(result.userId.toString()).emit('notification', {
+    io.to(`user:${result.userId.toString()}`).emit('notification', {
       type: 'NEW_NOTIFICATION',
       data: result,
     });

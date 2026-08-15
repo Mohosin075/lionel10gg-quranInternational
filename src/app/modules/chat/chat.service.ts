@@ -1,18 +1,67 @@
 import { Types } from 'mongoose'
+import { StatusCodes } from 'http-status-codes'
+import ApiError from '../../../errors/ApiError'
+import { USER_STATUS } from '../../../enum/user'
+import { User } from '../user/user.model'
 import { Message } from '../message/message.model'
 import { IChat } from './chat.interface'
 import { Chat } from './chat.model'
 
-const createChatToDB = async (payload: Types.ObjectId[]): Promise<IChat> => {
+const assertChatParticipant = async (chatId: string, userId: string) => {
+  if (!Types.ObjectId.isValid(chatId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid chat id')
+  }
+
+  const chat = await Chat.findOne({
+    _id: chatId,
+    participants: userId,
+    status: true,
+  })
+
+  if (!chat) {
+    throw new ApiError(
+      StatusCodes.FORBIDDEN,
+      'You are not a participant of this chat',
+    )
+  }
+
+  return chat
+}
+
+const createChatToDB = async (
+  userId: string,
+  otherUserId: string,
+): Promise<IChat> => {
+  if (!userId || !Types.ObjectId.isValid(otherUserId)) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid user id')
+  }
+
+  if (String(userId) === String(otherUserId)) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      'You cannot start a chat with yourself',
+    )
+  }
+
+  const otherUser = await User.findOne({
+    _id: otherUserId,
+    status: USER_STATUS.ACTIVE,
+  }).select('_id')
+
+  if (!otherUser) {
+    throw new ApiError(StatusCodes.NOT_FOUND, 'User not found')
+  }
+
+  const participants = [userId, otherUserId]
   const isExistChat: IChat | null = await Chat.findOne({
-    participants: { $all: payload },
+    participants: { $all: participants },
   })
 
   if (isExistChat) {
     return isExistChat
   }
-  const chat: IChat = await Chat.create({ participants: payload })
-  return chat
+
+  return Chat.create({ participants })
 }
 
 const getChatFromDB = async (
@@ -73,4 +122,8 @@ const getChatFromDB = async (
   }
 }
 
-export const ChatService = { createChatToDB, getChatFromDB }
+export const ChatService = {
+  assertChatParticipant,
+  createChatToDB,
+  getChatFromDB,
+}

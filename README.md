@@ -1,104 +1,105 @@
-# Node.js TypeScript Boilerplate
+# Quran International API
 
-A modern, scalable, and production-ready backend boilerplate built with Node.js, TypeScript, Express, MongoDB, and Socket.IO. This boilerplate provides a solid foundation for building social platforms, content management systems, or any robust web application.
+Backend for the Quran International Flutter app. Node.js, TypeScript, Express, MongoDB, Stripe, and Socket.IO.
 
-## Features
+The API is **offline-first**. Quran, Hadith, Dua, Tafsir, Knowledge Library, Sheikh content, and prayer times are public. Login is required only for payment and for syncing account data (profile, bookmarks, highlights, last-read, hasanat, notifications).
 
-- **TypeScript**: Typed development for better maintainability and error catching.
-- **Authentication**: JWT-based auth with signup, login, password reset, and role-based access control.
-- **Social Auth**: Integrated Google OAuth via Passport.js.
-- **Real-time**: Real-time communication support with Socket.IO.
-- **File Management**: Support for local and AWS S3 file uploads with image optimization (Sharp).
-- **Validation**: Request validation using Zod schemas.
-- **Error Handling**: Centralized global error handling with clear error responses.
-- **Email**: Integrated email service support via SMTP.
-- **Push Notifications**: Integrated Firebase Admin SDK for push notifications.
-- **Modular Architecture**: Structured into modules (user, auth, chat, message, notification, etc.) for scalability.
+Flutter integration details: [`mobile_app_design_and_integration_guide.md`](./mobile_app_design_and_integration_guide.md).
 
-## Tech Stack
+## Stack
 
-- **Runtime**: Node.js
-- **Language**: TypeScript
-- **Framework**: Express.js
-- **Database**: MongoDB with Mongoose
-- **Real-time**: Socket.IO
-- **Validation**: Zod
-- **Logging**: Morgan & Winston
-- **Auth**: Passport.js & JWT
-- **Image Processing**: Sharp
+- Node.js 18+ / TypeScript / Express
+- MongoDB (Mongoose)
+- JWT + Google / Apple social login
+- Stripe Checkout and native IAP verify
+- Socket.IO (JWT handshake)
+- AWS S3 uploads, SMTP email, Firebase push
 
-## Getting Started
+## Setup
 
-### Prerequisites
-
-- Node.js 18+ and npm
-- MongoDB instance (local or cloud)
-
-### Installation
-
-1. Clone the repository:
-
-   ```bash
-   git clone <repository-url>
-   cd <project-directory>
-   ```
-
-2. Install dependencies:
-
-   ```bash
-   npm install
-   ```
-
-3. Configure Environment Variables:
-   Create a `.env` file in the root directory and add the necessary configuration (see `.env.example` if available).
-
-### Running the Application
-
-- **Development Mode**:
-
-  ```bash
-  npm run start
-  ```
-
-- **Build**:
-
-  ```bash
-  npm run build
-  ```
-
-- **Production Mode**:
-  ```bash
-  npm run start:prod
-  ```
-
-## Project Structure
-
+```bash
+git clone <repository-url>
+cd lionel10gg-quranInternational
+npm install
+cp .env.example .env
 ```
-src/
-├── app/
-│   ├── builder/        # Query builders
-│   ├── errors/         # Custom error classes and handlers
-│   ├── middleware/     # Custom Express middlewares
-│   ├── modules/        # Feature-based modules (user, auth, etc.)
-├── config/             # Configuration files
-├── helpers/            # Utility helpers
-├── interfaces/         # Global TypeScript interfaces
-├── routes/             # API routes definition
-├── shared/             # Shared utilities
-├── utils/              # Utility functions
-├── server.ts           # Entry point
-└── app.ts              # Express application setup
+
+Fill `.env` from `.env.example`. Required for a local run: `DATABASE_URL`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, and `SESSION_SECRET` (or reuse `JWT_SECRET`).
+
+```bash
+npm run start          # development (ts-node-dev)
+npm run build
+npm run start:prod     # compiled dist/
+npm test               # OTP hash unit tests
 ```
+
+API base: `http://localhost:5000/api/v1`  
+Health: `GET /api/v1/status`
+
+## Auth (mobile)
+
+| Action | Endpoint |
+| --- | --- |
+| Signup | `POST /auth/signup` — password min 8 |
+| Login | `POST /auth/login` (alias: `/auth/custom-login`) |
+| Social | `POST /auth/social-login` — `{ provider, idToken, deviceToken }` |
+| Refresh | `POST /auth/refresh-token` — `{ refreshToken }` from the login body |
+| Reset | `POST /auth/forget-password` → `verify-account` → `reset-password` (email only) |
+
+Protected routes use `Authorization: Bearer <accessToken>`.
+
+## Public content
+
+No token needed:
+
+- `/quran/*` (languages, reciters, surahs, ayah, search, sync)
+- `/hadith`, `/dua`, `/tafsir`, `/knowledge-library`, `/sheikh-content`
+- `/prayer-time`, `/subscription/plans`, `/in-app-purchase/plans`
+- `/payment/donation-presets`, `/public/faq/all`
+
+Do not put a login or paywall in front of reading these.
+
+## Payments (logged in)
+
+- Stripe: `POST /subscription/checkout-session` then `GET /payment/verify-checkout/:sessionId`
+- IAP: `POST /in-app-purchase/verify` after StoreKit / Play Billing
+- Status: `GET /subscription/my-subscription`, `GET /subscription/status`
+
+Webhooks (raw body, registered before JSON parser):
+
+- `POST /api/v1/subscription/webhook`
+- `POST /api/v1/payment/webhook`
+
+## Chat
+
+REST and sockets require a valid JWT. A user can only create a chat with an existing active user, and can only read or send messages in chats they participate in. Socket events go to `room:<chatId>` and `user:<authId>`, not to every connected client.
 
 ## Scripts
 
-- `npm run start`: Start the development server.
-- `npm run build`: Compile TypeScript to JavaScript.
-- `npm run start:prod`: Run the compiled server.
-- `npm run lint:check`: Run ESLint to check for code issues.
-- `npm run lint:fix`: Run ESLint and fix issues automatically.
-- `npm run prettier:check`: Check code formatting with Prettier.
-- `npm run prettier:fix`: Format code with Prettier.
+| Script | Purpose |
+| --- | --- |
+| `npm run start` | Dev server |
+| `npm run build` | Compile TypeScript |
+| `npm run start:prod` | Run `dist/server.js` |
+| `npm test` | Crypto / OTP tests |
+| `npm run lint:check` / `lint:fix` | ESLint |
+| `npm run prettier:check` / `prettier:fix` | Format |
+| `npm run seed:demo-subscription` | Demo plans |
+| `npm run seed:islamhouse` | Knowledge library seed |
+| `npm run seed:spelling-corrections` | Locale spelling fixes |
+
+## Layout
+
+```
+src/
+├── app.ts                 # Express app, webhooks, CORS
+├── server.ts              # HTTP + Socket.IO
+├── routes/index.ts        # /api/v1 mounts
+├── config/                # env
+├── app/modules/           # auth, quran, hadith, subscription, …
+├── app/middleware/        # JWT, validation, uploads
+└── helpers/               # socket, jwt, email
+```
 
 ## License
 

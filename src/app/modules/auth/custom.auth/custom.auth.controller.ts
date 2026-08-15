@@ -5,6 +5,7 @@ import sendResponse from '../../../../shared/sendResponse'
 import { StatusCodes } from 'http-status-codes'
 import { TokenServices } from '../../token/token.service'
 import { JwtPayload } from 'jsonwebtoken'
+import ApiError from '../../../../errors/ApiError'
 
 const customLogin = catchAsync(async (req: Request, res: Response) => {
   const { ...loginData } = req.body
@@ -90,7 +91,13 @@ const verifyAccount = catchAsync(async (req: Request, res: Response) => {
 })
 
 const getRefreshToken = catchAsync(async (req: Request, res: Response) => {
-  const { refreshToken } = req.cookies
+  const refreshToken = req.body?.refreshToken || req.cookies?.refreshToken
+  if (!refreshToken) {
+    throw new ApiError(
+      StatusCodes.UNAUTHORIZED,
+      'Refresh token is required',
+    )
+  }
   const result = await CustomAuthServices.getRefreshToken(refreshToken)
   sendResponse(res, {
     statusCode: StatusCodes.OK,

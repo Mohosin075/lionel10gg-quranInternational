@@ -11,6 +11,10 @@ const socket = (io: Server) => {
   io.on('connection', (socket: SocketWithUser) => {
     console.log(colors.blue('A user connected'), socket.id)
 
+    if (socket.user?.authId) {
+      socket.join(`user:${socket.user.authId}`)
+    }
+
     socket.on('join-room', async (roomId: string) => {
       if (!socket.user?.authId) {
         socket.emit('socket_error', {

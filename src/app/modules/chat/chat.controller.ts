@@ -7,10 +7,7 @@ import { JwtPayload } from 'jsonwebtoken'
 
 const createChat = catchAsync(async (req: Request, res: Response) => {
   const user = req.user as JwtPayload
-  const otherUser = req.params.id
-
-  const participants = [user?.authId, otherUser]
-  const chat = await ChatService.createChatToDB(participants)
+  const chat = await ChatService.createChatToDB(user.authId!, req.params.id)
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,
