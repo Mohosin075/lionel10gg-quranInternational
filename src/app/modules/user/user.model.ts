@@ -2,6 +2,7 @@ import { Schema, model } from 'mongoose'
 import bcrypt from 'bcrypt'
 import { IUser, UserModel } from './user.interface'
 import { InterestCategory, USER_ROLES, USER_STATUS } from '../../../enum/user'
+import config from '../../../config'
 
 // ------------------ USER SCHEMA ------------------
 const UserSchema = new Schema<IUser, UserModel>(
@@ -42,7 +43,7 @@ const UserSchema = new Schema<IUser, UserModel>(
     subscribe: { type: Boolean, default: false },
     totalHasanat: { type: Number, default: 0 },
 
-    password: { type: String, minlength: 6 },
+    password: { type: String, minlength: 8, select: false },
     role: {
       type: String,
       enum: Object.values(USER_ROLES),
@@ -104,7 +105,10 @@ UserSchema.index({ location: '2dsphere' }) // Geo queries support
 // ------------------ PRE HOOKS ------------------
 UserSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next()
-  this.password = await bcrypt.hash(this.password, 10)
+  this.password = await bcrypt.hash(
+    this.password,
+    Number(config.bcrypt_salt_rounds) || 12,
+  )
   next()
 })
 

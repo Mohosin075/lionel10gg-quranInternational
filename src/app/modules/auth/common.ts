@@ -4,7 +4,7 @@ import ApiError from '../../../errors/ApiError'
 import { USER_STATUS } from '../../../enum/user'
 import { User } from '../user/user.model'
 import { AuthHelper } from './auth.helper'
-import { generateOtp } from '../../../utils/crypto'
+import { generateOtp, hashOtp } from '../../../utils/crypto'
 import { IAuthResponse } from './auth.interface'
 import { IUser } from '../user/user.interface'
 import { emailTemplate } from '../../../shared/emailTemplate'
@@ -27,7 +27,7 @@ const handleLoginLogic = async (
 
     const authentication = {
       email: payload.email,
-      oneTimeCode: otp,
+      oneTimeCode: hashOtp(otp),
       expiresAt: otpExpiresIn,
       latestRequestAt: new Date(),
       authType: 'createAccount',
@@ -109,8 +109,8 @@ const handleLoginLogic = async (
     })
 
     throw new ApiError(
-      StatusCodes.BAD_REQUEST,
-      'Incorrect password, please try again.',
+      StatusCodes.UNAUTHORIZED,
+      'Invalid email or password',
     )
   }
 

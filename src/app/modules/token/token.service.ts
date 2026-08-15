@@ -1,20 +1,24 @@
 import { Types } from 'mongoose'
 import { Token } from './token.model'
+import { User } from '../user/user.model'
+
 const logout = async (userId: string) => {
-  console.log('Logging out user with ID:', userId)
-  const res = await Token.updateOne(
-    {
-      user: new Types.ObjectId(userId),
-    },
-    {
-      expireAt: new Date(Date.now()),
-      token: '',
-    },
-  )
+  const [tokenResult] = await Promise.all([
+    Token.updateMany(
+      {
+        user: new Types.ObjectId(userId),
+      },
+      {
+        expireAt: new Date(),
+        token: '',
+      },
+    ),
+    User.findByIdAndUpdate(userId, {
+      $set: { 'authentication.passwordChangedAt': new Date() },
+    }),
+  ])
 
-  console.log({ res })
-
-  return res
+  return tokenResult
 }
 export const TokenServices = {
   logout,

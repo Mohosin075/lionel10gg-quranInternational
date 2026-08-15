@@ -36,10 +36,20 @@ const googleAuthCallback = catchAsync(async (req: Request, res: Response) => {
     req.user as IUser & { profile: GoogleProfile },
   )
   const { accessToken, refreshToken } = result
+  const isProd = config.node_env === 'production'
 
-  return res.redirect(
-    `${config.clientUrl}/auth/login?accessToken=${accessToken}&refreshToken=${refreshToken}&role=user`,
-  )
+  res.cookie('refreshToken', refreshToken, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: 'lax',
+  })
+  res.cookie('accessToken', accessToken, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: 'lax',
+  })
+
+  return res.redirect(`${config.clientUrl}/auth/login?success=true`)
 })
 
 export const PassportAuthController = {

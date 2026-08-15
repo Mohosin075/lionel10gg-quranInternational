@@ -21,76 +21,29 @@ const stripe = new Stripe(config.stripe.stripeSecretKey!, {
   apiVersion: '2026-04-22.dahlia' as any,
 })
 
-const createCheckoutSession = async (
-  user: any,
-  payload: any,
-): Promise<{ sessionId: string; url: string }> => {
-  throw new ApiError(
-    StatusCodes.BAD_REQUEST,
-    'One-time payments are disabled. Please use recurring subscriptions.',
-  )
-  try {
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: (payload.currency || 'EUR').toLowerCase(),
-            product_data: {
-              name: payload.productName || 'Payment',
-              description: payload.description,
-            },
-            unit_amount: Math.round(payload.amount * 100),
-          },
-          quantity: 1,
-        },
-      ],
-      mode: 'payment',
-      success_url: `${config.clientUrl}?session_id={CHECKOUT_SESSION_ID}&success=true`,
-      cancel_url: `${config.clientUrl}/payment/cancel?success=false`,
-      customer_email: user.email,
-      metadata: {
-        userId: user.authId.toString(),
-        ...payload.metadata
-      },
-    })
+const isAdmin = (user: JwtPayload) =>
+  user.role === USER_ROLES.ADMIN || user.role === USER_ROLES.SUPER_ADMIN
 
-    await Payment.create({
-      userId: user.authId,
-      userEmail: user.email,
-      amount: payload.amount,
-      currency: payload.currency || 'EUR',
-      paymentMethod: 'stripe',
-      paymentType: payload.paymentType || 'one_time',
-      paymentIntentId: session.payment_intent || session.id,
-      status: 'pending',
-      metadata: {
-        checkoutSessionId: session.id,
-        ...payload.metadata
-      },
-    })
-
-    return {
-      sessionId: session.id,
-      url: session.url!,
-    }
-  } catch (error: any) {
+const assertPaymentAccess = (user: JwtPayload, paymentUserId: unknown) => {
+  if (isAdmin(user)) {
+    return
+  }
+  if (String(paymentUserId) !== String(user.authId)) {
     throw new ApiError(
-      StatusCodes.INTERNAL_SERVER_ERROR,
-      `Checkout session creation failed: ${error.message}`,
+      StatusCodes.FORBIDDEN,
+      'You do not have access to this payment',
     )
   }
 }
 
-const verifyCheckoutSession = async (sessionId: string): Promise<IPayment> => {
+const verifyCheckoutSession = async (
+  sessionId: string,
+  user: JwtPayload,
+): Promise<IPayment> => {
   try {
     const session = await stripe.checkout.sessions.retrieve(sessionId, {
       expand: ['payment_intent'],
     })
-
-    console.log('🔍 Verifying Checkout Session:', session.id)
-    console.log('🔍 Payment Intent:', session.payment_intent)
-    console.log('🔍 Metadata:', session.metadata)
 
     const payment = await Payment.findOne({
       $or: [
@@ -104,6 +57,8 @@ const verifyCheckoutSession = async (sessionId: string): Promise<IPayment> => {
     if (!payment) {
       throw new ApiError(StatusCodes.NOT_FOUND, 'Payment not found')
     }
+
+    assertPaymentAccess(user, payment.userId)
 
     if (session.payment_status === 'paid' && payment.status !== 'succeeded') {
       const session = await Payment.startSession()
@@ -145,53 +100,6 @@ const verifyCheckoutSession = async (sessionId: string): Promise<IPayment> => {
     throw new ApiError(
       StatusCodes.INTERNAL_SERVER_ERROR,
       `Payment verification failed: ${error.message}`,
-    )
-  }
-}
-
-const createPaymentIntent = async (
-  user: any,
-  payload: any,
-): Promise<{ clientSecret: string; paymentIntentId: string; amount: number }> => {
-  throw new ApiError(
-    StatusCodes.BAD_REQUEST,
-    'One-time payments are disabled. Please use recurring subscriptions.',
-  )
-  try {
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(payload.amount * 100),
-      currency: payload.currency || 'eur',
-      metadata: {
-        userId: user.authId.toString(),
-        userEmail: user.email,
-        ...payload.metadata
-      },
-    })
-
-    await Payment.create({
-      userId: user.authId,
-      userEmail: user.email,
-      amount: payload.amount,
-      currency: (payload.currency || 'EUR').toUpperCase(),
-      paymentMethod: 'stripe',
-      paymentType: payload.paymentType || 'one_time',
-      paymentIntentId: paymentIntent.id,
-      status: 'pending',
-      metadata: {
-        userId: user.authId.toString(),
-        ...payload.metadata
-      },
-    })
-
-    return {
-      clientSecret: paymentIntent.client_secret!,
-      paymentIntentId: paymentIntent.id,
-      amount: payload.amount,
-    }
-  } catch (error: any) {
-    throw new ApiError(
-      StatusCodes.INTERNAL_SERVER_ERROR,
-      `Payment Intent creation failed: ${error.message}`,
     )
   }
 }
@@ -290,7 +198,6 @@ const processSubscriptionForPayment = async (
           user.stripeCustomerId = stripeDetails.customer as string
         }
         await user.save({ session })
-        console.log(`Successfully activated subscription for user ${user._id} and plan ${plan.name}`)
       }
     }
   }
@@ -342,14 +249,31 @@ const handlePaymentIntentWebhook = async (
   }
 }
 
-const verifyPaymentIntent = async (paymentIntentId: string): Promise<IPayment> => {
+const verifyPaymentIntent = async (
+  paymentIntentId: string,
+  user: JwtPayload,
+): Promise<IPayment> => {
   try {
     let payment = await Payment.findOne({
       paymentIntentId,
     })
 
+    if (payment) {
+      assertPaymentAccess(user, payment.userId)
+    }
+
     // Retrieve from stripe
     const pi = await stripe.paymentIntents.retrieve(paymentIntentId)
+
+    const metadataUserId = pi.metadata?.userId
+    if (!payment && metadataUserId) {
+      assertPaymentAccess(user, metadataUserId)
+    } else if (!payment && !isAdmin(user)) {
+      throw new ApiError(
+        StatusCodes.FORBIDDEN,
+        'You do not have access to this payment',
+      )
+    }
 
     if (pi.status !== 'succeeded') {
       throw new ApiError(StatusCodes.BAD_REQUEST, `Payment Intent is not completed on Stripe. Current status: ${pi.status}`)
@@ -376,8 +300,6 @@ const verifyPaymentIntent = async (paymentIntentId: string): Promise<IPayment> =
         await processSubscriptionForPayment(payment, pi, session)
       } else {
         // If Payment record doesn't exist (created directly via subscription endpoint)
-        console.log(`Payment not found for Intent ${paymentIntentId}. Checking subscription associated...`)
-        
         let stripeSubscriptionId = 'sub_' + pi.id.substring(3)
         let stripeCustomerId = pi.customer as string || 'cus_unknown'
 
@@ -463,7 +385,6 @@ const verifyPaymentIntent = async (paymentIntentId: string): Promise<IPayment> =
       }
 
       await session.commitTransaction()
-      console.log(`Payment and subscription processed successfully for intent: ${paymentIntentId}`)
     } catch (error) {
       await session.abortTransaction()
       throw error
@@ -524,7 +445,7 @@ const getAllPayments = async (
     })
   }
 
-  if (user.activeRole === USER_ROLES.USER) {
+  if (!isAdmin(user)) {
     andConditions.push({
       userId: new Types.ObjectId(user.authId),
     })
@@ -555,7 +476,10 @@ const getAllPayments = async (
   }
 }
 
-const getSinglePayment = async (id: string): Promise<IPayment> => {
+const getSinglePayment = async (
+  id: string,
+  user: JwtPayload,
+): Promise<IPayment> => {
   if (!Types.ObjectId.isValid(id)) {
     throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid Payment ID')
   }
@@ -569,6 +493,8 @@ const getSinglePayment = async (id: string): Promise<IPayment> => {
       'Requested payment not found, please try again with valid id',
     )
   }
+
+  assertPaymentAccess(user, result.userId)
 
   return result
 }
@@ -686,7 +612,10 @@ const getDonationPresets = async (): Promise<any[]> => {
   ]
 }
 
-const generateInvoice = async (id: string): Promise<string | Buffer> => {
+const generateInvoice = async (
+  id: string,
+  user: JwtPayload,
+): Promise<string> => {
   if (!Types.ObjectId.isValid(id)) {
     throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid Payment ID')
   }
@@ -696,6 +625,8 @@ const generateInvoice = async (id: string): Promise<string | Buffer> => {
   if (!payment) {
     throw new ApiError(StatusCodes.NOT_FOUND, 'Payment not found')
   }
+
+  assertPaymentAccess(user, payment.userId)
 
   if (payment.paymentIntentId && payment.status === 'succeeded' && payment.paymentMethod === 'stripe') {
     try {
@@ -711,7 +642,10 @@ const generateInvoice = async (id: string): Promise<string | Buffer> => {
     }
   }
 
-  throw new ApiError(StatusCodes.NOT_IMPLEMENTED, 'Custom PDF generation not available')
+  throw new ApiError(
+    StatusCodes.NOT_FOUND,
+    'Stripe receipt is not available for this payment',
+  )
 }
 
 export const PaymentServices = {
@@ -720,11 +654,9 @@ export const PaymentServices = {
   updatePayment,
   refundPayment,
   getMyPayments,
-  createCheckoutSession,
   verifyCheckoutSession,
   verifyPaymentIntent,
   handleWebhook: WebhookService.handleWebhook,
-  createPaymentIntent,
   createEphemeralKey,
   handlePaymentIntentWebhook,
   generateInvoice,

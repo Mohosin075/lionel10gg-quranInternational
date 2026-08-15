@@ -56,11 +56,27 @@ class InAppPurchaseService {
       transactionId: verificationResult.transactionId,
     });
 
-    if (existingPurchase) {
-      return existingPurchase; // Return existing to make it idempotent
+    const intervalCount = plan.intervalCount || 1
+    const expiryDate = new Date(verificationResult.purchaseDate)
+    if (plan.interval === 'year') {
+      expiryDate.setFullYear(expiryDate.getFullYear() + intervalCount)
+    } else {
+      expiryDate.setMonth(expiryDate.getMonth() + intervalCount)
     }
 
-    // Create the purchase record
+    const activatePremium = async () => {
+      await User.findByIdAndUpdate(userId, {
+        subscriptionStatus: 'active',
+        subscriptionTier: 'premium',
+        subscriptionExpiresAt: expiryDate,
+      })
+    }
+
+    if (existingPurchase) {
+      await activatePremium()
+      return existingPurchase
+    }
+
     const purchase = await InAppPurchase.create({
       userId: new Types.ObjectId(userId),
       planId: plan._id,
@@ -69,15 +85,12 @@ class InAppPurchaseService {
       receiptData: data.receiptData,
       status: 'active',
       purchaseDate: verificationResult.purchaseDate,
-      // If it's a subscription package instead of one-time, calculate expiry
-      expiryDate: plan.interval === 'month' 
-        ? new Date(verificationResult.purchaseDate.getTime() + 30 * 24 * 60 * 60 * 1000)
-        : undefined
-    });
+      expiryDate,
+    })
 
-    // TODO: Add any business logic here (e.g., adding coins to user account)
-    
-    return purchase;
+    await activatePremium()
+
+    return purchase
   }
 
   async getUserPurchases(userId: string): Promise<IInAppPurchase[]> {

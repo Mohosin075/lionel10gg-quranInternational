@@ -12,8 +12,6 @@ const createSupport = async (
   user: JwtPayload | null,
   payload: ISupport,
 ): Promise<ISupport> => {
-  console.log({ user, payload })
-
   const data = {
     ...payload,
     userId: user?.authId || null,

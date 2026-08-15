@@ -26,8 +26,8 @@ passport.use(
 
         if (!isUserExist) {
           throw new ApiError(
-            StatusCodes.BAD_REQUEST,
-            'No account found with this email, please try with valid email or create an account.',
+            StatusCodes.UNAUTHORIZED,
+            'Invalid email or password',
           )
         }
 

@@ -22,8 +22,7 @@ router.post(
 router.post(
   '/login',
   validateRequest(AuthValidations.loginZodSchema),
-  passport.authenticate('local', { session: false }),
-  PassportAuthController.login,
+  CustomAuthController.customLogin,
 )
 
 router.get(
@@ -69,14 +68,14 @@ router.post(
 
 router.post(
   '/change-password',
-  auth(USER_ROLES.ADMIN, USER_ROLES.USER),
+  auth(USER_ROLES.ADMIN, USER_ROLES.USER, USER_ROLES.SUPER_ADMIN),
   validateRequest(AuthValidations.changePasswordZodSchema),
   CustomAuthController.changePassword,
 )
 
 router.delete(
   '/delete-account',
-  auth(USER_ROLES.ADMIN, USER_ROLES.USER),
+  auth(USER_ROLES.ADMIN, USER_ROLES.USER, USER_ROLES.SUPER_ADMIN),
   validateRequest(AuthValidations.deleteAccount),
   CustomAuthController.deleteAccount,
 )
@@ -90,7 +89,7 @@ router.post(
 
 router.post(
   '/logout',
-  auth(USER_ROLES.ADMIN, USER_ROLES.USER),
+  auth(USER_ROLES.ADMIN, USER_ROLES.USER, USER_ROLES.SUPER_ADMIN),
   CustomAuthController.logout,
 )
 

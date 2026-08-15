@@ -5,22 +5,18 @@ import { ISendEmail } from '../interfaces/email'
 const transporter = nodemailer.createTransport({
   host: config.email.host,
   port: Number(config.email.port),
-  secure: false,
+  secure: Number(config.email.port) === 465,
   auth: {
     user: config.email.user,
     pass: config.email.pass,
-  },
-  // 👇 ignore self-signed cert
-  // 👇 TODO : remove after complete
-  tls: {
-    rejectUnauthorized: false,
   },
 })
 
 const sendEmail = async (values: ISendEmail) => {
   try {
+    const fromName = config.appName || 'Quran International'
     const info = await transporter.sendMail({
-      from: `"gathering" ${config.email.from}`,
+      from: `"${fromName}" <${config.email.from}>`,
       to: values.to,
       subject: values.subject,
       html: values.html,
@@ -28,7 +24,6 @@ const sendEmail = async (values: ISendEmail) => {
 
     console.log('Mail send successfully', info.accepted)
   } catch (error) {
-    console.log({ error })
     console.error('Email', error)
   }
 }

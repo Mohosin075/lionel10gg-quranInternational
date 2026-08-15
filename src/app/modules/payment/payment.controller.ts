@@ -10,24 +10,13 @@ import { JwtPayload } from 'jsonwebtoken'
 import { paginationFields } from '../../../interfaces/pagination'
 
 
-const createCheckoutSession = catchAsync(
-  async (req: Request, res: Response) => {
-    const user = req.user as JwtPayload
-    const result = await PaymentServices.createCheckoutSession(user, req.body)
-
-    sendResponse(res, {
-      statusCode: StatusCodes.CREATED,
-      success: true,
-      message: 'Checkout session created successfully',
-      data: result,
-    })
-  },
-)
-
 const verifyCheckoutSession = catchAsync(
   async (req: Request, res: Response) => {
     const { sessionId } = req.params
-    const result = await PaymentServices.verifyCheckoutSession(sessionId)
+    const result = await PaymentServices.verifyCheckoutSession(
+      sessionId,
+      req.user as JwtPayload,
+    )
 
     sendResponse(res, {
       statusCode: StatusCodes.OK,
@@ -41,7 +30,10 @@ const verifyCheckoutSession = catchAsync(
 const verifyPaymentIntent = catchAsync(
   async (req: Request, res: Response) => {
     const { paymentIntentId } = req.body
-    const result = await PaymentServices.verifyPaymentIntent(paymentIntentId)
+    const result = await PaymentServices.verifyPaymentIntent(
+      paymentIntentId,
+      req.user as JwtPayload,
+    )
 
     sendResponse(res, {
       statusCode: StatusCodes.OK,
@@ -91,7 +83,10 @@ const getAllPayments = catchAsync(async (req: Request, res: Response) => {
 
 const getSinglePayment = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params
-  const result = await PaymentServices.getSinglePayment(id)
+  const result = await PaymentServices.getSinglePayment(
+    id,
+    req.user as JwtPayload,
+  )
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,
@@ -125,24 +120,6 @@ const refundPayment = catchAsync(async (req: Request, res: Response) => {
     data: result,
   })
 })
-
-// ============================================
-// FLUTTER STRIPE CONTROLLERS
-// ============================================
-
-const createPaymentIntent = catchAsync(
-  async (req: Request, res: Response) => {
-    const user = req.user as JwtPayload
-    const result = await PaymentServices.createPaymentIntent(user, req.body)
-
-    sendResponse(res, {
-      statusCode: StatusCodes.CREATED,
-      success: true,
-      message: 'Payment Intent created successfully',
-      data: result,
-    })
-  },
-)
 
 const createEphemeralKey = catchAsync(
   async (req: Request, res: Response) => {
@@ -190,14 +167,10 @@ const getMyPayments = catchAsync(async (req: Request, res: Response) => {
 
 const generateInvoice = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params
-  const result = await PaymentServices.generateInvoice(id)
-
-  if (Buffer.isBuffer(result)) {
-    res.setHeader('Content-Type', 'application/pdf')
-    res.setHeader('Content-Disposition', `attachment; filename=invoice-${id.substring(0, 8)}.pdf`)
-    res.status(StatusCodes.OK).send(result)
-    return
-  }
+  const result = await PaymentServices.generateInvoice(
+    id,
+    req.user as JwtPayload,
+  )
 
   if (typeof result === 'string' && result.startsWith('http')) {
     sendResponse(res, {
@@ -224,11 +197,8 @@ export const PaymentController = {
   updatePayment,
   refundPayment,
   getMyPayments,
-  createCheckoutSession,
   verifyCheckoutSession,
   verifyPaymentIntent,
-  // Flutter Stripe controllers
-  createPaymentIntent,
   createEphemeralKey,
   generateInvoice,
   getDonationPresets,

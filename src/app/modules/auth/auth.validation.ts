@@ -63,7 +63,9 @@ const loginZodSchema = z.object({
       }),
     deviceToken: z.string().min(1).optional(),
     rememberMe: z.boolean().optional(),
-    password: z.string().min(6, { message: 'Password is required' }),
+    password: z
+      .string()
+      .min(8, { message: 'Password must be at least 8 characters' }),
   }),
 })
 
@@ -139,8 +141,10 @@ const addressSchema = z.object({
 
 const createUserZodSchema = z.object({
   body: z.object({
-    email: z.string({ required_error: 'Email is required' }).email().optional(),
-    password: z.string({ required_error: 'Password is required' }).min(6),
+    email: z.string({ required_error: 'Email is required' }).email(),
+    password: z
+      .string({ required_error: 'Password is required' })
+      .min(8, { message: 'Password must be at least 8 characters' }),
     name: z.string({ required_error: 'Name is required' }).optional(),
     interest: z
       .array(z.enum(Object.values(InterestCategory) as [string, ...string[]]))
@@ -164,7 +168,10 @@ const createUserZodSchema = z.object({
 
 const socialLoginZodSchema = z.object({
   body: z.object({
-    appId: z.string({ required_error: 'App ID is required' }),
+    provider: z.enum(['google', 'apple'], {
+      required_error: 'Provider is required',
+    }),
+    idToken: z.string({ required_error: 'ID token is required' }).min(1),
     deviceToken: z.string({ required_error: 'Device token is required' }),
   }),
 })

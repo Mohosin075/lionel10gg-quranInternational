@@ -47,13 +47,13 @@ const adminLogin = catchAsync(async (req: Request, res: Response) => {
 const forgetPassword = catchAsync(async (req: Request, res: Response) => {
   const { email, phone } = req.body
   const result = await CustomAuthServices.forgetPassword(
-    email.toLowerCase().trim(),
+    email ? email.toLowerCase().trim() : undefined,
     phone,
   )
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
-    message: `An OTP has been sent to your ${email || phone}. Please verify your email.`,
+    message: result,
     data: result,
   })
 })
@@ -106,7 +106,7 @@ const resendOtp = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
-    message: `An OTP has been sent to your ${email || phone}. Please verify your email.`,
+    message: 'If an account exists, an OTP has been sent.',
   })
 })
 
@@ -156,8 +156,12 @@ const deleteAccount = catchAsync(async (req: Request, res: Response) => {
 })
 
 const socialLogin = catchAsync(async (req: Request, res: Response) => {
-  const { appId, deviceToken } = req.body
-  const result = await CustomAuthServices.socialLogin(appId, deviceToken)
+  const { provider, idToken, deviceToken } = req.body
+  const result = await CustomAuthServices.socialLogin(
+    provider,
+    idToken,
+    deviceToken,
+  )
   const { status, message, accessToken, refreshToken, role } = result
 
   res.cookie('refreshToken', refreshToken, {

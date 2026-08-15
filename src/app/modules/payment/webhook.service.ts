@@ -200,29 +200,30 @@ const handlePaymentFailure = async (paymentIntent: any): Promise<void> => {
 
 export const WebhookService = {
   handleWebhook: async (payload: { body: any; headers: any }): Promise<void> => {
-    console.log('🔔 Processing Checkout Session Completed:', payload)
     try {
       const signature = payload.headers['stripe-signature']
       const webhookSecret = config.stripe.paymentWebhookSecret
 
-      let event
-
-      if (signature && webhookSecret) {
-        try {
-          event = stripe.webhooks.constructEvent(
-            payload.body,
-            signature,
-            webhookSecret,
-          )
-        } catch (err: any) {
-          console.error('⚠️ Webhook signature verification failed:', err.message)
-          event = JSON.parse(payload.body.toString())
-        }
-      } else {
-        event = JSON.parse(payload.body.toString())
+      if (!signature || !webhookSecret) {
+        throw new ApiError(
+          StatusCodes.BAD_REQUEST,
+          'Stripe webhook signature is required',
+        )
       }
 
-      console.log(`Processing webhook: ${event.type}`)
+      let event
+      try {
+        event = stripe.webhooks.constructEvent(
+          payload.body,
+          signature,
+          webhookSecret,
+        )
+      } catch {
+        throw new ApiError(
+          StatusCodes.BAD_REQUEST,
+          'Invalid Stripe webhook signature',
+        )
+      }
 
       switch (event.type) {
         case 'checkout.session.completed':
@@ -241,6 +242,9 @@ export const WebhookService = {
           console.log(`Unhandled event type: ${event.type}`)
       }
     } catch (error: any) {
+      if (error instanceof ApiError) {
+        throw error
+      }
       console.error('Webhook processing error:', error)
       throw new ApiError(
         StatusCodes.INTERNAL_SERVER_ERROR,

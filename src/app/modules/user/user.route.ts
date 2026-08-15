@@ -33,7 +33,7 @@ router.patch(
 
 router.delete(
   '/profile',
-  auth(USER_ROLES.ADMIN, USER_ROLES.USER),
+  auth(USER_ROLES.ADMIN, USER_ROLES.USER, USER_ROLES.SUPER_ADMIN),
   UserController.deleteProfile,
 )
 

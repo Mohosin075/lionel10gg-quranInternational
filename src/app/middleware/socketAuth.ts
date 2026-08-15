@@ -9,9 +9,11 @@ import config from '../../config'
 import { Secret } from 'jsonwebtoken'
 import { ZodError, ZodSchema } from 'zod'
 import handleZodError from '../../errors/handleZodError'
+import { User } from '../modules/user/user.model'
+import { USER_STATUS } from '../../enum/user'
 
 const socketAuth = (...roles: string[]) => {
-  return (socket: SocketWithUser, next: (err?: ExtendedError) => void) => {
+  return async (socket: SocketWithUser, next: (err?: ExtendedError) => void) => {
     try {
       const token =
         socket.handshake.auth.token ||
@@ -28,13 +30,30 @@ const socketAuth = (...roles: string[]) => {
       try {
         const jwtToken = extractToken(token)
 
-        // Verify token
         const verifiedUser = jwtHelper.verifyToken(
           jwtToken,
           config.jwt.jwt_secret as Secret,
         )
 
-        // Attach user to socket
+        const dbUser = await User.findById(verifiedUser.authId).select(
+          '+authentication',
+        )
+        if (!dbUser || dbUser.status !== USER_STATUS.ACTIVE) {
+          throw new ApiError(StatusCodes.UNAUTHORIZED, 'Account is not active')
+        }
+
+        if (
+          verifiedUser.iat &&
+          dbUser.authentication?.passwordChangedAt &&
+          verifiedUser.iat * 1000 <
+            dbUser.authentication.passwordChangedAt.getTime()
+        ) {
+          throw new ApiError(
+            StatusCodes.UNAUTHORIZED,
+            'Session has been revoked, please login again',
+          )
+        }
+
         socket.user = {
           authId: verifiedUser.authId,
           name: verifiedUser.name,
@@ -43,13 +62,7 @@ const socketAuth = (...roles: string[]) => {
           ...verifiedUser,
         }
 
-        // Guard user based on roles
         if (roles.length && !roles.includes(verifiedUser.role)) {
-          console.error(
-            colors.red(
-              `Socket authentication failed: User role ${verifiedUser.role} not authorized`,
-            ),
-          )
           return next(
             new ApiError(
               StatusCodes.FORBIDDEN,
@@ -58,11 +71,11 @@ const socketAuth = (...roles: string[]) => {
           )
         }
 
-        console.log(
-          colors.green(`Socket authenticated for user: ${verifiedUser.authId}`),
-        )
         next()
       } catch (error) {
+        if (error instanceof ApiError) {
+          throw error
+        }
         if (error instanceof Error && error.name === 'TokenExpiredError') {
           throw new ApiError(
             StatusCodes.UNAUTHORIZED,

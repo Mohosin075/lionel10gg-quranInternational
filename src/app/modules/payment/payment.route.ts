@@ -31,19 +31,25 @@ router.get(
 
 router.get(
   '/donation-presets',
+  PaymentController.getDonationPresets,
+)
+
+router.get(
+  '/verify-checkout/:sessionId',
   auth(
     USER_ROLES.USER,
     USER_ROLES.SUPER_ADMIN,
     USER_ROLES.ADMIN,
   ),
-  PaymentController.getDonationPresets,
+  PaymentController.verifyCheckoutSession,
 )
 
 router.get(
   '/:id',
   auth(
-    
     USER_ROLES.USER,
+    USER_ROLES.SUPER_ADMIN,
+    USER_ROLES.ADMIN,
   ),
   PaymentController.getSinglePayment,
 )
@@ -51,49 +57,11 @@ router.get(
 router.get(
   '/:id/invoice',
   auth(
-    
     USER_ROLES.USER,
     USER_ROLES.SUPER_ADMIN,
     USER_ROLES.ADMIN,
   ),
   PaymentController.generateInvoice,
-)
-
-// ✅ ONLY THIS - Checkout Session
-router.post(
-  '/create-checkout-session',
-  auth(
-    USER_ROLES.USER,
-    USER_ROLES.ADMIN,
-    USER_ROLES.SUPER_ADMIN
-  ),
-  validateRequest(PaymentValidations.create),
-  PaymentController.createCheckoutSession,
-)
-
-router.get(
-  '/verify-checkout/:sessionId',
-  auth(
-    
-    USER_ROLES.USER,
-  ),
-  PaymentController.verifyCheckoutSession,
-)
-
-// ============================================
-// FLUTTER STRIPE ROUTES
-// ============================================
-
-router.post(
-  '/create-payment-intent',
-  auth(
-    
-    USER_ROLES.USER,
-    USER_ROLES.SUPER_ADMIN,
-    USER_ROLES.ADMIN,
-  ),
-  validateRequest(PaymentValidations.create),
-  PaymentController.createPaymentIntent,
 )
 
 router.post(
@@ -110,8 +78,8 @@ router.post(
 router.post(
   '/ephemeral-key',
   auth(
-    
     USER_ROLES.USER,
+    USER_ROLES.ADMIN,
     USER_ROLES.SUPER_ADMIN,
   ),
   PaymentController.createEphemeralKey,

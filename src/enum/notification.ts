@@ -7,7 +7,6 @@ export enum NOTIFICATION_CATEGORY {
 
 export enum TARGET_AUDIENCE {
   ALL_USER = 'all_user',
-  ORGANIZER = 'organizer',
   ACTIVE_USER = 'active_user',
   ADMIN = 'admin',
 }

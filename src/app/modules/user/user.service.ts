@@ -12,7 +12,6 @@ import config from '../../../config'
 import { userSearchableFields } from './user.constants'
 
 const updateProfile = async (user: JwtPayload, payload: Partial<IUser>) => {
-  console.log({ payload })
   const isUserExist = await User.findOne({
     _id: user.authId,
     status: { $nin: [USER_STATUS.DELETED] },

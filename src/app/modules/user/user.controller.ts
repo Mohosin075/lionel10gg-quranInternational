@@ -10,6 +10,7 @@ import { paginationFields } from '../../../interfaces/pagination'
 import { JwtPayload } from 'jsonwebtoken'
 import ApiError from '../../../errors/ApiError'
 import { userFilterableFields } from './user.constants'
+import { USER_ROLES } from '../../../enum/user'
 
 const updateProfile = catchAsync(async (req: Request, res: Response) => {
   const { images, ...userData } = req.body
@@ -69,6 +70,16 @@ const deleteProfile = catchAsync(async (req: Request, res: Response) => {
 
 const getUserById = catchAsync(async (req: Request, res: Response) => {
   const { userId } = req.params
+  const requester = req.user as JwtPayload
+  if (
+    requester.role === USER_ROLES.USER &&
+    String(requester.authId) !== String(userId)
+  ) {
+    throw new ApiError(
+      StatusCodes.FORBIDDEN,
+      'You do not have access to this user',
+    )
+  }
   const result = await UserServices.getUserById(userId)
   sendResponse(res, {
     statusCode: StatusCodes.OK,

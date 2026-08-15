@@ -1,6 +1,5 @@
 import cors from 'cors'
 import helmet from 'helmet'
-import rateLimit from 'express-rate-limit'
 import express, { Request, Response } from 'express'
 import { StatusCodes } from 'http-status-codes'
 import path from 'path'
@@ -10,6 +9,8 @@ import passport from './app/modules/auth/passport.auth/config/passport'
 import router from './routes'
 import globalErrorHandler from './app/middleware/globalErrorHandler'
 import config from './config'
+import { SubscriptionController } from './app/modules/subscription/subscription.controller'
+import { PaymentController } from './app/modules/payment/payment.controller'
 
 const app = express()
 
@@ -17,26 +18,42 @@ const app = express()
 // Set security HTTP headers
 app.use(helmet())
 
-// Rate limiting: prevent abuse
-// const limiter = rateLimit({
-//   windowMs: 15 * 60 * 1000, // 15 minutes
-//   max: 100, // limit each IP to 100 requests per windowMs
-//   message: 'Too many requests from this IP, please try again after 15 minutes',
-// })
-// app.use('/api', limiter)
+// Rate limiting stays off for the offline-first content APIs.
+// To enable later: import rateLimit from 'express-rate-limit' and app.use('/api', limiter)
+
+// Stripe webhooks need the raw body for signature verification
+app.post(
+  '/api/v1/subscription/webhook',
+  express.raw({ type: 'application/json' }),
+  SubscriptionController.handleWebhook,
+)
+app.post(
+  '/api/v1/payment/webhook',
+  express.raw({ type: 'application/json' }),
+  PaymentController.handleWebhook,
+)
 
 // -------------------- Middleware --------------------
 // Body parsers
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
+const sessionSecret = config.session_secret || config.jwt.jwt_secret
+if (!sessionSecret) {
+  throw new Error('SESSION_SECRET or JWT_SECRET is required')
+}
+
 // Session must come before passport
 app.use(
   session({
-    secret: config.jwt.jwt_secret || 'secret',
+    secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false }, // true if using HTTPS
+    cookie: {
+      httpOnly: true,
+      secure: config.node_env === 'production',
+      sameSite: 'lax',
+    },
   }),
 )
 
@@ -59,14 +76,8 @@ app.use(cookieParser())
 import morgan from 'morgan'
 app.use(morgan('dev'))
 
-// -------------------- Static Files --------------------
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')))
+// Public profile images only. Documents and media stay off the public web root.
 app.use('/images', express.static(path.join(process.cwd(), 'uploads/images')))
-app.use('/media', express.static(path.join(process.cwd(), 'uploads/media')))
-app.use(
-  '/documents',
-  express.static(path.join(process.cwd(), 'uploads/documents')),
-)
 
 // -------------------- API Routes --------------------
 
