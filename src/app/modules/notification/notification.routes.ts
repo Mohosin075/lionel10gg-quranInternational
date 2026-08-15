@@ -29,4 +29,10 @@ router.delete(
   NotificationController.deleteNotification
 );
 
+router.post(
+  '/admin/send',
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
+  NotificationController.sendAdminNotification
+);
+
 export const NotificationRoutes = router;

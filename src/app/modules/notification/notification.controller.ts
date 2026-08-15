@@ -4,6 +4,9 @@ import catchAsync from '../../../shared/catchAsync';
 import sendResponse from '../../../shared/sendResponse';
 import { NotificationServices } from './notification.service';
 import { JwtPayload } from 'jsonwebtoken';
+import { User } from '../user/user.model';
+import { Notification } from './notification.model';
+import { io } from '../../../server';
 
 const getMyNotifications = catchAsync(async (req: Request, res: Response) => {
   const user = req.user as JwtPayload;
@@ -51,9 +54,39 @@ const deleteNotification = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const sendAdminNotification = catchAsync(async (req: Request, res: Response) => {
+  const { title, message, userId } = req.body;
+  let result;
+  if (userId) {
+    result = await NotificationServices.createNotification({ userId, title, message });
+  } else {
+    // Broadcast to all users
+    const users = await User.find({ status: 'active' }).select('_id');
+    const notifications = users.map(user => ({
+      userId: user._id,
+      title,
+      message,
+    }));
+    result = await Notification.insertMany(notifications);
+    if (io) {
+      io.emit('notification', {
+        type: 'NEW_NOTIFICATION',
+        data: { title, message },
+      });
+    }
+  }
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Notification sent successfully',
+    data: result,
+  });
+});
+
 export const NotificationController = {
   getMyNotifications,
   markAsRead,
   markAllAsRead,
   deleteNotification,
+  sendAdminNotification,
 };

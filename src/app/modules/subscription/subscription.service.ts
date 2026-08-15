@@ -937,7 +937,14 @@ class SubscriptionService {
 
   private getSubscriptionTier(planName: string): string {
     const name = planName.toLowerCase()
-    if (name.includes('enterprise') || name.includes('pro')) {
+    if (
+      name.includes('enterprise') ||
+      name.includes('pro') ||
+      name.includes('premium') ||
+      name.includes('donation') ||
+      name.includes('lifetime') ||
+      name.includes('support')
+    ) {
       return 'premium'
     } else if (name.includes('basic') || name.includes('starter')) {
       return 'basic'

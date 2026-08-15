@@ -561,17 +561,61 @@ class WebhookService {
     eventId: string,
   ): Promise<void> {
     try {
-      if (session.mode !== 'subscription') {
-        console.log('Checkout session not for subscription')
+      if (session.mode !== 'subscription' && session.mode !== 'payment') {
+        console.log('Checkout session not for subscription or payment')
         return
       }
 
       const userId = session.metadata?.userId
+      const planId = session.metadata?.planId
       if (!userId) {
         console.error('No userId in checkout session metadata')
         return
       }
       console.log('session', session)
+
+      if (session.mode === 'payment') {
+        const plan = await SubscriptionPlan.findById(planId)
+        if (!plan || plan.interval !== 'lifetime') {
+          console.log('Payment checkout session completed but plan is not lifetime:', planId)
+          return
+        }
+
+        const now = new Date()
+        // 100 years lifetime
+        const endDate = new Date(now)
+        endDate.setFullYear(endDate.getFullYear() + 100)
+
+        const subData = {
+          userId: new Types.ObjectId(userId),
+          planId: plan._id,
+          stripeCustomerId: session.customer as string,
+          stripeSubscriptionId: `lifetime_${session.id}`,
+          stripePriceId: plan.stripePriceId,
+          status: 'active',
+          currentPeriodStart: now,
+          currentPeriodEnd: endDate,
+          lastPaymentDate: now,
+          nextPaymentDate: endDate,
+          lastWebhookEventId: eventId,
+        }
+
+        await Subscription.findOneAndUpdate(
+          { userId: new Types.ObjectId(userId), planId: plan._id },
+          { $set: subData },
+          { upsert: true, new: true }
+        )
+
+        await User.findByIdAndUpdate(userId, {
+          subscriptionStatus: 'active',
+          subscriptionTier: 'premium',
+          subscriptionExpiresAt: endDate,
+          stripeCustomerId: session.customer as string,
+        })
+        
+        console.log(`Lifetime checkout completed and premium activated for user: ${userId}`)
+        return
+      }
 
       if (session.subscription) {
         const stripeSubscription = await stripeService.getSubscription(
@@ -1025,7 +1069,14 @@ class WebhookService {
 
   private getSubscriptionTier(planName: string): string {
     const name = planName.toLowerCase()
-    if (name.includes('enterprise') || name.includes('pro')) {
+    if (
+      name.includes('enterprise') ||
+      name.includes('pro') ||
+      name.includes('premium') ||
+      name.includes('donation') ||
+      name.includes('lifetime') ||
+      name.includes('support')
+    ) {
       return 'premium'
     } else if (name.includes('basic') || name.includes('starter')) {
       return 'basic'

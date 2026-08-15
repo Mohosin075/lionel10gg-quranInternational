@@ -1,91 +1,166 @@
-# Premium Mobile App (Frontend) Integration & Design Specification
-**Version:** 1.2  
+# Premium Flutter Mobile App Integration & Design Specification
+**Version:** 2.0 (Flutter Edition)  
+**Last Updated:** August 2026  
 **Author:** Antigravity AI  
 
-This document provides exact, production-ready specifications, layout maps, and code concepts for the mobile application development team (Flutter / React Native / Native Swift & Kotlin).
+This document serves as the official integration guide for the **Flutter Mobile App Developers**. It specifies design layouts, API routes, request/response structures, and flow-control instructions to be merged into the existing Flutter codebase.
 
 ---
 
 ## 🎨 1. Layout & UI/UX Design Specifications
 
 ### A. Samsung Navigation Bar Overlap Resolution
-* **Description:** Devices with physical or soft navigation keys (especially Samsung Galaxy devices running One UI) display a persistent system navigation panel at the bottom. This panels overlaps standard bottom insets, blocking action buttons.
-* **Layout Design Requirement:**
+* **Problem:** Software system navigation bars on devices (especially Samsung Galaxy Series running One UI) overlap floating action widgets at the bottom.
+* **Instruction:** Wrap the bottom floating action panel (e.g. bookmarks or share bar) with a Padding/SafeArea inset that detects and offsets system padding.
+* **Layout Design Map:**
   ```
   +-----------------------------------+
   |          App Content              |
   |                                   |
   +-----------------------------------+
-  | [🟢 Add to Bookmark] [🟢 Share]   | <-- Raised Action Button Bar (Bottom Padding: 16dp + SafeArea)
+  | [🟢 Add to Bookmark] [🟢 Share]   | <-- Raised Action Buttons (Bottom Padding: 16.0 + SafeAreaInset)
   +-----------------------------------+
   |    |<   O   >|  (System Bar)      | <-- Samsung Navigation bar area (Protected)
   +-----------------------------------+
   ```
-* **Implementation Concept (React Native / Flutter):**
-  * **React Native:** Use `react-native-safe-area-context` and extract `insets.bottom`. Add `paddingBottom: Math.max(insets.bottom, 16)`.
-  * **Flutter:** Use `MediaQuery.of(context).padding.bottom` and wrap the bottom button row inside a container with `EdgeInsets.only(bottom: bottomPadding > 0 ? bottomPadding : 16.0)`.
+* **Flutter Integration:** Instead of hardcoded heights, query the system insets dynamically using `MediaQuery.of(context).padding.bottom` and apply it as bottom padding (ensure a minimum fallback height of `16.0` if no insets exist).
 
-### B. Global Spelling Replacement: "Koran" ➔ "Quran"
-* Replace all static and dynamically formatted strings matching `/Koran/i` to `Quran` or `quran`.
-* Target components:
-  1. Main Dashboard Header ("Quran International").
-  2. Tab selections ("Read Quran").
-  3. Settings menu items ("Quran Translation Settings").
-  4. Splash screen logo and subtitle.
+### B. Global Text & Translation Corrections
+Ensure all static asset text, localization bundles (`assets/translations/*.json`), and dynamic UI components apply the following correct spelling rules:
+1. **Spelling Correction 1:** Replace all references of **"Koran"** (case-insensitive) ➔ **"Quran"**.
+2. **Spelling Correction 2 (German):** Correct references of **"Milchschwestern"** ➔ **"Milchschwester"** (singular form).
+3. **Spelling Correction 3 (Hungarian):** Correct references of **"konyv"** ➔ **"könyv"** (with exact accents).
+*(Note: These spelling corrections have also been seeded in the backend database fields for Articles, Books, and Fatwas).*
 
-### C. Paywall & Premium Suporter Benefits List
-* The 114 Surahs (Al-Fatiha to Al-Nas) must remain **free and unlocked** under all circumstances. Remove lock badges (`🔒`) from the Surah selector lists.
-* On the Premium Supporter paywall screen, fetch the list of benefit points dynamically from the backend:
-  * **Endpoint:** `GET /api/v1/subscription/premium-benefits`
-  * **Expected Response Object:**
-    ```json
-    [
-      { "serialNumber": 1, "text": "Full Tafsir Access", "isActive": true },
-      { "serialNumber": 2, "text": "Hadith Collection", "isActive": true }
-    ]
-    ```
-  * **UI Requirement:** Render this list dynamically using a list builder. Never hardcode these 14 points inside the app binary to allow the administrator to modify benefits from the dashboard.
+### C. Unified Free Quran Access
+* **Instruction:** Surah Al-Baqarah and all other 114 Surahs must remain **100% free and unlocked** for all users.
+* **Action:** Remove any lock badges (`🔒`), billing overlays, or premium checks from the Surah selector and Reciter listing components.
 
 ---
 
-## ⚙️ 2. API Integration & Logic Specifications
+## ⚙️ 2. API Integration & Routing Specifications
 
-### A. Dynamic Language Translation Sync
-* **Problem:** Changing the app language to Hungarian (`hu`) doesn't automatically translate library content or bookmarks because the app was fetching cached versions.
-* **Instruction:**
-  1. **API Language Query:** The language code must be appended dynamically to all resource endpoints:
-     * `GET /api/v1/knowledge-library?lang={langCode}`
-     * `GET /api/v1/knowledge-library/books?lang={langCode}`
-     * `GET /api/v1/knowledge-library/fatwas?lang={langCode}`
-  2. **Bookmarks & Al-Fatiha Translation Reset:** When the user switches languages, clear the local translation cache for bookmarked verse text and fetch fresh translations. Do not display cached German text for Surah Al-Fatiha while the rest of the surahs are rendered in Hungarian.
+### A. Global Language translation Sync
+To sync resource translations dynamically on change (e.g. articles or books):
+* **Request Format:** Append query parameter `lang` dynamically to library endpoints (e.g., `de`, `en`, `tr`).
+* **Cache Management:** When the user changes their language setting, invalidate/clear the local offline cache boxes (e.g. Hive or SQLite). Fetch the translated data immediately from the backend.
 
-### B. Dynamic Reciter Selection for Audio Playback
-1. Fetch available reciters from:
-   * `GET /api/v1/quran/reciters`
-2. Save the user's selected reciter ID (e.g. `alafasy`, `minshawi`) to secure local storage.
-3. When playing Surah audio, append the reciter ID to the Surah Detail endpoint:
-   * `GET /api/v1/quran/surah/:surahNumber?reciter={reciterId}`
-4. The backend will return the corresponding `.mp3` audio track URLs from `everyayah.com` pointing to the Arabic recitation.
+---
 
-### C. Deep Linking & Share Functionality (Specific Verse Jump)
-1. **Share Button Action:** On pressing the share button next to an Ayah, use the `shareUrl` and `shareText` values returned in the Ayah details from the backend.
-2. **Deep Link Scheme Registration:**
-   * Scheme: `quraninternational`
-   * Format: `quraninternational://surah/{surahNumber}/ayah/{ayahNumber}`
-3. **App Link Routing Logic:**
-   * Parse the deep link URI on application startup or wake from background.
-   * If valid, push the Quran Reader screen onto the stack and invoke:
-     * `GET /api/v1/quran/surah/{surahNumber}`
-   * Once loaded, trigger the list view controller to scroll/jump directly to the corresponding `ayahNumber` list index using a scroll controller (e.g., `scrollController.animateTo(...)` or `jumpTo()`).
-
-### D. User Notification Settings Sync
-* Toggle controls in the Settings menu must call the backend `PATCH /api/v1/user/profile` endpoint upon modification:
+### B. Subscription & Paywall Verification
+To verify if the user is a premium member to unlock exclusive premium assets (like Hadiths):
+* **Endpoint:** `GET /api/v1/subscription/my-subscription`
+* **Headers:** `Authorization: Bearer <Token>`
+* **Response Payload Schema:**
   ```json
   {
-    "settings": {
-      "pushNotification": true,
-      "emailNotification": true,
-      "locationService": true
+    "success": true,
+    "message": "Subscription details retrieved",
+    "data": {
+      "subscriptionTier": "premium", // Value check: If 'premium', unlock all features
+      "status": "active",
+      "subscriptionExpiresAt": "2126-08-15T00:00:00.000Z"
     }
   }
   ```
+
+---
+
+### C. Dynamic Paywall Benefits List
+To display the premium features list dynamically on the Supporter screen:
+* **Endpoint:** `GET /api/v1/subscription/premium-benefits`
+* **Method:** `GET`
+* **Response Payload Schema:**
+  ```json
+  {
+    "success": true,
+    "data": [
+      {
+        "_id": "64b0f...",
+        "serialNumber": 1,
+        "text": "Full Audio Offline Downloads",
+        "isActive": true
+      },
+      {
+        "_id": "64b1f...",
+        "serialNumber": 2,
+        "text": "Access to Verification Engine",
+        "isActive": true
+      }
+    ]
+  }
+  ```
+* **Instruction:** Order the list on the UI based on `serialNumber` ascending.
+
+---
+
+### D. Quran Reciters and Audio Player
+* **Reciter List Endpoint:** `GET /api/v1/quran/reciters`
+* **Surah Detail Endpoint:** `GET /api/v1/quran/surah/:surahNumber?reciter={reciterId}`
+* **Instruction:** Regardless of the app's selected translation language, the recitation audio file url must always play the **original Arabic recitation** mapped to the selected reciter.
+
+---
+
+### E. Deep Linking & Specific Verse Jump
+* **Deep Link Scheme:** `quraninternational://surah/{surahNumber}/ayah/{ayahNumber}`
+* **Instruction:**
+  1. Capture deep link arguments on app launch/resume.
+  2. Load the Surah Reader page for the requested `surahNumber`.
+  3. Once data is fetched, trigger the scroll view to scroll directly to the index of `ayahNumber` using a `ScrollController` or index anchor offset.
+
+---
+
+### F. Hasanat Points Counter
+To update the user's progress coins:
+* **Endpoint:** `POST /api/v1/hasanat`
+* **Headers:** 
+  * `Authorization: Bearer <Token>`
+  * `Content-Type: application/json`
+* **Request Body:**
+  ```json
+  {
+    "amount": 10
+  }
+  ```
+* **Response Payload Schema:**
+  ```json
+  {
+    "success": true,
+    "message": "Hasanat collected successfully",
+    "data": {
+      "totalHasanat": 130
+    }
+  }
+  ```
+* **Instruction:** Fire this endpoint whenever a reading/audio travel session finishes. The backend does not cap or limit requests.
+
+---
+
+### G. Push Notifications & Real-Time Sync
+
+#### 1. REST Endpoints for Notification Management
+* **Get User Notifications:** `GET /api/v1/notifications` (Headers: `Authorization: Bearer <Token>`)
+* **Mark Single Notification as Read:** `PATCH /api/v1/notifications/:id/read`
+* **Mark All Notifications as Read:** `PATCH /api/v1/notifications/read-all`
+* **Delete Notification:** `DELETE /api/v1/notifications/:id`
+
+#### 2. Socket.io Connection & Event Sync
+To capture instant notifications when the app is active in the foreground:
+* **Socket Host:** Root server domain (e.g. `https://your-backend-domain.com`)
+* **Connection Handshake Options:** Set transport protocol to `websocket`.
+* **Action Steps:**
+  1. Emit connection lifecycle events.
+  2. Upon connection success, emit a `'join'` event passing the authenticated user's `userId` (MongoDB ObjectId string).
+     * **Event Payload:** `userId` (string)
+  3. Listen to the `'notification'` event broadcasted by the server.
+     * **Event Schema:**
+       ```json
+       {
+         "type": "NEW_NOTIFICATION",
+         "data": {
+           "title": "Daily Reminders",
+           "message": "It is time to read Surah Al-Kahf"
+         }
+       }
+       ```
+  4. Trigger a local UI snackbar/banner notification upon receiving the event.

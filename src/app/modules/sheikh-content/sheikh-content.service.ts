@@ -57,9 +57,9 @@ const deleteContent = async (id: string): Promise<ISheikhContent | null> => {
 const SPEAKER_YOUTUBE_CHANNELS: Record<string, string> = {
   'abu alia': 'UCY4bNa8fwU9WRzsJh84FA5A',
   'abul baraa': 'UCRsfPhTdW-GBdqHjj-29tvQ',
-  'pierre vogel': 'UCPierreVogeloffiziell', // handle: @PierreVogeloffiziell — replace with exact UC ID after confirming from YouTube dashboard
+  'pierre vogel': 'UC3wHrrxIHMbdmrbsyPrug2w',
   'one message foundation': 'UCvJyEIx_it2jFYP5M1OzGng',
-  'alim hamza': 'UCAlimHamzaOfficial', // handle: @AlimHamzaOfficial — replace with exact UC ID after confirming from YouTube dashboard
+  'alim hamza': 'UC6dD8l_g824jUe-4360eT6A',
 };
 
 const getSpeakerContent = async (speakerName: string) => {

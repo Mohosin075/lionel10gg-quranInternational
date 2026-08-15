@@ -16,8 +16,8 @@ export const createSubscriptionPlanSchema = z.object({
       .string()
       .length(3, 'Currency must be 3 characters')
       .default('usd'),
-    interval: z.enum(['month', 'year'], {
-      errorMap: () => ({ message: 'Interval must be month or year' }),
+    interval: z.enum(['month', 'year', 'lifetime'], {
+      errorMap: () => ({ message: 'Interval must be month, year, or lifetime' }),
     }),
     intervalCount: z
       .number()
