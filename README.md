@@ -2,9 +2,9 @@
 
 Backend for the Quran International Flutter app. Node.js, TypeScript, Express, MongoDB, Stripe, and Socket.IO.
 
-The API is **offline-first**. Quran, Hadith, Dua, Tafsir, Knowledge Library, Sheikh content, and prayer times are public. Login is required only for payment and for syncing account data (profile, bookmarks, highlights, last-read, hasanat, notifications).
+The API is **offline-first** (client requirement). Quran, Hadith, Dua, Tafsir, Knowledge Library, Sheikh content, and prayer times are public. Login is required only for payment and for syncing account data (profile, bookmarks, highlights, last-read, hasanat, notifications). Do not put a paywall on reading.
 
-Flutter integration details: [`mobile_app_design_and_integration_guide.md`](./mobile_app_design_and_integration_guide.md).
+Most of this API was already in place. Flutter should keep the existing sync/cache flow and only patch the breaking items in the guide. Full rules: [`mobile_app_design_and_integration_guide.md`](./mobile_app_design_and_integration_guide.md) (v3.3).
 
 ## Stack
 
@@ -57,7 +57,7 @@ No token needed:
 - `/prayer-time`, `/subscription/plans`, `/in-app-purchase/plans`
 - `/payment/donation-presets`, `/public/faq/all`
 
-Do not put a login or paywall in front of reading these.
+Do not put a login or paywall in front of reading these. Quran / Hadith / Dua / Tafsir are third-party ingest on the server; the app only syncs and caches. Knowledge Library is one module (articles, books, fatwas).
 
 ## Payments (logged in)
 
