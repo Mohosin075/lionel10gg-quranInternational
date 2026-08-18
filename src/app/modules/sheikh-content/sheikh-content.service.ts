@@ -75,6 +75,13 @@ const YT_HEADERS = {
   'Accept-Language': 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7',
 };
 
+const YT_CLIENT = {
+  clientName: 'WEB',
+  clientVersion: '2.20240815.00.00',
+  hl: 'de',
+  gl: 'DE',
+};
+
 const stripXmlTitle = (raw: string): string =>
   raw
     .replace(/<!\[CDATA\[/g, '')
@@ -85,23 +92,100 @@ const stripXmlTitle = (raw: string): string =>
     .replace(/&quot;/g, '"')
     .trim();
 
-const resolveChannelIdFromHandle = async (handle: string): Promise<string | null> => {
+const toApiVideo = (speakerName: string, id: string, title: string) => ({
+  speakerName,
+  type: 'video',
+  title,
+  url: `https://www.youtube.com/watch?v=${id}`,
+  youtubeId: id,
+  isActive: true,
+});
+
+const extractContinuationToken = (node: any, found: { token?: string }): void => {
+  if (!node || typeof node !== 'object' || found.token) return;
+  if (node.continuationCommand?.token) {
+    found.token = node.continuationCommand.token;
+    return;
+  }
+  if (node.nextContinuationData?.continuation) {
+    found.token = node.nextContinuationData.continuation;
+    return;
+  }
+  if (Array.isArray(node)) {
+    node.forEach(n => extractContinuationToken(n, found));
+  } else {
+    Object.values(node).forEach(n => extractContinuationToken(n, found));
+  }
+};
+
+const walkYtVideos = (
+  node: any,
+  out: { id: string; title: string }[],
+  seen: Set<string>,
+): void => {
+  if (!node || typeof node !== 'object') return;
+
+  const lockup = node.lockupViewModel;
+  if (lockup) {
+    const id =
+      lockup.contentId ||
+      lockup.rendererContext?.commandContext?.onTap?.innertubeCommand?.watchEndpoint?.videoId ||
+      lockup.onTap?.innertubeCommand?.watchEndpoint?.videoId;
+    const title = lockup.metadata?.lockupMetadataViewModel?.title?.content;
+    if (id && title && !seen.has(id)) {
+      seen.add(id);
+      out.push({ id, title: String(title).trim() });
+    }
+  }
+
+  for (const key of ['videoRenderer', 'gridVideoRenderer', 'compactVideoRenderer']) {
+    const vr = node[key];
+    if (vr?.videoId) {
+      const title = vr.title?.runs?.[0]?.text || vr.title?.simpleText || '';
+      if (title && !seen.has(vr.videoId)) {
+        seen.add(vr.videoId);
+        out.push({ id: vr.videoId, title: String(title).trim() });
+      }
+    }
+  }
+
+  if (Array.isArray(node)) {
+    node.forEach(n => walkYtVideos(n, out, seen));
+  } else {
+    Object.values(node).forEach(n => walkYtVideos(n, out, seen));
+  }
+};
+
+const parseYtInitialData = (
+  html: string,
+): { videos: { id: string; title: string }[]; continuation: string | null } => {
+  const marker = 'var ytInitialData = ';
+  const start = html.indexOf(marker);
+  if (start < 0) return { videos: [], continuation: null };
+  const jsonStart = start + marker.length;
+  let depth = 0;
+  let end = -1;
+  for (let i = jsonStart; i < html.length; i++) {
+    const ch = html[i];
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) {
+        end = i + 1;
+        break;
+      }
+    }
+  }
+  if (end < 0) return { videos: [], continuation: null };
   try {
-    const res = await axios.get(`https://www.youtube.com/${handle}`, {
-      timeout: 12000,
-      headers: YT_HEADERS,
-    });
-    const html = typeof res.data === 'string' ? res.data : '';
-    // Prefer canonical/externalId — first channelId on page is often unrelated
-    const external =
-      html.match(/"externalId"\s*:\s*"(UC[^"]+)"/)?.[1] ||
-      html.match(/rel="canonical" href="https:\/\/www\.youtube\.com\/channel\/(UC[^"]+)"/i)?.[1] ||
-      html.match(/"browseId"\s*:\s*"(UC[^"]+)"/)?.[1] ||
-      null;
-    return external;
-  } catch (err: any) {
-    console.warn(`⚠️ resolveChannelIdFromHandle(${handle}): ${err.message}`);
-    return null;
+    const data = JSON.parse(html.slice(jsonStart, end));
+    const videos: { id: string; title: string }[] = [];
+    walkYtVideos(data, videos, new Set());
+    const found: { token?: string } = {};
+    extractContinuationToken(data, found);
+    return { videos, continuation: found.token || null };
+  } catch {
+    return { videos: [], continuation: null };
   }
 };
 
@@ -152,81 +236,13 @@ const fetchVideosFromRss = async (
   return apiVideos;
 };
 
-/** Walk ytInitialData for classic + new lockupViewModel video cards. */
-const walkYtVideos = (
-  node: any,
-  out: { id: string; title: string }[],
-  seen: Set<string>,
-): void => {
-  if (!node || typeof node !== 'object') return;
-
-  const lockup = node.lockupViewModel;
-  if (lockup) {
-    const id =
-      lockup.contentId ||
-      lockup.rendererContext?.commandContext?.onTap?.innertubeCommand?.watchEndpoint?.videoId ||
-      lockup.onTap?.innertubeCommand?.watchEndpoint?.videoId;
-    const title = lockup.metadata?.lockupMetadataViewModel?.title?.content;
-    if (id && title && !seen.has(id)) {
-      seen.add(id);
-      out.push({ id, title: String(title).trim() });
-    }
-  }
-
-  for (const key of ['videoRenderer', 'gridVideoRenderer', 'compactVideoRenderer']) {
-    const vr = node[key];
-    if (vr?.videoId) {
-      const title = vr.title?.runs?.[0]?.text || vr.title?.simpleText || '';
-      if (title && !seen.has(vr.videoId)) {
-        seen.add(vr.videoId);
-        out.push({ id: vr.videoId, title: String(title).trim() });
-      }
-    }
-  }
-
-  if (Array.isArray(node)) {
-    node.forEach(n => walkYtVideos(n, out, seen));
-  } else {
-    Object.values(node).forEach(n => walkYtVideos(n, out, seen));
-  }
-};
-
-const parseYtInitialDataVideos = (html: string): { id: string; title: string }[] => {
-  const marker = 'var ytInitialData = ';
-  const start = html.indexOf(marker);
-  if (start < 0) return [];
-  const jsonStart = start + marker.length;
-  let depth = 0;
-  let end = -1;
-  for (let i = jsonStart; i < html.length; i++) {
-    const ch = html[i];
-    if (ch === '{') depth++;
-    else if (ch === '}') {
-      depth--;
-      if (depth === 0) {
-        end = i + 1;
-        break;
-      }
-    }
-  }
-  if (end < 0) return [];
-  try {
-    const data = JSON.parse(html.slice(jsonStart, end));
-    const out: { id: string; title: string }[] = [];
-    walkYtVideos(data, out, new Set());
-    return out;
-  } catch {
-    return [];
-  }
-};
-
-/** Fallback when RSS is disabled/404 — scrape channel /videos page. */
-const fetchVideosFromChannelPage = async (
+/** First page of /videos + continuation token for lazy load. */
+const fetchFirstPageFromChannel = async (
   handle: string | undefined,
   channelId: string | undefined,
   speakerName: string,
   existingYoutubeIds: Set<string>,
-): Promise<any[]> => {
+): Promise<{ videos: any[]; continuation: string | null }> => {
   const urls: string[] = [];
   if (handle) urls.push(`https://www.youtube.com/${handle}/videos`);
   if (channelId) urls.push(`https://www.youtube.com/channel/${channelId}/videos`);
@@ -235,28 +251,64 @@ const fetchVideosFromChannelPage = async (
     try {
       const res = await axios.get(url, { timeout: 20000, headers: YT_HEADERS });
       const html = typeof res.data === 'string' ? res.data : '';
-      const parsed = parseYtInitialDataVideos(html);
-      if (!parsed.length) continue;
+      const parsed = parseYtInitialData(html);
+      if (!parsed.videos.length) continue;
 
       const apiVideos: any[] = [];
-      for (const v of parsed) {
+      for (const v of parsed.videos) {
         if (existingYoutubeIds.has(v.id)) continue;
         existingYoutubeIds.add(v.id);
-        apiVideos.push({
-          speakerName,
-          type: 'video',
-          title: v.title,
-          url: `https://www.youtube.com/watch?v=${v.id}`,
-          youtubeId: v.id,
-          isActive: true,
-        });
+        apiVideos.push(toApiVideo(speakerName, v.id, v.title));
       }
-      if (apiVideos.length) return apiVideos;
+      return { videos: apiVideos, continuation: parsed.continuation };
     } catch (err: any) {
       console.warn(`⚠️ Channel page scrape failed (${url}): ${err.message}`);
     }
   }
-  return [];
+  return { videos: [], continuation: null };
+};
+
+/** Next page via YouTube innertube continuation (lazy load). */
+const fetchMoreFromContinuation = async (
+  continuation: string,
+  speakerName: string,
+  existingYoutubeIds: Set<string>,
+): Promise<{ videos: any[]; continuation: string | null }> => {
+  const res = await axios.post(
+    'https://www.youtube.com/youtubei/v1/browse?prettyPrint=false',
+    {
+      context: { client: YT_CLIENT },
+      continuation,
+    },
+    {
+      timeout: 20000,
+      headers: {
+        ...YT_HEADERS,
+        'Content-Type': 'application/json',
+        'X-Youtube-Client-Name': '1',
+        'X-Youtube-Client-Version': YT_CLIENT.clientVersion,
+      },
+      validateStatus: () => true,
+    },
+  );
+
+  if (res.status !== 200) {
+    throw new Error(`Continuation HTTP ${res.status}`);
+  }
+
+  const parsed: { id: string; title: string }[] = [];
+  walkYtVideos(res.data, parsed, new Set());
+  const found: { token?: string } = {};
+  extractContinuationToken(res.data, found);
+
+  const apiVideos: any[] = [];
+  for (const v of parsed) {
+    if (existingYoutubeIds.has(v.id)) continue;
+    existingYoutubeIds.add(v.id);
+    apiVideos.push(toApiVideo(speakerName, v.id, v.title));
+  }
+
+  return { videos: apiVideos, continuation: found.token || null };
 };
 
 const getSpeakerContent = async (speakerName: string) => {
@@ -267,74 +319,70 @@ const getSpeakerContent = async (speakerName: string) => {
 
   const dbContentList = await SheikhContent.find(query).lean();
   const dbVideos = dbContentList.filter(item => item.type === 'video');
-  const audioTravel = dbContentList.filter(item => item.type === 'audio_travel');
 
-  let videos: any[] = [...dbVideos];
+  let videos: any[] = [];
   const key = speakerName.trim().toLowerCase();
-  let channelId: string | undefined = SPEAKER_YOUTUBE_CHANNELS[key];
+  const channelId: string | undefined = SPEAKER_YOUTUBE_CHANNELS[key];
   const channelHandle = SPEAKER_CHANNEL_HANDLES[key];
+  let continuation: string | null = null;
 
-  const existingIds = new Set(
-    dbVideos.map(v => v.youtubeId).filter(Boolean) as string[],
+  const existingIds = new Set<string>();
+
+  // Prefer channel /videos page (supports lazy-load continuation)
+  const page = await fetchFirstPageFromChannel(
+    channelHandle,
+    channelId,
+    speakerName,
+    existingIds,
   );
+  videos = [...page.videos];
+  continuation = page.continuation;
 
-  const lectureCount = () => videos.filter(v => v.youtubeId).length;
-  const dbLectureCount = dbVideos.filter(v => v.youtubeId).length;
-
-  // 1) Hardcoded channel ID via RSS
-  if (channelId) {
+  // RSS fallback / merge if page empty
+  if (!videos.length && channelId) {
     try {
-      const apiVideos = await fetchVideosFromRss(channelId, speakerName, existingIds);
-      videos = [...apiVideos, ...videos];
+      const rssVideos = await fetchVideosFromRss(channelId, speakerName, existingIds);
+      videos = [...rssVideos];
     } catch (err: any) {
       console.warn(`⚠️ RSS failed for ${speakerName} (${channelId}): ${err.message}`);
     }
   }
 
-  // 2) Resolve live channel ID from @handle if still no fresh videos
-  if (channelHandle && lectureCount() <= dbLectureCount) {
-    const resolved = await resolveChannelIdFromHandle(channelHandle);
-    if (resolved) {
-      if (resolved !== channelId) {
-        try {
-          const apiVideos = await fetchVideosFromRss(resolved, speakerName, existingIds);
-          videos = [...apiVideos, ...videos];
-          if (apiVideos.length) channelId = resolved;
-        } catch (err: any) {
-          console.warn(`⚠️ RSS failed for resolved ${speakerName} (${resolved}): ${err.message}`);
-          channelId = resolved;
-        }
-      } else if (!channelId) {
-        channelId = resolved;
-      }
+  // Append DB-only videos that weren't in live feed
+  for (const dbv of dbVideos) {
+    if (dbv.youtubeId && !existingIds.has(dbv.youtubeId)) {
+      videos.push(dbv);
+      existingIds.add(dbv.youtubeId);
     }
   }
 
-  // 3) HTML scrape fallback (many DE channels return RSS 404)
-  if (lectureCount() <= dbLectureCount) {
-    try {
-      const scraped = await fetchVideosFromChannelPage(
-        channelHandle,
-        channelId,
-        speakerName,
-        existingIds,
-      );
-      if (scraped.length) {
-        videos = [...scraped, ...videos];
-      }
-    } catch (err: any) {
-      console.warn(`⚠️ Scrape fallback failed for ${speakerName}: ${err.message}`);
-    }
-  }
-
-  // Real lecture videos only in the list — never stamp channelHandle on them
-  // (channelHandle on a video made the app treat it as a channel stub and hide everything)
   return {
     speakerName,
-    videos: videos.filter(v => v.youtubeId || v.type === 'audio_travel'),
-    audioTravel,
+    videos: videos.filter(v => v.youtubeId),
+    continuationToken: continuation,
+    hasMore: Boolean(continuation),
     channelHandle: channelHandle || undefined,
     channelId: channelId || undefined,
+  };
+};
+
+const getMoreSpeakerVideos = async (speakerName: string, continuation: string) => {
+  if (!continuation?.trim()) {
+    return { speakerName, videos: [], continuationToken: null, hasMore: false };
+  }
+
+  const existingIds = new Set<string>();
+  const page = await fetchMoreFromContinuation(
+    continuation.trim(),
+    speakerName,
+    existingIds,
+  );
+
+  return {
+    speakerName,
+    videos: page.videos,
+    continuationToken: page.continuation,
+    hasMore: Boolean(page.continuation),
   };
 };
 
@@ -347,5 +395,6 @@ export const SheikhContentServices = {
   updateContent,
   deleteContent,
   getSpeakerContent,
+  getMoreSpeakerVideos,
   getAllContents,
 };

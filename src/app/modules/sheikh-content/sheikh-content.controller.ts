@@ -38,11 +38,18 @@ const deleteContent = catchAsync(async (req: Request, res: Response) => {
 
 const getSpeakerContent = catchAsync(async (req: Request, res: Response) => {
   const speakerName = (req.query.speakerName as string) || 'Abu Alia';
-  const result = await SheikhContentServices.getSpeakerContent(speakerName);
+  const continuation = (req.query.continuation as string) || '';
+
+  const result = continuation
+    ? await SheikhContentServices.getMoreSpeakerVideos(speakerName, continuation)
+    : await SheikhContentServices.getSpeakerContent(speakerName);
+
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
-    message: 'Sheikh content fetched successfully',
+    message: continuation
+      ? 'More sheikh videos fetched successfully'
+      : 'Sheikh content fetched successfully',
     data: result,
   });
 });
