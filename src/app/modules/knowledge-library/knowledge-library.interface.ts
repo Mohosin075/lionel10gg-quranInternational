@@ -32,5 +32,6 @@ export interface IKnowledgeFatwa {
   answer: string; // HTML formatted text
   scholar?: string;
   lang: string;
+  version: number;
   isActive: boolean;
 }

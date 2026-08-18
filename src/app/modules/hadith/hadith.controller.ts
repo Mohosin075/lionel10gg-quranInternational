@@ -97,25 +97,21 @@ const downloadSync = catchAsync(async (req: Request, res: Response) => {
   const lang = (req.query.lang as string) || 'en';
   const { fromVersion } = req.query;
   const page = Number(req.query.page) || 1;
-  const limit = Number(req.query.limit) || 10;
+  const limit = Number(req.query.limit) || 500;
 
-  const result = await HadithServices.getSyncData(lang, Number(fromVersion) || 0);
-
-  const total = result.length;
-  const skip = (page - 1) * limit;
-  const paginatedData = result.slice(skip, skip + limit);
+  const result = await HadithServices.getSyncData(
+    lang,
+    Number(fromVersion) || 0,
+    page,
+    limit,
+  );
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
     message: 'Hadith sync data fetched successfully',
-    meta: {
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit),
-    },
-    data: paginatedData,
+    meta: result.meta,
+    data: result.data,
   });
 });
 

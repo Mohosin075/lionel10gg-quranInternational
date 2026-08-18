@@ -8,6 +8,7 @@ import { UserServices } from './app/modules/user/user.service'
 import { socketHelper } from './helpers/socketHelper'
 import { Server as HttpServer } from 'http'
 import './task/duaSyncCron'
+import { seedSubscriptionPlans } from './app/modules/subscription/subscription.seed'
 
 // Uncaught exceptions
 process.on('uncaughtException', error => {
@@ -27,6 +28,13 @@ async function main() {
 
     // Check and Create Super Admin
     await UserServices.createAdmin()
+
+    // Stripe plans (€4.99+), retire cheap tiers, seed 14 premium benefits
+    try {
+      await seedSubscriptionPlans()
+    } catch (seedErr) {
+      console.error('Subscription seed warning:', seedErr)
+    }
 
     const port =
       typeof config.port === 'number' ? config.port : Number(config.port)

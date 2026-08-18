@@ -326,22 +326,68 @@ const checkSyncMetadata = async (translationKey: string, clientVersion: number) 
     };
 };
 
-const getSyncData = async (translationKey: string, fromVersion: number = 0) => {
-    // Fetch translations that have a version greater than client version
-    const data = await Translation.find({
-        edition: translationKey,
-        version: { $gt: fromVersion }
-    }).sort({ surah: 1, ayah: 1 }).lean();
+const clampSyncLimit = (limit: number) => {
+  const n = Number(limit) || 500
+  return Math.min(Math.max(n, 1), 1000)
+}
 
-    const dbLangInfo = await Language.findOne({ key: translationKey });
+/**
+ * Paginated dump for offline-first clients.
+ * Pages in Mongo (skip/limit) — does not load the full edition into RAM.
+ * Returns ayah rows the Flutter app can insert into SQLite.
+ */
+const getSyncData = async (
+  translationKey: string,
+  fromVersion: number = 0,
+  page: number = 1,
+  limit: number = 500,
+) => {
+  const safeLimit = clampSyncLimit(limit)
+  const safePage = Math.max(Number(page) || 1, 1)
+  const skip = (safePage - 1) * safeLimit
 
-    return data.map((item) => {
-      return {
-        ...item,
-        audio: resolveAudioUrl(item.surah, item.ayah),
-      };
-    });
-};
+  const filter = {
+    edition: translationKey,
+    version: { $gt: fromVersion },
+  }
+
+  let total = await Translation.countDocuments(filter)
+
+  // First fill: empty edition → ingest all 114 surahs once, then dump
+  if (total === 0 && fromVersion === 0) {
+    const langInfo = await Language.findOne({ key: translationKey })
+    await syncLanguage(translationKey, langInfo?.language)
+    total = await Translation.countDocuments(filter)
+  }
+
+  const data = await Translation.find(filter)
+    .sort({ surah: 1, ayah: 1 })
+    .skip(skip)
+    .limit(safeLimit)
+    .lean()
+
+  const rows = data.map(item => ({
+    surah: item.surah,
+    number: item.ayah,
+    text: item.arabicText || '',
+    translation: item.text || '',
+    footnotes: item.footnotes || '',
+    audio: resolveAudioUrl(item.surah, item.ayah),
+    edition: item.edition,
+    lang: item.lang,
+    version: item.version,
+  }))
+
+  return {
+    data: rows,
+    meta: {
+      page: safePage,
+      limit: safeLimit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / safeLimit)),
+    },
+  }
+}
 
 const syncEdition = async (edition: string) => {
   // Run in background

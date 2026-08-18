@@ -67,6 +67,7 @@ const createFatwaZodSchema = z.object({
     answer: z.string({ required_error: 'answer is required' }),
     scholar: z.string().optional(),
     lang: z.string().optional(),
+    version: z.number().optional(),
     isActive: z.boolean().optional(),
   }),
 });
@@ -78,6 +79,7 @@ const updateFatwaZodSchema = z.object({
     answer: z.string().optional(),
     scholar: z.string().optional(),
     lang: z.string().optional(),
+    version: z.number().optional(),
     isActive: z.boolean().optional(),
   }),
 });
