@@ -12,36 +12,18 @@ const getAllArticles = async (
 ) => {
   const skip = (page - 1) * limit;
 
-  // Ensure data exists and is up to date for the requested language
-  if (lang !== 'de') {
-    await getOrSyncArticlesByLanguage(lang);
-  }
-
-  const query: Record<string, any> = { lang, isActive: true };
+  const baseQuery: Record<string, any> = { lang: 'de', isActive: true };
   if (category) {
     const categoryRegex = new RegExp(category.trim(), 'i');
-    
-    // Check if category matches any base German articles to fetch by articleId
-    const baseArticles = await KnowledgeArticle.find({
-      lang: 'de',
-      category: { $regex: categoryRegex }
-    }).select('articleId').lean();
-
-    if (baseArticles.length > 0) {
-      const articleIds = baseArticles.map(a => a.articleId);
-      query.$or = [
-        { category: { $regex: categoryRegex } },
-        { articleId: { $in: articleIds } }
-      ];
-    } else {
-      query.category = { $regex: categoryRegex };
-    }
+    baseQuery.category = { $regex: categoryRegex };
   }
 
-  const [data, total] = await Promise.all([
-    KnowledgeArticle.find(query).skip(skip).limit(limit).sort({ createdAt: -1 }).lean(),
-    KnowledgeArticle.countDocuments(query),
-  ]);
+  const total = await KnowledgeArticle.countDocuments(baseQuery);
+  const data = await KnowledgeArticle.find(baseQuery)
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .lean();
 
   return {
     meta: {
@@ -77,10 +59,7 @@ const deleteArticle = async (id: string) => {
 };
 
 const getVersion = async (lang: string = 'de') => {
-  if (lang !== 'de') {
-    await getOrSyncArticlesByLanguage(lang);
-  }
-  const latest = await KnowledgeArticle.findOne({ lang })
+  const latest = await KnowledgeArticle.findOne({ lang: 'de' })
     .sort({ version: -1 })
     .select('version');
   return latest?.version || 1;
@@ -107,19 +86,18 @@ const getSyncData = async (
   page: number = 1,
   limit: number = 500,
 ) => {
-  if (lang !== 'de') {
-    await getOrSyncArticlesByLanguage(lang)
-  }
   const safeLimit = clampSyncLimit(limit)
   const safePage = Math.max(Number(page) || 1, 1)
   const skip = (safePage - 1) * safeLimit
-  const filter = { lang, isActive: true, version: { $gt: fromVersion } }
-  const total = await KnowledgeArticle.countDocuments(filter)
-  const data = await KnowledgeArticle.find(filter)
+
+  const baseQuery = { lang: 'de', isActive: true, version: { $gt: fromVersion } }
+  const total = await KnowledgeArticle.countDocuments(baseQuery)
+  const data = await KnowledgeArticle.find(baseQuery)
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(safeLimit)
     .lean()
+
   return {
     data,
     meta: {
@@ -132,16 +110,17 @@ const getSyncData = async (
 }
 
 // Automatic dynamic translation helper from German (de) to target language
-const getOrSyncArticlesByLanguage = async (targetLang: string) => {
-  const baseArticles = await KnowledgeArticle.find({ lang: 'de', isActive: true }).lean();
+const getOrSyncArticlesByLanguage = async (targetLang: string, articlesList?: any[]) => {
+  const baseArticles = articlesList || await KnowledgeArticle.find({ lang: 'de', isActive: true }).lean();
   if (baseArticles.length === 0) return [];
 
   console.log(`[KnowledgeService] Checking/translating articles from German to: ${targetLang}...`);
 
   const results: IKnowledgeArticle[] = [];
   
-  // Find all existing translated articles for targetLang
-  const existingArticles = await KnowledgeArticle.find({ lang: targetLang }).lean();
+  // Find all existing translated articles for targetLang matching base article IDs
+  const articleIds = baseArticles.map(a => a.articleId);
+  const existingArticles = await KnowledgeArticle.find({ lang: targetLang, articleId: { $in: articleIds } }).lean();
   const existingMap = new Map(existingArticles.map(a => [a.articleId, a]));
 
   const articlesToTranslate: IKnowledgeArticle[] = [];
@@ -213,15 +192,15 @@ const getAllBooks = async (
   page: number = 1,
   limit: number = 10,
 ) => {
-  if (lang !== 'de') {
-    await getOrSyncBooksByLanguage(lang)
-  }
   const skip = (page - 1) * limit;
-  const query = { lang, isActive: true };
-  const [data, total] = await Promise.all([
-    KnowledgeBook.find(query).skip(skip).limit(limit).sort({ createdAt: -1 }).lean(),
-    KnowledgeBook.countDocuments(query),
-  ]);
+
+  const baseQuery = { lang: 'de', isActive: true };
+  const total = await KnowledgeBook.countDocuments(baseQuery);
+  const data = await KnowledgeBook.find(baseQuery)
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .lean();
 
   return {
     meta: {
@@ -256,15 +235,26 @@ const deleteBook = async (id: string) => {
   return await KnowledgeBook.findByIdAndUpdate(id, { isActive: false }, { new: true });
 };
 
-const getOrSyncBooksByLanguage = async (targetLang: string) => {
-  const existingCount = await KnowledgeBook.countDocuments({ lang: targetLang, isActive: true })
-  if (existingCount > 0) return
+const getOrSyncBooksByLanguage = async (targetLang: string, booksList?: any[]) => {
+  const baseBooks = booksList || await KnowledgeBook.find({ lang: 'de', isActive: true }).lean();
+  if (baseBooks.length === 0) return;
 
-  const baseBooks = await KnowledgeBook.find({ lang: 'de', isActive: true }).lean()
-  if (baseBooks.length === 0) return
+  const bookIds = baseBooks.map(b => b.bookId);
+  const existingBooks = await KnowledgeBook.find({ lang: targetLang, bookId: { $in: bookIds } }).lean();
+  const existingMap = new Map(existingBooks.map(b => [b.bookId, b]));
 
-  console.log(`[KnowledgeService] Translating ${baseBooks.length} books to: ${targetLang}...`)
-  for (const book of baseBooks) {
+  const booksToTranslate = [];
+  for (const base of baseBooks) {
+    const existing = existingMap.get(base.bookId);
+    if (!existing || existing.version < base.version) {
+      booksToTranslate.push(base);
+    }
+  }
+
+  if (booksToTranslate.length === 0) return;
+
+  console.log(`[KnowledgeService] Translating ${booksToTranslate.length} books to: ${targetLang}...`)
+  for (const book of booksToTranslate) {
     try {
       const title = await TranslationHelper.translateText(book.title, targetLang, 'de')
       await TranslationHelper.sleep(200)
@@ -304,15 +294,15 @@ const getAllFatwas = async (
   page: number = 1,
   limit: number = 10,
 ) => {
-  if (lang !== 'de') {
-    await getOrSyncFatwasByLanguage(lang)
-  }
   const skip = (page - 1) * limit;
-  const query = { lang, isActive: true };
-  const [data, total] = await Promise.all([
-    KnowledgeFatwa.find(query).skip(skip).limit(limit).sort({ createdAt: -1 }).lean(),
-    KnowledgeFatwa.countDocuments(query),
-  ]);
+
+  const baseQuery = { lang: 'de', isActive: true };
+  const total = await KnowledgeFatwa.countDocuments(baseQuery);
+  const data = await KnowledgeFatwa.find(baseQuery)
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .lean();
 
   return {
     meta: {
@@ -347,15 +337,26 @@ const deleteFatwa = async (id: string) => {
   return await KnowledgeFatwa.findByIdAndUpdate(id, { isActive: false }, { new: true });
 };
 
-const getOrSyncFatwasByLanguage = async (targetLang: string) => {
-  const existingCount = await KnowledgeFatwa.countDocuments({ lang: targetLang, isActive: true })
-  if (existingCount > 0) return
+const getOrSyncFatwasByLanguage = async (targetLang: string, fatwasList?: any[]) => {
+  const baseFatwas = fatwasList || await KnowledgeFatwa.find({ lang: 'de', isActive: true }).lean();
+  if (baseFatwas.length === 0) return;
 
-  const baseFatwas = await KnowledgeFatwa.find({ lang: 'de', isActive: true }).lean()
-  if (baseFatwas.length === 0) return
+  const fatwaIds = baseFatwas.map(f => f.fatwaId);
+  const existingFatwas = await KnowledgeFatwa.find({ lang: targetLang, fatwaId: { $in: fatwaIds } }).lean();
+  const existingMap = new Map(existingFatwas.map(f => [f.fatwaId, f]));
 
-  console.log(`[KnowledgeService] Translating ${baseFatwas.length} fatwas to: ${targetLang}...`)
-  for (const fatwa of baseFatwas) {
+  const fatwasToTranslate = [];
+  for (const base of baseFatwas) {
+    const existing = existingMap.get(base.fatwaId);
+    if (!existing || existing.version < base.version) {
+      fatwasToTranslate.push(base);
+    }
+  }
+
+  if (fatwasToTranslate.length === 0) return;
+
+  console.log(`[KnowledgeService] Translating ${fatwasToTranslate.length} fatwas to: ${targetLang}...`)
+  for (const fatwa of fatwasToTranslate) {
     try {
       const question = await TranslationHelper.translateText(fatwa.question, targetLang, 'de')
       await TranslationHelper.sleep(200)

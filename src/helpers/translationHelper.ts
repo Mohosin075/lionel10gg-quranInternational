@@ -1,11 +1,11 @@
-import axios from 'axios';
+import { translate } from '@vitalets/google-translate-api';
 
 /**
  * Reusable helper utility for translation operations.
  */
 export const TranslationHelper = {
   /**
-   * Translates a string from source language to target language using Google's single translate endpoint.
+   * Translates a string from source language to target language using google-translate-api.
    * @param text The input text to be translated.
    * @param tl The target language code (e.g. 'de', 'en', 'bn').
    * @param sl The source language code (defaults to 'en').
@@ -13,27 +13,11 @@ export const TranslationHelper = {
   translateText: async (text: string, tl: string, sl: string = 'en'): Promise<string> => {
     if (!text || !text.trim()) return '';
     try {
-      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t`;
-      const res = await axios.post(
-        url,
-        new URLSearchParams({ q: text }).toString(),
-        {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-        }
-      );
-      
-      let translated = '';
-      if (res.data && res.data[0]) {
-        for (const segment of res.data[0]) {
-          translated += segment[0];
-        }
-      }
-      return translated || text;
+      const res = await translate(text, { from: sl, to: tl });
+      return res.text || text;
     } catch (error) {
       console.error(`[TranslationHelper] Error translating from ${sl} to ${tl}:`, error);
-      return text; // Graceful fallback to original text on failure
+      throw error;
     }
   },
 
