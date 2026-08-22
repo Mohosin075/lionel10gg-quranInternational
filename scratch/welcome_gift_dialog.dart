@@ -356,7 +356,7 @@ class WelcomeGiftDialog extends StatelessWidget {
     await db.setSetting('welcome_gift_shown', 'true');
 
     // Dismiss dialog
-    Navigator.pop(context);
+    Get.back();
 
     // Open Book immediately using the public HtmlReaderScreen
     Get.to(
@@ -390,6 +390,6 @@ class WelcomeGiftDialog extends StatelessWidget {
     await db.setSetting('welcome_gift_shown', 'true');
 
     // Dismiss dialog
-    Navigator.pop(context);
+    Get.back();
   }
 }
