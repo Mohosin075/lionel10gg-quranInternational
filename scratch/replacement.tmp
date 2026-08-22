@@ -1,0 +1,38 @@
+  @override
+  void onReady() {
+    super.onReady();
+    // Run the subscription popup evaluation logic on app launch/dashboard ready
+    SubscriptionService.to.checkAndShowSubscriptionPopup();
+    
+    // Sequentially evaluate welcome gift and tafsir tutorial overlays
+    checkAndShowWelcomeOverlays();
+  }
+
+  Future<void> checkAndShowWelcomeOverlays() async {
+    final db = DatabaseHelper.instance;
+    
+    // Check Welcome Gift Dialog
+    final giftShown = await db.getSetting('welcome_gift_shown');
+    if (giftShown == null || giftShown != 'true') {
+      await Get.dialog(
+        const WelcomeGiftDialog(),
+        barrierDismissible: false,
+      );
+    }
+    
+    // Check Tafsir Tutorial Overlay
+    final tutorialShown = await db.getSetting('tafsir_tutorial_shown');
+    if (tutorialShown == null || tutorialShown != 'true') {
+      await Get.dialog(
+        TafsirTutorialOverlay(
+          onDismissed: () {
+            if (Get.isDialogOpen == true) {
+              Get.back();
+            }
+          },
+        ),
+        barrierDismissible: false,
+        barrierColor: Colors.transparent,
+      );
+    }
+  }
