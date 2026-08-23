@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.addUserInterestSchema = exports.createStaffSchema = exports.STAFF_SPECIALTY = exports.updateUserSchema = void 0;
+exports.addUserInterestSchema = exports.updateUserSchema = void 0;
 const zod_1 = require("zod");
 const user_1 = require("../../../enum/user");
 // ------------------ SUB-SCHEMAS ------------------
@@ -39,25 +39,6 @@ exports.updateUserSchema = zod_1.z.object({
         interests: zod_1.z.array(zod_1.z.nativeEnum(user_1.InterestCategory)).optional(),
     })
         .strict(),
-});
-exports.STAFF_SPECIALTY = zod_1.z.enum([
-    'Cleaning',
-    'Cooking',
-    'Laundry',
-    'Grocery',
-    'Maintenance',
-]);
-exports.createStaffSchema = zod_1.z.object({
-    body: zod_1.z.object({
-        name: zod_1.z.string({ required_error: 'Name is required' }),
-        email: zod_1.z.string().email({ message: 'Invalid email address' }),
-        specialties: zod_1.z
-            .array(exports.STAFF_SPECIALTY, {
-            required_error: 'At least one specialty is required',
-        })
-            .min(1, 'Select at least one specialty'),
-        bio: zod_1.z.string().optional(),
-    }),
 });
 exports.addUserInterestSchema = zod_1.z.object({
     body: zod_1.z.object({

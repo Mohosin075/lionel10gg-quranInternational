@@ -24,7 +24,7 @@ passport_1.default.use(new passport_local_1.Strategy({
             .select('+password +authentication')
             .lean();
         if (!isUserExist) {
-            throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'No account found with this email, please try with valid email or create an account.');
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, 'Invalid email or password');
         }
         return done(null, {
             ...isUserExist,

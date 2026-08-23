@@ -13,4 +13,5 @@ router.get('/', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_R
 router.patch('/read-all', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER), notification_controller_1.NotificationController.markAllAsRead);
 router.patch('/:id/read', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER), notification_controller_1.NotificationController.markAsRead);
 router.delete('/:id', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER), notification_controller_1.NotificationController.deleteNotification);
+router.post('/admin/send', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN), notification_controller_1.NotificationController.sendAdminNotification);
 exports.NotificationRoutes = router;

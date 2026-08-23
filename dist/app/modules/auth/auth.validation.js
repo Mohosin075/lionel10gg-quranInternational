@@ -61,7 +61,9 @@ const loginZodSchema = zod_1.z.object({
         }),
         deviceToken: zod_1.z.string().min(1).optional(),
         rememberMe: zod_1.z.boolean().optional(),
-        password: zod_1.z.string().min(6, { message: 'Password is required' }),
+        password: zod_1.z
+            .string()
+            .min(8, { message: 'Password must be at least 8 characters' }),
     }),
 });
 const verifyAccountZodSchema = zod_1.z.object({
@@ -131,8 +133,10 @@ const addressSchema = zod_1.z.object({
 });
 const createUserZodSchema = zod_1.z.object({
     body: zod_1.z.object({
-        email: zod_1.z.string({ required_error: 'Email is required' }).email().optional(),
-        password: zod_1.z.string({ required_error: 'Password is required' }).min(6),
+        email: zod_1.z.string({ required_error: 'Email is required' }).email(),
+        password: zod_1.z
+            .string({ required_error: 'Password is required' })
+            .min(8, { message: 'Password must be at least 8 characters' }),
         name: zod_1.z.string({ required_error: 'Name is required' }).optional(),
         interest: zod_1.z
             .array(zod_1.z.enum(Object.values(user_1.InterestCategory)))
@@ -153,7 +157,10 @@ const createUserZodSchema = zod_1.z.object({
 });
 const socialLoginZodSchema = zod_1.z.object({
     body: zod_1.z.object({
-        appId: zod_1.z.string({ required_error: 'App ID is required' }),
+        provider: zod_1.z.enum(['google', 'apple'], {
+            required_error: 'Provider is required',
+        }),
+        idToken: zod_1.z.string({ required_error: 'ID token is required' }).min(1),
         deviceToken: zod_1.z.string({ required_error: 'Device token is required' }),
     }),
 });

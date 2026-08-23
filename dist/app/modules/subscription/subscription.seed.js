@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.seedSubscriptionPlans = seedSubscriptionPlans;
+exports.seedPremiumBenefits = seedPremiumBenefits;
 exports.updateSubscriptionPlans = updateSubscriptionPlans;
 exports.createSpecificPlan = createSpecificPlan;
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -186,10 +187,56 @@ async function seedSubscriptionPlans() {
             }
         }
         console.log('Subscription plans seeding completed successfully');
+        // Retire legacy cheap tiers if still present in DB
+        const retired = await subscription_plan_model_1.SubscriptionPlan.updateMany({
+            $or: [
+                { price: { $lt: 4.99 }, interval: { $ne: 'lifetime' } },
+                { name: /0\.79|1\.99/i },
+            ],
+            isActive: true,
+        }, { $set: { isActive: false } });
+        if (retired.modifiedCount > 0) {
+            console.log(`Deactivated ${retired.modifiedCount} legacy plans under €4.99`);
+        }
+        await seedPremiumBenefits();
     }
     catch (error) {
         console.error('Error seeding subscription plans:', error);
         throw error;
+    }
+}
+const DEFAULT_PREMIUM_BENEFITS = [
+    'Support Quran International development',
+    'Ad-free reading experience',
+    'Offline Quran audio (reciters)',
+    'Extended Tafsir offline library',
+    'Extended Hadith offline library',
+    'Full Knowledge Library offline',
+    'Unlimited bookmarks & highlights sync',
+    'Priority prayer-time updates',
+    'Exclusive Sheikh content collections',
+    'Early access to new languages',
+    'Cloud backup of reading progress',
+    'Premium dua collections',
+    'Dedicated supporter badge',
+    'Direct feedback channel to the team',
+];
+async function seedPremiumBenefits() {
+    try {
+        const count = await subscription_plan_model_1.PremiumBenefit.countDocuments();
+        if (count > 0) {
+            console.log('Premium benefits already seeded. Skipping.');
+            return;
+        }
+        await subscription_plan_model_1.PremiumBenefit.insertMany(DEFAULT_PREMIUM_BENEFITS.map((text, i) => ({
+            serialNumber: i + 1,
+            text,
+            isActive: true,
+        })));
+        console.log(`Seeded ${DEFAULT_PREMIUM_BENEFITS.length} premium benefits`);
+    }
+    catch (error) {
+        console.error('Error seeding premium benefits:', error);
     }
 }
 // Function to update existing plans (for migrations)

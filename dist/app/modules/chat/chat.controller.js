@@ -10,9 +10,7 @@ const http_status_codes_1 = require("http-status-codes");
 const chat_service_1 = require("./chat.service");
 const createChat = (0, catchAsync_1.default)(async (req, res) => {
     const user = req.user;
-    const otherUser = req.params.id;
-    const participants = [user === null || user === void 0 ? void 0 : user.authId, otherUser];
-    const chat = await chat_service_1.ChatService.createChatToDB(participants);
+    const chat = await chat_service_1.ChatService.createChatToDB(user.authId, req.params.id);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_codes_1.StatusCodes.OK,
         success: true,

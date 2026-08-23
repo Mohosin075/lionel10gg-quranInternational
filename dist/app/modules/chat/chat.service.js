@@ -1,17 +1,52 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ChatService = void 0;
+const mongoose_1 = require("mongoose");
+const http_status_codes_1 = require("http-status-codes");
+const ApiError_1 = __importDefault(require("../../../errors/ApiError"));
+const user_1 = require("../../../enum/user");
+const user_model_1 = require("../user/user.model");
 const message_model_1 = require("../message/message.model");
 const chat_model_1 = require("./chat.model");
-const createChatToDB = async (payload) => {
+const assertChatParticipant = async (chatId, userId) => {
+    if (!mongoose_1.Types.ObjectId.isValid(chatId)) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Invalid chat id');
+    }
+    const chat = await chat_model_1.Chat.findOne({
+        _id: chatId,
+        participants: userId,
+        status: true,
+    });
+    if (!chat) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.FORBIDDEN, 'You are not a participant of this chat');
+    }
+    return chat;
+};
+const createChatToDB = async (userId, otherUserId) => {
+    if (!userId || !mongoose_1.Types.ObjectId.isValid(otherUserId)) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Invalid user id');
+    }
+    if (String(userId) === String(otherUserId)) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'You cannot start a chat with yourself');
+    }
+    const otherUser = await user_model_1.User.findOne({
+        _id: otherUserId,
+        status: user_1.USER_STATUS.ACTIVE,
+    }).select('_id');
+    if (!otherUser) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'User not found');
+    }
+    const participants = [userId, otherUserId];
     const isExistChat = await chat_model_1.Chat.findOne({
-        participants: { $all: payload },
+        participants: { $all: participants },
     });
     if (isExistChat) {
         return isExistChat;
     }
-    const chat = await chat_model_1.Chat.create({ participants: payload });
-    return chat;
+    return chat_model_1.Chat.create({ participants });
 };
 const getChatFromDB = async (user, search) => {
     const chats = await chat_model_1.Chat.find({ participants: { $in: [user.authId] } })
@@ -52,4 +87,8 @@ const getChatFromDB = async (user, search) => {
         totalUnreadChats,
     };
 };
-exports.ChatService = { createChatToDB, getChatFromDB };
+exports.ChatService = {
+    assertChatParticipant,
+    createChatToDB,
+    getChatFromDB,
+};

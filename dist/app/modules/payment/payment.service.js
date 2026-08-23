@@ -22,64 +22,20 @@ const stripe_1 = __importDefault(require("stripe"));
 const stripe = new stripe_1.default(config_1.default.stripe.stripeSecretKey, {
     apiVersion: '2026-04-22.dahlia',
 });
-const createCheckoutSession = async (user, payload) => {
-    throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'One-time payments are disabled. Please use recurring subscriptions.');
-    try {
-        const session = await stripe.checkout.sessions.create({
-            payment_method_types: ['card'],
-            line_items: [
-                {
-                    price_data: {
-                        currency: (payload.currency || 'EUR').toLowerCase(),
-                        product_data: {
-                            name: payload.productName || 'Payment',
-                            description: payload.description,
-                        },
-                        unit_amount: Math.round(payload.amount * 100),
-                    },
-                    quantity: 1,
-                },
-            ],
-            mode: 'payment',
-            success_url: `${config_1.default.clientUrl}?session_id={CHECKOUT_SESSION_ID}&success=true`,
-            cancel_url: `${config_1.default.clientUrl}/payment/cancel?success=false`,
-            customer_email: user.email,
-            metadata: {
-                userId: user.authId.toString(),
-                ...payload.metadata
-            },
-        });
-        await payment_model_1.Payment.create({
-            userId: user.authId,
-            userEmail: user.email,
-            amount: payload.amount,
-            currency: payload.currency || 'EUR',
-            paymentMethod: 'stripe',
-            paymentType: payload.paymentType || 'one_time',
-            paymentIntentId: session.payment_intent || session.id,
-            status: 'pending',
-            metadata: {
-                checkoutSessionId: session.id,
-                ...payload.metadata
-            },
-        });
-        return {
-            sessionId: session.id,
-            url: session.url,
-        };
+const isAdmin = (user) => user.role === user_1.USER_ROLES.ADMIN || user.role === user_1.USER_ROLES.SUPER_ADMIN;
+const assertPaymentAccess = (user, paymentUserId) => {
+    if (isAdmin(user)) {
+        return;
     }
-    catch (error) {
-        throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, `Checkout session creation failed: ${error.message}`);
+    if (String(paymentUserId) !== String(user.authId)) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.FORBIDDEN, 'You do not have access to this payment');
     }
 };
-const verifyCheckoutSession = async (sessionId) => {
+const verifyCheckoutSession = async (sessionId, user) => {
     try {
         const session = await stripe.checkout.sessions.retrieve(sessionId, {
             expand: ['payment_intent'],
         });
-        console.log('🔍 Verifying Checkout Session:', session.id);
-        console.log('🔍 Payment Intent:', session.payment_intent);
-        console.log('🔍 Metadata:', session.metadata);
         const payment = await payment_model_1.Payment.findOne({
             $or: [
                 { paymentIntentId: sessionId },
@@ -91,6 +47,7 @@ const verifyCheckoutSession = async (sessionId) => {
         if (!payment) {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Payment not found');
         }
+        assertPaymentAccess(user, payment.userId);
         if (session.payment_status === 'paid' && payment.status !== 'succeeded') {
             const session = await payment_model_1.Payment.startSession();
             session.startTransaction();
@@ -126,42 +83,6 @@ const verifyCheckoutSession = async (sessionId) => {
     }
     catch (error) {
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, `Payment verification failed: ${error.message}`);
-    }
-};
-const createPaymentIntent = async (user, payload) => {
-    throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'One-time payments are disabled. Please use recurring subscriptions.');
-    try {
-        const paymentIntent = await stripe.paymentIntents.create({
-            amount: Math.round(payload.amount * 100),
-            currency: payload.currency || 'eur',
-            metadata: {
-                userId: user.authId.toString(),
-                userEmail: user.email,
-                ...payload.metadata
-            },
-        });
-        await payment_model_1.Payment.create({
-            userId: user.authId,
-            userEmail: user.email,
-            amount: payload.amount,
-            currency: (payload.currency || 'EUR').toUpperCase(),
-            paymentMethod: 'stripe',
-            paymentType: payload.paymentType || 'one_time',
-            paymentIntentId: paymentIntent.id,
-            status: 'pending',
-            metadata: {
-                userId: user.authId.toString(),
-                ...payload.metadata
-            },
-        });
-        return {
-            clientSecret: paymentIntent.client_secret,
-            paymentIntentId: paymentIntent.id,
-            amount: payload.amount,
-        };
-    }
-    catch (error) {
-        throw new ApiError_1.default(http_status_codes_1.StatusCodes.INTERNAL_SERVER_ERROR, `Payment Intent creation failed: ${error.message}`);
     }
 };
 const createEphemeralKey = async (user, apiVersion = '2025-05-28.basil') => {
@@ -233,7 +154,6 @@ const processSubscriptionForPayment = async (payment, stripeDetails, session) =>
                     user.stripeCustomerId = stripeDetails.customer;
                 }
                 await user.save({ session });
-                console.log(`Successfully activated subscription for user ${user._id} and plan ${plan.name}`);
             }
         }
     }
@@ -278,13 +198,24 @@ const handlePaymentIntentWebhook = async (paymentIntent) => {
         throw error;
     }
 };
-const verifyPaymentIntent = async (paymentIntentId) => {
+const verifyPaymentIntent = async (paymentIntentId, user) => {
+    var _a;
     try {
         let payment = await payment_model_1.Payment.findOne({
             paymentIntentId,
         });
+        if (payment) {
+            assertPaymentAccess(user, payment.userId);
+        }
         // Retrieve from stripe
         const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+        const metadataUserId = (_a = pi.metadata) === null || _a === void 0 ? void 0 : _a.userId;
+        if (!payment && metadataUserId) {
+            assertPaymentAccess(user, metadataUserId);
+        }
+        else if (!payment && !isAdmin(user)) {
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.FORBIDDEN, 'You do not have access to this payment');
+        }
         if (pi.status !== 'succeeded') {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, `Payment Intent is not completed on Stripe. Current status: ${pi.status}`);
         }
@@ -307,7 +238,6 @@ const verifyPaymentIntent = async (paymentIntentId) => {
             }
             else {
                 // If Payment record doesn't exist (created directly via subscription endpoint)
-                console.log(`Payment not found for Intent ${paymentIntentId}. Checking subscription associated...`);
                 let stripeSubscriptionId = 'sub_' + pi.id.substring(3);
                 let stripeCustomerId = pi.customer || 'cus_unknown';
                 if (pi.invoice) {
@@ -385,7 +315,6 @@ const verifyPaymentIntent = async (paymentIntentId) => {
                 ], { session }).then(res => res[0]);
             }
             await session.commitTransaction();
-            console.log(`Payment and subscription processed successfully for intent: ${paymentIntentId}`);
         }
         catch (error) {
             await session.abortTransaction();
@@ -438,7 +367,7 @@ const getAllPayments = async (user, filterables, pagination) => {
             })),
         });
     }
-    if (user.activeRole === user_1.USER_ROLES.USER) {
+    if (!isAdmin(user)) {
         andConditions.push({
             userId: new mongoose_1.Types.ObjectId(user.authId),
         });
@@ -465,7 +394,7 @@ const getAllPayments = async (user, filterables, pagination) => {
         data: result,
     };
 };
-const getSinglePayment = async (id) => {
+const getSinglePayment = async (id, user) => {
     if (!mongoose_1.Types.ObjectId.isValid(id)) {
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Invalid Payment ID');
     }
@@ -474,6 +403,7 @@ const getSinglePayment = async (id) => {
     if (!result) {
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Requested payment not found, please try again with valid id');
     }
+    assertPaymentAccess(user, result.userId);
     return result;
 };
 const updatePayment = async (id, payload) => {
@@ -549,7 +479,7 @@ const getDonationPresets = async () => {
         { amount: 100, currency: 'usd' },
     ];
 };
-const generateInvoice = async (id) => {
+const generateInvoice = async (id, user) => {
     if (!mongoose_1.Types.ObjectId.isValid(id)) {
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Invalid Payment ID');
     }
@@ -557,6 +487,7 @@ const generateInvoice = async (id) => {
     if (!payment) {
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Payment not found');
     }
+    assertPaymentAccess(user, payment.userId);
     if (payment.paymentIntentId && payment.status === 'succeeded' && payment.paymentMethod === 'stripe') {
         try {
             const pi = await stripe.paymentIntents.retrieve(payment.paymentIntentId);
@@ -571,7 +502,7 @@ const generateInvoice = async (id) => {
             console.error('Failed to fetch stripe receipt:', error);
         }
     }
-    throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_IMPLEMENTED, 'Custom PDF generation not available');
+    throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Stripe receipt is not available for this payment');
 };
 exports.PaymentServices = {
     getAllPayments,
@@ -579,11 +510,9 @@ exports.PaymentServices = {
     updatePayment,
     refundPayment,
     getMyPayments,
-    createCheckoutSession,
     verifyCheckoutSession,
     verifyPaymentIntent,
     handleWebhook: webhook_service_1.WebhookService.handleWebhook,
-    createPaymentIntent,
     createEphemeralKey,
     handlePaymentIntentWebhook,
     generateInvoice,

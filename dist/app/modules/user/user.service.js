@@ -12,7 +12,6 @@ const paginationHelper_1 = require("../../../helpers/paginationHelper");
 const config_1 = __importDefault(require("../../../config"));
 const user_constants_1 = require("./user.constants");
 const updateProfile = async (user, payload) => {
-    console.log({ payload });
     const isUserExist = await user_model_1.User.findOne({
         _id: user.authId,
         status: { $nin: [user_1.USER_STATUS.DELETED] },

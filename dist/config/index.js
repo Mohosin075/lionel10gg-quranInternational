@@ -8,16 +8,18 @@ const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
 dotenv_1.default.config({ path: path_1.default.join(process.cwd(), '.env') });
 exports.default = {
-    appName: process.env.APP_NAME || 'My App',
+    appName: process.env.APP_NAME || 'Quran International',
     ip_address: process.env.IP_ADDRESS,
     database_url: process.env.DATABASE_URL,
     node_env: process.env.NODE_ENV,
-    clientUrl: process.env.clientUrl,
+    clientUrl: process.env.CLIENT_URL || process.env.clientUrl,
     port: process.env.PORT,
     server_map_api_key: process.env.SERVER_MAP_API_KEY,
     cors_origins: process.env.CORS_ORIGINS
-        ? process.env.CORS_ORIGINS.split(',')
-        : ['*', "http://localhost:3000", "http://localhost:3001"],
+        ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
+        : ['http://localhost:3000', 'http://localhost:3001'],
+    session_secret: process.env.SESSION_SECRET,
+    apple_client_id: process.env.APPLE_CLIENT_ID,
     bcrypt_salt_rounds: process.env.BCRYPT_SALT_ROUNDS,
     firebase_service_account_base64: process.env.FIREBASE_SERVICE_ACCOUNT_BASE64,
     google: {

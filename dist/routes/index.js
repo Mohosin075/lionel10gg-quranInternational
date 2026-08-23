@@ -62,9 +62,6 @@ router.get('/status', (req, res) => {
         success: true,
         message: 'Server is running smoothly',
         timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
-        memory: process.memoryUsage(),
-        environment: process.env.NODE_ENV,
     });
 });
 exports.default = router;

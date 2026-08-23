@@ -11,26 +11,23 @@ const auth_1 = __importDefault(require("../../middleware/auth"));
 const validateRequest_1 = __importDefault(require("../../middleware/validateRequest"));
 const user_1 = require("../../../enum/user");
 const router = express_1.default.Router();
-// Client routes: require authentication (no premium check required per instruction.md)
-router.get('/version', (0, auth_1.default)(user_1.USER_ROLES.USER, user_1.USER_ROLES.ORGANIZER, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), knowledge_library_controller_1.KnowledgeLibraryController.getVersion);
-router.get('/check-sync', (0, auth_1.default)(user_1.USER_ROLES.USER, user_1.USER_ROLES.ORGANIZER, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), knowledge_library_controller_1.KnowledgeLibraryController.checkSync);
-router.get('/download-sync', (0, auth_1.default)(user_1.USER_ROLES.USER, user_1.USER_ROLES.ORGANIZER, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), knowledge_library_controller_1.KnowledgeLibraryController.downloadSync);
-router.get('/', (0, auth_1.default)(user_1.USER_ROLES.USER, user_1.USER_ROLES.ORGANIZER, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), knowledge_library_controller_1.KnowledgeLibraryController.getAllArticles);
-// Client routes: Books & Fatwas
-router.get('/books', (0, auth_1.default)(user_1.USER_ROLES.USER, user_1.USER_ROLES.ORGANIZER, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), knowledge_library_controller_1.KnowledgeLibraryController.getAllBooks);
-router.get('/books/:id', (0, auth_1.default)(user_1.USER_ROLES.USER, user_1.USER_ROLES.ORGANIZER, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), knowledge_library_controller_1.KnowledgeLibraryController.getBookById);
-router.get('/fatwas', (0, auth_1.default)(user_1.USER_ROLES.USER, user_1.USER_ROLES.ORGANIZER, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), knowledge_library_controller_1.KnowledgeLibraryController.getAllFatwas);
-router.get('/fatwas/:id', (0, auth_1.default)(user_1.USER_ROLES.USER, user_1.USER_ROLES.ORGANIZER, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), knowledge_library_controller_1.KnowledgeLibraryController.getFatwaById);
-router.get('/:id', (0, auth_1.default)(user_1.USER_ROLES.USER, user_1.USER_ROLES.ORGANIZER, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), knowledge_library_controller_1.KnowledgeLibraryController.getArticleById);
-// Admin-only management routes: Articles
+// Public content — app reads/syncs without login
+router.get('/version', knowledge_library_controller_1.KnowledgeLibraryController.getVersion);
+router.get('/check-sync', knowledge_library_controller_1.KnowledgeLibraryController.checkSync);
+router.get('/download-sync', knowledge_library_controller_1.KnowledgeLibraryController.downloadSync);
+router.get('/', knowledge_library_controller_1.KnowledgeLibraryController.getAllArticles);
+router.get('/books', knowledge_library_controller_1.KnowledgeLibraryController.getAllBooks);
+router.get('/books/:id', knowledge_library_controller_1.KnowledgeLibraryController.getBookById);
+router.get('/fatwas', knowledge_library_controller_1.KnowledgeLibraryController.getAllFatwas);
+router.get('/fatwas/:id', knowledge_library_controller_1.KnowledgeLibraryController.getFatwaById);
+router.get('/:id', knowledge_library_controller_1.KnowledgeLibraryController.getArticleById);
+// Admin-only management
 router.post('/', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), (0, validateRequest_1.default)(knowledge_library_validation_1.KnowledgeLibraryValidations.createArticleZodSchema), knowledge_library_controller_1.KnowledgeLibraryController.createArticle);
 router.patch('/:id', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), (0, validateRequest_1.default)(knowledge_library_validation_1.KnowledgeLibraryValidations.updateArticleZodSchema), knowledge_library_controller_1.KnowledgeLibraryController.updateArticle);
 router.delete('/:id', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), knowledge_library_controller_1.KnowledgeLibraryController.deleteArticle);
-// Admin-only management routes: Books
 router.post('/books', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), (0, validateRequest_1.default)(knowledge_library_validation_1.KnowledgeLibraryValidations.createBookZodSchema), knowledge_library_controller_1.KnowledgeLibraryController.createBook);
 router.patch('/books/:id', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), (0, validateRequest_1.default)(knowledge_library_validation_1.KnowledgeLibraryValidations.updateBookZodSchema), knowledge_library_controller_1.KnowledgeLibraryController.updateBook);
 router.delete('/books/:id', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), knowledge_library_controller_1.KnowledgeLibraryController.deleteBook);
-// Admin-only management routes: Fatwas
 router.post('/fatwas', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), (0, validateRequest_1.default)(knowledge_library_validation_1.KnowledgeLibraryValidations.createFatwaZodSchema), knowledge_library_controller_1.KnowledgeLibraryController.createFatwa);
 router.patch('/fatwas/:id', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), (0, validateRequest_1.default)(knowledge_library_validation_1.KnowledgeLibraryValidations.updateFatwaZodSchema), knowledge_library_controller_1.KnowledgeLibraryController.updateFatwa);
 router.delete('/fatwas/:id', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), knowledge_library_controller_1.KnowledgeLibraryController.deleteFatwa);

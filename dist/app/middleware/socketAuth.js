@@ -11,8 +11,11 @@ const colors_1 = __importDefault(require("colors"));
 const config_1 = __importDefault(require("../../config"));
 const zod_1 = require("zod");
 const handleZodError_1 = __importDefault(require("../../errors/handleZodError"));
+const user_model_1 = require("../modules/user/user.model");
+const user_1 = require("../../enum/user");
 const socketAuth = (...roles) => {
-    return (socket, next) => {
+    return async (socket, next) => {
+        var _a;
         try {
             const token = socket.handshake.auth.token ||
                 socket.handshake.query.token ||
@@ -22,9 +25,17 @@ const socketAuth = (...roles) => {
             }
             try {
                 const jwtToken = extractToken(token);
-                // Verify token
                 const verifiedUser = jwtHelper_1.jwtHelper.verifyToken(jwtToken, config_1.default.jwt.jwt_secret);
-                // Attach user to socket
+                const dbUser = await user_model_1.User.findById(verifiedUser.authId).select('+authentication');
+                if (!dbUser || dbUser.status !== user_1.USER_STATUS.ACTIVE) {
+                    throw new ApiError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, 'Account is not active');
+                }
+                if (verifiedUser.iat &&
+                    ((_a = dbUser.authentication) === null || _a === void 0 ? void 0 : _a.passwordChangedAt) &&
+                    verifiedUser.iat * 1000 <
+                        dbUser.authentication.passwordChangedAt.getTime()) {
+                    throw new ApiError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, 'Session has been revoked, please login again');
+                }
                 socket.user = {
                     authId: verifiedUser.authId,
                     name: verifiedUser.name,
@@ -32,15 +43,15 @@ const socketAuth = (...roles) => {
                     role: verifiedUser.role,
                     ...verifiedUser,
                 };
-                // Guard user based on roles
                 if (roles.length && !roles.includes(verifiedUser.role)) {
-                    console.error(colors_1.default.red(`Socket authentication failed: User role ${verifiedUser.role} not authorized`));
                     return next(new ApiError_1.default(http_status_codes_1.StatusCodes.FORBIDDEN, "You don't have permission to access this socket event"));
                 }
-                console.log(colors_1.default.green(`Socket authenticated for user: ${verifiedUser.authId}`));
                 next();
             }
             catch (error) {
+                if (error instanceof ApiError_1.default) {
+                    throw error;
+                }
                 if (error instanceof Error && error.name === 'TokenExpiredError') {
                     throw new ApiError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, 'Access Token has expired');
                 }

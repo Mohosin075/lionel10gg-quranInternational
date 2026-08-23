@@ -11,7 +11,6 @@ const paginationHelper_1 = require("../../../helpers/paginationHelper");
 const mongoose_1 = require("mongoose");
 const support_1 = require("../../../enum/support");
 const createSupport = async (user, payload) => {
-    console.log({ user, payload });
     const data = {
         ...payload,
         userId: (user === null || user === void 0 ? void 0 : user.authId) || null,

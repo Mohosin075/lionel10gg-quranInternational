@@ -11,19 +11,9 @@ const sendResponse_1 = __importDefault(require("../../../shared/sendResponse"));
 const pick_1 = __importDefault(require("../../../shared/pick"));
 const payment_constants_1 = require("./payment.constants");
 const pagination_1 = require("../../../interfaces/pagination");
-const createCheckoutSession = (0, catchAsync_1.default)(async (req, res) => {
-    const user = req.user;
-    const result = await payment_service_1.PaymentServices.createCheckoutSession(user, req.body);
-    (0, sendResponse_1.default)(res, {
-        statusCode: http_status_codes_1.StatusCodes.CREATED,
-        success: true,
-        message: 'Checkout session created successfully',
-        data: result,
-    });
-});
 const verifyCheckoutSession = (0, catchAsync_1.default)(async (req, res) => {
     const { sessionId } = req.params;
-    const result = await payment_service_1.PaymentServices.verifyCheckoutSession(sessionId);
+    const result = await payment_service_1.PaymentServices.verifyCheckoutSession(sessionId, req.user);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_codes_1.StatusCodes.OK,
         success: true,
@@ -33,7 +23,7 @@ const verifyCheckoutSession = (0, catchAsync_1.default)(async (req, res) => {
 });
 const verifyPaymentIntent = (0, catchAsync_1.default)(async (req, res) => {
     const { paymentIntentId } = req.body;
-    const result = await payment_service_1.PaymentServices.verifyPaymentIntent(paymentIntentId);
+    const result = await payment_service_1.PaymentServices.verifyPaymentIntent(paymentIntentId, req.user);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_codes_1.StatusCodes.OK,
         success: true,
@@ -68,7 +58,7 @@ const getAllPayments = (0, catchAsync_1.default)(async (req, res) => {
 });
 const getSinglePayment = (0, catchAsync_1.default)(async (req, res) => {
     const { id } = req.params;
-    const result = await payment_service_1.PaymentServices.getSinglePayment(id);
+    const result = await payment_service_1.PaymentServices.getSinglePayment(id, req.user);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_codes_1.StatusCodes.OK,
         success: true,
@@ -94,19 +84,6 @@ const refundPayment = (0, catchAsync_1.default)(async (req, res) => {
         statusCode: http_status_codes_1.StatusCodes.OK,
         success: true,
         message: 'Payment refunded successfully',
-        data: result,
-    });
-});
-// ============================================
-// FLUTTER STRIPE CONTROLLERS
-// ============================================
-const createPaymentIntent = (0, catchAsync_1.default)(async (req, res) => {
-    const user = req.user;
-    const result = await payment_service_1.PaymentServices.createPaymentIntent(user, req.body);
-    (0, sendResponse_1.default)(res, {
-        statusCode: http_status_codes_1.StatusCodes.CREATED,
-        success: true,
-        message: 'Payment Intent created successfully',
         data: result,
     });
 });
@@ -147,13 +124,7 @@ const getMyPayments = (0, catchAsync_1.default)(async (req, res) => {
 });
 const generateInvoice = (0, catchAsync_1.default)(async (req, res) => {
     const { id } = req.params;
-    const result = await payment_service_1.PaymentServices.generateInvoice(id);
-    if (Buffer.isBuffer(result)) {
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename=invoice-${id.substring(0, 8)}.pdf`);
-        res.status(http_status_codes_1.StatusCodes.OK).send(result);
-        return;
-    }
+    const result = await payment_service_1.PaymentServices.generateInvoice(id, req.user);
     if (typeof result === 'string' && result.startsWith('http')) {
         (0, sendResponse_1.default)(res, {
             statusCode: http_status_codes_1.StatusCodes.OK,
@@ -177,11 +148,8 @@ exports.PaymentController = {
     updatePayment,
     refundPayment,
     getMyPayments,
-    createCheckoutSession,
     verifyCheckoutSession,
     verifyPaymentIntent,
-    // Flutter Stripe controllers
-    createPaymentIntent,
     createEphemeralKey,
     generateInvoice,
     getDonationPresets,

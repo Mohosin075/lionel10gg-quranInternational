@@ -9,7 +9,13 @@ const dua_model_1 = require("./dua.model");
 const getAllDuas = async (lang = 'en', category, page = 1, limit = 10) => {
     const skip = (page - 1) * limit;
     // Ensure data exists for the language
-    if (lang !== 'en') {
+    if (lang === 'en') {
+        const count = await dua_model_1.Dua.countDocuments({ lang: 'en' });
+        if (count === 0) {
+            await syncEnglishDuas();
+        }
+    }
+    else {
         const count = await dua_model_1.Dua.countDocuments({ lang });
         if (count === 0) {
             await getOrSyncDuasByLanguage(lang);
@@ -52,13 +58,40 @@ const checkSyncMetadata = async (lang = 'en', clientVersion) => {
         lang,
     };
 };
-const getSyncData = async (lang = 'en', fromVersion = 0) => {
-    return await dua_model_1.Dua.find({
-        lang,
-        version: { $gt: fromVersion },
-    })
+const clampSyncLimit = (limit) => {
+    const n = Number(limit) || 500;
+    return Math.min(Math.max(n, 1), 1000);
+};
+const getSyncData = async (lang = 'en', fromVersion = 0, page = 1, limit = 500) => {
+    // Ingest-if-empty so first download-sync can fill the phone
+    const existing = await dua_model_1.Dua.countDocuments({ lang });
+    if (existing === 0) {
+        if (lang === 'en') {
+            await syncEnglishDuas();
+        }
+        else {
+            await getOrSyncDuasByLanguage(lang);
+        }
+    }
+    const safeLimit = clampSyncLimit(limit);
+    const safePage = Math.max(Number(page) || 1, 1);
+    const skip = (safePage - 1) * safeLimit;
+    const filter = { lang, version: { $gt: fromVersion } };
+    const total = await dua_model_1.Dua.countDocuments(filter);
+    const data = await dua_model_1.Dua.find(filter)
         .sort({ category: 1, title: 1 })
+        .skip(skip)
+        .limit(safeLimit)
         .lean();
+    return {
+        data,
+        meta: {
+            page: safePage,
+            limit: safeLimit,
+            total,
+            totalPages: Math.max(1, Math.ceil(total / safeLimit)),
+        },
+    };
 };
 // 1. মূল ইংরেজি ডাটা সিঙ্ক
 const syncEnglishDuas = async () => {

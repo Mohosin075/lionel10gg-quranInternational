@@ -39,11 +39,16 @@ const deleteContent = (0, catchAsync_1.default)(async (req, res) => {
 });
 const getSpeakerContent = (0, catchAsync_1.default)(async (req, res) => {
     const speakerName = req.query.speakerName || 'Abu Alia';
-    const result = await sheikh_content_service_1.SheikhContentServices.getSpeakerContent(speakerName);
+    const continuation = req.query.continuation || '';
+    const result = continuation
+        ? await sheikh_content_service_1.SheikhContentServices.getMoreSpeakerVideos(speakerName, continuation)
+        : await sheikh_content_service_1.SheikhContentServices.getSpeakerContent(speakerName);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_codes_1.StatusCodes.OK,
         success: true,
-        message: 'Sheikh content fetched successfully',
+        message: continuation
+            ? 'More sheikh videos fetched successfully'
+            : 'Sheikh content fetched successfully',
         data: result,
     });
 });

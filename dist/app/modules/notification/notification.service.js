@@ -12,7 +12,7 @@ const createNotification = async (payload) => {
     const result = await notification_model_1.Notification.create(payload);
     // Send real-time notification via socket
     if (server_1.io && result.userId) {
-        server_1.io.to(result.userId.toString()).emit('notification', {
+        server_1.io.to(`user:${result.userId.toString()}`).emit('notification', {
             type: 'NEW_NOTIFICATION',
             data: result,
         });

@@ -28,7 +28,18 @@ const login = (0, catchAsync_1.default)(async (req, res) => {
 const googleAuthCallback = (0, catchAsync_1.default)(async (req, res) => {
     const result = await passport_auth_service_1.PassportAuthServices.handleGoogleLogin(req.user);
     const { accessToken, refreshToken } = result;
-    return res.redirect(`${config_1.default.clientUrl}/auth/login?accessToken=${accessToken}&refreshToken=${refreshToken}&role=user`);
+    const isProd = config_1.default.node_env === 'production';
+    res.cookie('refreshToken', refreshToken, {
+        httpOnly: true,
+        secure: isProd,
+        sameSite: 'lax',
+    });
+    res.cookie('accessToken', accessToken, {
+        httpOnly: true,
+        secure: isProd,
+        sameSite: 'lax',
+    });
+    return res.redirect(`${config_1.default.clientUrl}/auth/login?success=true`);
 });
 exports.PassportAuthController = {
     login,

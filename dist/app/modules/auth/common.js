@@ -22,7 +22,7 @@ const handleLoginLogic = async (payload, isUserExist) => {
         const otpExpiresIn = new Date(Date.now() + 5 * 60 * 1000);
         const authentication = {
             email: payload.email,
-            oneTimeCode: otp,
+            oneTimeCode: (0, crypto_1.hashOtp)(otp),
             expiresAt: otpExpiresIn,
             latestRequestAt: new Date(),
             authType: 'createAccount',
@@ -72,7 +72,7 @@ const handleLoginLogic = async (payload, isUserExist) => {
                 'authentication.wrongLoginAttempts': isUserExist.authentication.wrongLoginAttempts,
             },
         });
-        throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Incorrect password, please try again.');
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, 'Invalid email or password');
     }
     await user_model_1.User.findByIdAndUpdate(isUserExist._id, {
         $set: {

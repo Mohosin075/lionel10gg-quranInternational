@@ -12,6 +12,7 @@ const socket_io_1 = require("socket.io");
 const user_service_1 = require("./app/modules/user/user.service");
 const socketHelper_1 = require("./helpers/socketHelper");
 require("./task/duaSyncCron");
+const subscription_seed_1 = require("./app/modules/subscription/subscription.seed");
 // Uncaught exceptions
 process.on('uncaughtException', error => {
     console.error('🔥 UncaughtException Detected:', error);
@@ -25,6 +26,13 @@ async function main() {
         console.log(colors_1.default.green('🚀 Database connected successfully'));
         // Check and Create Super Admin
         await user_service_1.UserServices.createAdmin();
+        // Stripe plans (€4.99+), retire cheap tiers, seed 14 premium benefits
+        try {
+            await (0, subscription_seed_1.seedSubscriptionPlans)();
+        }
+        catch (seedErr) {
+            console.error('Subscription seed warning:', seedErr);
+        }
         const port = typeof config_1.default.port === 'number' ? config_1.default.port : Number(config_1.default.port);
         server = app_1.default.listen(port, '0.0.0.0', () => {
             console.log(colors_1.default.blue(`💨 Server is running on port: ${port}`));

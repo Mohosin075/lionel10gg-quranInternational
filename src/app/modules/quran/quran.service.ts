@@ -164,6 +164,24 @@ const fetchSurahs = async (page: number = 1, limit: number = 10, language?: stri
   };
 };
 
+const resolveTranslationKey = async (translationKey: string): Promise<string> => {
+  if (!translationKey) return 'english_saheeh';
+  
+  const langDoc = await Language.findOne({
+    $or: [
+      { key: translationKey },
+      { language: translationKey.toLowerCase() },
+      { iso: translationKey.toLowerCase() }
+    ]
+  }).lean();
+
+  if (langDoc) {
+    return langDoc.key;
+  }
+
+  return translationKey;
+};
+
 const getSurahDetail = async (surahNumber: number, translationKey: string = 'english_saheeh', lang?: string, reciter?: string) => {
   // 1. Get Surah Metadata from local constant
   const surahInfo = SURAH_LIST.find((s) => s.number === surahNumber);
@@ -177,6 +195,8 @@ const getSurahDetail = async (surahNumber: number, translationKey: string = 'eng
   if (isArabicOnly) {
     translationKey = 'quran-uthmani';
   }
+
+  translationKey = await resolveTranslationKey(translationKey);
 
   // 2. Check if translations exist in DB
   let ayahsData = await getSurahTranslations(surahNumber, translationKey);
@@ -217,6 +237,7 @@ const getSurahDetail = async (surahNumber: number, translationKey: string = 'eng
 };
 
 const getAyah = async (surah: number, ayah: number, translationKey: string = 'english_saheeh', lang?: string, reciter?: string) => {
+    translationKey = await resolveTranslationKey(translationKey);
     let result = await Translation.findOne({ surah, ayah, edition: translationKey }).lean();
     
     if (!result) {
@@ -248,6 +269,7 @@ const getAyah = async (surah: number, ayah: number, translationKey: string = 'en
 const searchQuran = async (keyword: string, translationKey: string = 'english_saheeh', page: number = 1, limit: number = 10) => {
   const skip = (page - 1) * limit;
   
+  translationKey = await resolveTranslationKey(translationKey);
   const query = {
     edition: translationKey,
     text: { $regex: keyword, $options: 'i' },
@@ -272,6 +294,7 @@ const searchQuran = async (keyword: string, translationKey: string = 'english_sa
 };
 
 const getDailyInspiration = async (translationKey: string = 'english_saheeh') => {
+  translationKey = await resolveTranslationKey(translationKey);
   const count = await Translation.countDocuments({ edition: translationKey });
   if (count === 0) {
     return { surah: 1, ayah: 1, text: 'In the name of Allah, the Entirely Merciful, the Especially Merciful.' };

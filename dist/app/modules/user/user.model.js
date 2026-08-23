@@ -7,6 +7,7 @@ exports.User = void 0;
 const mongoose_1 = require("mongoose");
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const user_1 = require("../../../enum/user");
+const config_1 = __importDefault(require("../../../config"));
 // ------------------ USER SCHEMA ------------------
 const UserSchema = new mongoose_1.Schema({
     name: { type: String, trim: true },
@@ -41,7 +42,7 @@ const UserSchema = new mongoose_1.Schema({
     },
     subscribe: { type: Boolean, default: false },
     totalHasanat: { type: Number, default: 0 },
-    password: { type: String, minlength: 6 },
+    password: { type: String, minlength: 8, select: false },
     role: {
         type: String,
         enum: Object.values(user_1.USER_ROLES),
@@ -98,7 +99,7 @@ UserSchema.index({ location: '2dsphere' }); // Geo queries support
 UserSchema.pre('save', async function (next) {
     if (!this.isModified('password'))
         return next();
-    this.password = await bcrypt_1.default.hash(this.password, 10);
+    this.password = await bcrypt_1.default.hash(this.password, Number(config_1.default.bcrypt_salt_rounds) || 12);
     next();
 });
 // ------------------ STATIC METHODS ------------------

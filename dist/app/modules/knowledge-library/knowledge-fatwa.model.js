@@ -8,8 +8,10 @@ const KnowledgeFatwaSchema = new mongoose_1.Schema({
     answer: { type: String, required: true }, // HTML formatted text
     scholar: { type: String },
     lang: { type: String, required: true, default: 'de' },
+    version: { type: Number, required: true, default: 1 },
     isActive: { type: Boolean, required: true, default: true },
 }, { timestamps: true });
 KnowledgeFatwaSchema.index({ fatwaId: 1, lang: 1 }, { unique: true });
 KnowledgeFatwaSchema.index({ isActive: 1 });
+KnowledgeFatwaSchema.index({ version: 1, lang: 1 });
 exports.KnowledgeFatwa = (0, mongoose_1.model)('KnowledgeFatwa', KnowledgeFatwaSchema);

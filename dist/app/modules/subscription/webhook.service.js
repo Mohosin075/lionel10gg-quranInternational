@@ -379,18 +379,52 @@ class WebhookService {
         }
     }
     async handleCheckoutCompleted(session, eventId) {
-        var _a;
+        var _a, _b;
         try {
-            if (session.mode !== 'subscription') {
-                console.log('Checkout session not for subscription');
+            if (session.mode !== 'subscription' && session.mode !== 'payment') {
+                console.log('Checkout session not for subscription or payment');
                 return;
             }
             const userId = (_a = session.metadata) === null || _a === void 0 ? void 0 : _a.userId;
+            const planId = (_b = session.metadata) === null || _b === void 0 ? void 0 : _b.planId;
             if (!userId) {
                 console.error('No userId in checkout session metadata');
                 return;
             }
             console.log('session', session);
+            if (session.mode === 'payment') {
+                const plan = await subscription_plan_model_1.SubscriptionPlan.findById(planId);
+                if (!plan || plan.interval !== 'lifetime') {
+                    console.log('Payment checkout session completed but plan is not lifetime:', planId);
+                    return;
+                }
+                const now = new Date();
+                // 100 years lifetime
+                const endDate = new Date(now);
+                endDate.setFullYear(endDate.getFullYear() + 100);
+                const subData = {
+                    userId: new mongoose_1.Types.ObjectId(userId),
+                    planId: plan._id,
+                    stripeCustomerId: session.customer,
+                    stripeSubscriptionId: `lifetime_${session.id}`,
+                    stripePriceId: plan.stripePriceId,
+                    status: 'active',
+                    currentPeriodStart: now,
+                    currentPeriodEnd: endDate,
+                    lastPaymentDate: now,
+                    nextPaymentDate: endDate,
+                    lastWebhookEventId: eventId,
+                };
+                await subscription_model_1.Subscription.findOneAndUpdate({ userId: new mongoose_1.Types.ObjectId(userId), planId: plan._id }, { $set: subData }, { upsert: true, new: true });
+                await user_model_1.User.findByIdAndUpdate(userId, {
+                    subscriptionStatus: 'active',
+                    subscriptionTier: 'premium',
+                    subscriptionExpiresAt: endDate,
+                    stripeCustomerId: session.customer,
+                });
+                console.log(`Lifetime checkout completed and premium activated for user: ${userId}`);
+                return;
+            }
             if (session.subscription) {
                 const stripeSubscription = await stripe_service_1.stripeService.getSubscription(session.subscription);
                 await subscription_model_1.Subscription.findOneAndUpdate({ stripeSubscriptionId: stripeSubscription.id }, {
@@ -730,7 +764,12 @@ class WebhookService {
     }
     getSubscriptionTier(planName) {
         const name = planName.toLowerCase();
-        if (name.includes('enterprise') || name.includes('pro')) {
+        if (name.includes('enterprise') ||
+            name.includes('pro') ||
+            name.includes('premium') ||
+            name.includes('donation') ||
+            name.includes('lifetime') ||
+            name.includes('support')) {
             return 'premium';
         }
         else if (name.includes('basic') || name.includes('starter')) {

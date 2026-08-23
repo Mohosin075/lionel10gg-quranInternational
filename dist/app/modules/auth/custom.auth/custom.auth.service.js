@@ -46,6 +46,7 @@ const config_1 = __importDefault(require("../../../../config"));
 const token_model_1 = require("../../token/token.model");
 const emailTemplate_1 = require("../../../../shared/emailTemplate");
 const crypto_1 = __importStar(require("../../../../utils/crypto"));
+const socialAuth_helper_1 = require("../socialAuth.helper");
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const crypto_2 = __importDefault(require("crypto"));
 const common_1 = require("../common");
@@ -66,7 +67,7 @@ const createUser = async (payload) => {
     const otpExpiresIn = new Date(Date.now() + 5 * 60 * 1000);
     const authentication = {
         email: payload.email,
-        oneTimeCode: otp,
+        oneTimeCode: (0, crypto_1.hashOtp)(otp),
         expiresAt: otpExpiresIn,
         latestRequestAt: new Date(),
         requestCount: 1,
@@ -106,10 +107,10 @@ const customLogin = async (payload) => {
         .select('+password +authentication')
         .lean();
     if (!isUserExist) {
-        throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, `No account found with this ${email ? 'email' : 'phone'}`);
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, 'Invalid email or password');
     }
     if (!isUserExist.password) {
-        throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'It seems you have signed up using social login. Please use social login to access your account.');
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, 'Invalid email or password');
     }
     const result = await common_1.AuthCommonServices.handleLoginLogic(payload, isUserExist);
     return result;
@@ -123,38 +124,42 @@ const adminLogin = async (payload) => {
         .select('+password +authentication')
         .lean();
     if (!isUserExist) {
-        throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, `No account found with this ${email ? 'email' : 'phone'}`);
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, 'Invalid email or password');
     }
-    if (isUserExist.role !== user_1.USER_ROLES.ADMIN) {
-        throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'You are not authorized to login as admin');
+    if (isUserExist.role !== user_1.USER_ROLES.ADMIN &&
+        isUserExist.role !== user_1.USER_ROLES.SUPER_ADMIN) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, 'Invalid email or password');
+    }
+    if (isUserExist.status !== user_1.USER_STATUS.ACTIVE) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, 'Invalid email or password');
     }
     const isPasswordMatch = await auth_helper_1.AuthHelper.isPasswordMatched(payload.password, isUserExist.password);
     if (!isPasswordMatch) {
-        throw new ApiError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, 'Please try again with correct credentials.');
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, 'Invalid email or password');
     }
     //tokens
     const tokens = auth_helper_1.AuthHelper.createToken(isUserExist._id, isUserExist.role, isUserExist.name, isUserExist.email);
     return (0, common_1.authResponse)(http_status_codes_1.StatusCodes.OK, `Welcome back ${isUserExist.name}`, isUserExist.role, tokens.accessToken, tokens.refreshToken);
 };
 const forgetPassword = async (email, phone) => {
-    const query = email
-        ? { email: email.toLocaleLowerCase().trim() }
-        : { phone: phone };
+    if (phone && !email) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Password reset via phone is not available. Please use email.');
+    }
+    if (!email) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Email is required');
+    }
     const isUserExist = await user_model_1.User.findOne({
-        ...query,
+        email: email.toLowerCase().trim(),
         status: { $in: [user_1.USER_STATUS.ACTIVE, user_1.USER_STATUS.INACTIVE] },
     });
     if (!isUserExist) {
-        throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'No account found with this email or phone');
+        return 'If an account exists, an OTP has been sent.';
     }
     const otp = (0, crypto_1.generateOtp)();
-    if (phone) {
-        //implement this feature using twilio/aws sns
-    }
     const authentication = {
         email: isUserExist.email,
         resetPassword: true,
-        oneTimeCode: otp,
+        oneTimeCode: (0, crypto_1.hashOtp)(otp),
         expiresAt: new Date(Date.now() + 5 * 60 * 1000),
         latestRequestAt: new Date(),
         requestCount: 1,
@@ -163,23 +168,23 @@ const forgetPassword = async (email, phone) => {
     await user_model_1.User.findByIdAndUpdate(isUserExist._id, {
         $set: { authentication: authentication },
     }, { new: true });
-    // //send otp to user
-    if (email) {
-        const forgetPasswordEmailTemplate = emailTemplate_1.emailTemplate.resetPassword({
-            name: isUserExist.name,
-            email: isUserExist.email,
-            otp,
-        });
-        emailHelper_1.emailHelper.sendEmail(forgetPasswordEmailTemplate);
-    }
-    return 'OTP sent successfully.';
+    const forgetPasswordEmailTemplate = emailTemplate_1.emailTemplate.resetPassword({
+        name: isUserExist.name,
+        email: isUserExist.email,
+        otp,
+    });
+    emailHelper_1.emailHelper.sendEmail(forgetPasswordEmailTemplate);
+    return 'If an account exists, an OTP has been sent.';
 };
 const resetPassword = async (resetToken, payload) => {
     const { newPassword, confirmPassword } = payload;
     if (newPassword !== confirmPassword) {
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Passwords do not match');
     }
-    const isTokenExist = await token_model_1.Token.findOne({ token: resetToken }).lean();
+    const normalizedToken = (resetToken === null || resetToken === void 0 ? void 0 : resetToken.startsWith('Bearer '))
+        ? resetToken.split(' ')[1]
+        : resetToken;
+    const isTokenExist = await token_model_1.Token.findOne({ token: normalizedToken }).lean();
     if (!isTokenExist) {
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, "You don't have authorization to reset your password, please verify your account first.");
     }
@@ -207,6 +212,7 @@ const resetPassword = async (resetToken, payload) => {
             latestRequestAt: null,
             requestCount: 0,
             authType: '',
+            passwordChangedAt: new Date(),
         },
     };
     await user_model_1.User.findByIdAndUpdate(isUserExist._id, { $set: updatedUserData }, { new: true });
@@ -227,8 +233,13 @@ const verifyAccount = async (email, onetimeCode) => {
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, `No account found with this ${email}, please register first.`);
     }
     const { authentication } = isUserExist;
-    //check the otp
-    if ((authentication === null || authentication === void 0 ? void 0 : authentication.oneTimeCode) !== onetimeCode) {
+    const storedOtp = authentication === null || authentication === void 0 ? void 0 : authentication.oneTimeCode;
+    const otpMatches = storedOtp
+        ? storedOtp.length === 64
+            ? (0, crypto_1.compareOtp)(onetimeCode, storedOtp)
+            : storedOtp === onetimeCode
+        : false;
+    if (!otpMatches) {
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Invalid OTP, please try again.');
     }
     const currentDate = new Date();
@@ -239,7 +250,6 @@ const verifyAccount = async (email, onetimeCode) => {
     if (!isUserExist.verified) {
         await user_model_1.User.findByIdAndUpdate(isUserExist._id, { $set: { verified: true } }, { new: true });
         const tokens = auth_helper_1.AuthHelper.createToken(isUserExist._id, isUserExist.role, isUserExist.name, isUserExist.email);
-        console.log({ tokens });
         return (0, common_1.authResponse)(http_status_codes_1.StatusCodes.OK, `Welcome ${isUserExist.name} to our platform.`, isUserExist.role, tokens.accessToken, tokens.refreshToken);
     }
     else {
@@ -267,49 +277,81 @@ const verifyAccount = async (email, onetimeCode) => {
     }
 };
 const getRefreshToken = async (token) => {
+    var _a;
     try {
         const decodedToken = jwtHelper_1.jwtHelper.verifyToken(token, config_1.default.jwt.jwt_refresh_secret);
-        const { userId, role } = decodedToken;
+        const { authId, role } = decodedToken;
+        const userId = authId || decodedToken.userId;
+        const dbUser = await user_model_1.User.findById(userId).select('+authentication');
+        if (!dbUser || dbUser.status !== user_1.USER_STATUS.ACTIVE) {
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, 'Account is not active');
+        }
+        if (decodedToken.iat &&
+            ((_a = dbUser.authentication) === null || _a === void 0 ? void 0 : _a.passwordChangedAt) &&
+            decodedToken.iat * 1000 < dbUser.authentication.passwordChangedAt.getTime()) {
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, 'Session has been revoked, please login again');
+        }
         const tokens = auth_helper_1.AuthHelper.createToken(userId, role, decodedToken.name, decodedToken.email);
         return {
             accessToken: tokens.accessToken,
         };
     }
     catch (error) {
+        if (error instanceof ApiError_1.default) {
+            throw error;
+        }
         if (error instanceof Error && error.name === 'TokenExpiredError') {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, 'Refresh Token has expired');
         }
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.FORBIDDEN, 'Invalid Refresh Token');
     }
 };
-const socialLogin = async (appId, deviceToken) => {
-    const isUserExist = await user_model_1.User.findOne({
-        appId,
+const socialLogin = async (provider, idToken, deviceToken) => {
+    const identity = await (0, socialAuth_helper_1.verifySocialIdToken)(provider, idToken);
+    let isUserExist = await user_model_1.User.findOne({
+        appId: identity.appId,
         status: { $in: [user_1.USER_STATUS.ACTIVE, user_1.USER_STATUS.INACTIVE] },
     });
+    if (!isUserExist &&
+        identity.email &&
+        identity.emailVerified) {
+        isUserExist = await user_model_1.User.findOne({
+            email: identity.email,
+            status: { $in: [user_1.USER_STATUS.ACTIVE, user_1.USER_STATUS.INACTIVE] },
+        });
+    }
     if (!isUserExist) {
+        if (!identity.email) {
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Social login did not provide a verified email');
+        }
         const createdUser = await user_model_1.User.create({
-            appId,
+            appId: identity.appId,
+            email: identity.email,
+            name: identity.name,
             deviceToken,
+            provider,
             status: user_1.USER_STATUS.ACTIVE,
+            verified: true,
             password: crypto_2.default.randomUUID(),
         });
-        console.log({ createdUser });
-        if (!createdUser)
+        if (!createdUser) {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Failed to create user.');
+        }
         const tokens = auth_helper_1.AuthHelper.createToken(createdUser._id, createdUser.role, createdUser.name, createdUser.email);
         return (0, common_1.authResponse)(http_status_codes_1.StatusCodes.OK, `Welcome ${createdUser.name} to our platform.`, createdUser.role, tokens.accessToken, tokens.refreshToken);
     }
-    else {
-        await user_model_1.User.findByIdAndUpdate(isUserExist._id, {
-            $set: {
-                deviceToken,
-            },
-        });
-        const tokens = auth_helper_1.AuthHelper.createToken(isUserExist._id, isUserExist.role, isUserExist.name, isUserExist.email);
-        //send token to client
-        return (0, common_1.authResponse)(http_status_codes_1.StatusCodes.OK, `Welcome back ${isUserExist.name}`, isUserExist.role, tokens.accessToken, tokens.refreshToken);
+    if (isUserExist.status !== user_1.USER_STATUS.ACTIVE) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, 'Account is not active');
     }
+    await user_model_1.User.findByIdAndUpdate(isUserExist._id, {
+        $set: {
+            deviceToken,
+            appId: identity.appId,
+            provider,
+        },
+    });
+    const tokens = auth_helper_1.AuthHelper.createToken(isUserExist._id, isUserExist.role, isUserExist.name, isUserExist.email);
+    return (0, common_1.authResponse)(http_status_codes_1.StatusCodes.OK, `Welcome back ${isUserExist.name}`, isUserExist.role, tokens.accessToken, tokens.refreshToken);
 };
 const resendOtpToPhoneOrEmail = async (authType, email, phone) => {
     const query = email ? { email: email } : { phone: phone };
@@ -320,19 +362,27 @@ const resendOtpToPhoneOrEmail = async (authType, email, phone) => {
     if (!isUserExist) {
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, `No account found with this ${email ? 'email' : 'phone'}`);
     }
-    //check the request count
+    if (phone && !email) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Phone verification is not available. Please use email.');
+    }
     const { authentication } = isUserExist;
-    if ((authentication === null || authentication === void 0 ? void 0 : authentication.requestCount) && authentication.requestCount >= 5) {
+    const windowMs = 15 * 60 * 1000;
+    let requestCount = (authentication === null || authentication === void 0 ? void 0 : authentication.requestCount) || 0;
+    if ((authentication === null || authentication === void 0 ? void 0 : authentication.latestRequestAt) &&
+        Date.now() - new Date(authentication.latestRequestAt).getTime() > windowMs) {
+        requestCount = 0;
+    }
+    if (requestCount >= 5) {
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'You have exceeded the maximum number of requests. Please try again later.');
     }
     const otp = (0, crypto_1.generateOtp)();
     const updatedAuthentication = {
-        oneTimeCode: otp,
+        oneTimeCode: (0, crypto_1.hashOtp)(otp),
         latestRequestAt: new Date(),
-        requestCount: ((authentication === null || authentication === void 0 ? void 0 : authentication.requestCount) || 0) + 1,
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
+        requestCount: requestCount + 1,
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+        authType,
     };
-    //send otp to user
     if (email) {
         const template = emailTemplate_1.emailTemplate.resendOtp({
             email: isUserExist.email,
@@ -340,15 +390,7 @@ const resendOtpToPhoneOrEmail = async (authType, email, phone) => {
             otp,
             type: authType,
         });
-        // emailQueue.add('emails', forgetPasswordEmailTemplate)
         emailHelper_1.emailHelper.sendEmail(template);
-        await user_model_1.User.findByIdAndUpdate(isUserExist._id, {
-            $set: { authentication: updatedAuthentication },
-        }, { new: true });
-    }
-    // TODO : need mobile varificaition implementation after signup with phone
-    if (phone) {
-        //implement this feature using twilio/aws sns
         await user_model_1.User.findByIdAndUpdate(isUserExist._id, {
             $set: { authentication: updatedAuthentication },
         }, { new: true });
@@ -368,7 +410,10 @@ const deleteAccount = async (user, password) => {
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Please provide a valid password to delete your account.');
     }
     const deletedData = await user_model_1.User.findByIdAndUpdate(authId, {
-        $set: { status: user_1.USER_STATUS.DELETED },
+        $set: {
+            status: user_1.USER_STATUS.DELETED,
+            'authentication.passwordChangedAt': new Date(),
+        },
     });
     return {
         status: http_status_codes_1.StatusCodes.OK,
@@ -377,39 +422,42 @@ const deleteAccount = async (user, password) => {
     };
 };
 const resendOtp = async (email, authType) => {
-    console.log({ email, authType });
     const isUserExist = await user_model_1.User.findOne({
         email: email.toLowerCase().trim(),
         status: { $in: [user_1.USER_STATUS.ACTIVE, user_1.USER_STATUS.INACTIVE] },
     }).select('+authentication');
     if (!isUserExist) {
-        throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, `No account found with this ${email}, please try again.`);
+        return 'If an account exists, an OTP has been sent.';
     }
     const { authentication } = isUserExist;
+    const windowMs = 15 * 60 * 1000;
+    let requestCount = (authentication === null || authentication === void 0 ? void 0 : authentication.requestCount) || 0;
+    if ((authentication === null || authentication === void 0 ? void 0 : authentication.latestRequestAt) &&
+        Date.now() - new Date(authentication.latestRequestAt).getTime() > windowMs) {
+        requestCount = 0;
+    }
+    if (requestCount >= 5) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'You have exceeded the maximum number of requests. Please try again later.');
+    }
     const otp = (0, crypto_1.generateOtp)();
     const authenticationPayload = {
-        oneTimeCode: otp,
+        oneTimeCode: (0, crypto_1.hashOtp)(otp),
         latestRequestAt: new Date(),
-        requestCount: ((authentication === null || authentication === void 0 ? void 0 : authentication.requestCount) || 0) + 1,
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
+        requestCount: requestCount + 1,
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+        authType,
     };
     await user_model_1.User.findByIdAndUpdate(isUserExist._id, {
         $set: { authentication: authenticationPayload },
     }, { new: true });
-    if (authenticationPayload.requestCount >= 5) {
-        throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'You have exceeded the maximum number of requests. Please try again later.');
-    }
-    //send otp to user
-    if (email) {
-        const forgetPasswordEmailTemplate = emailTemplate_1.emailTemplate.resendOtp({
-            email: email,
-            name: isUserExist.name,
-            otp,
-            type: authType,
-        });
-        emailHelper_1.emailHelper.sendEmail(forgetPasswordEmailTemplate);
-    }
-    return 'OTP sent successfully.';
+    const forgetPasswordEmailTemplate = emailTemplate_1.emailTemplate.resendOtp({
+        email: email,
+        name: isUserExist.name,
+        otp,
+        type: authType,
+    });
+    emailHelper_1.emailHelper.sendEmail(forgetPasswordEmailTemplate);
+    return 'If an account exists, an OTP has been sent.';
 };
 const changePassword = async (user, currentPassword, newPassword) => {
     // Find the user with password field
@@ -427,7 +475,10 @@ const changePassword = async (user, currentPassword, newPassword) => {
     // Hash the new password
     const hashedPassword = await bcrypt_1.default.hash(newPassword, Number(config_1.default.bcrypt_salt_rounds));
     // Update the password
-    await user_model_1.User.findByIdAndUpdate(user.authId, { password: hashedPassword }, { new: true });
+    await user_model_1.User.findByIdAndUpdate(user.authId, {
+        password: hashedPassword,
+        'authentication.passwordChangedAt': new Date(),
+    }, { new: true });
     return { message: 'Password changed successfully' };
 };
 exports.CustomAuthServices = {

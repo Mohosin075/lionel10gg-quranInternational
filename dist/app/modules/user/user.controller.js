@@ -12,6 +12,7 @@ const pick_1 = __importDefault(require("../../../shared/pick"));
 const pagination_1 = require("../../../interfaces/pagination");
 const ApiError_1 = __importDefault(require("../../../errors/ApiError"));
 const user_constants_1 = require("./user.constants");
+const user_1 = require("../../../enum/user");
 const updateProfile = (0, catchAsync_1.default)(async (req, res) => {
     const { images, ...userData } = req.body;
     if (images) {
@@ -63,6 +64,11 @@ const deleteProfile = (0, catchAsync_1.default)(async (req, res) => {
 });
 const getUserById = (0, catchAsync_1.default)(async (req, res) => {
     const { userId } = req.params;
+    const requester = req.user;
+    if (requester.role === user_1.USER_ROLES.USER &&
+        String(requester.authId) !== String(userId)) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.FORBIDDEN, 'You do not have access to this user');
+    }
     const result = await user_service_1.UserServices.getUserById(userId);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_codes_1.StatusCodes.OK,

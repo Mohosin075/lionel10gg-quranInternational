@@ -142,8 +142,6 @@ class SubscriptionService {
             });
             await email_notification_service_1.emailNotificationService.sendSubscriptionWelcomeEmail(subscription, plan, false);
             let clientSecret;
-            console.log('--- Debugging Subscription ---');
-            console.log('Subscription Status:', stripeSubscription.status);
             if (stripeSubscription.latest_invoice &&
                 typeof stripeSubscription.latest_invoice === 'object') {
                 const invoice = stripeSubscription.latest_invoice;
@@ -151,16 +149,8 @@ class SubscriptionService {
                     typeof invoice.payment_intent === 'object') {
                     clientSecret =
                         invoice.payment_intent.client_secret || undefined;
-                    console.log('Client Secret found in latest_invoice.payment_intent');
-                }
-                else if (invoice.payment_intent &&
-                    typeof invoice.payment_intent === 'string') {
-                    console.log('Payment Intent found as string, but not expanded:', invoice.payment_intent);
                 }
             }
-            console.log('Final clientSecret:', clientSecret);
-            console.log('------------------------------');
-            console.log(`Subscription created for user ${userId}: ${subscription._id}`);
             return {
                 subscription: await subscription.populate(['planId']),
                 clientSecret,
@@ -366,7 +356,6 @@ class SubscriptionService {
     async createCheckoutSession(userId, planId, successUrl, cancelUrl) {
         try {
             const user = await user_model_1.User.findById(userId).select('+email');
-            console.log({ user });
             if (!user) {
                 throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'User not found');
             }
@@ -683,7 +672,12 @@ class SubscriptionService {
     }
     getSubscriptionTier(planName) {
         const name = planName.toLowerCase();
-        if (name.includes('enterprise') || name.includes('pro')) {
+        if (name.includes('enterprise') ||
+            name.includes('pro') ||
+            name.includes('premium') ||
+            name.includes('donation') ||
+            name.includes('lifetime') ||
+            name.includes('support')) {
             return 'premium';
         }
         else if (name.includes('basic') || name.includes('starter')) {

@@ -65,7 +65,7 @@ const search = (0, catchAsync_1.default)(async (req, res) => {
     });
 });
 const getDailyInspiration = (0, catchAsync_1.default)(async (req, res) => {
-    const edition = req.query.edition || 'english_saheeh';
+    const edition = req.query.edition || req.query.lang || req.query.language || 'english_saheeh';
     const result = await quran_service_1.QuranServices.getDailyInspiration(edition);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_codes_1.StatusCodes.OK,
@@ -131,23 +131,14 @@ const checkSync = (0, catchAsync_1.default)(async (req, res) => {
 const downloadSync = (0, catchAsync_1.default)(async (req, res) => {
     const { edition, fromVersion } = req.query;
     const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 10;
-    const result = await quran_service_1.QuranServices.getSyncData(edition, Number(fromVersion) || 0);
-    // Manual pagination for sync data since it's an array from DB
-    const total = result.length;
-    const skip = (page - 1) * limit;
-    const paginatedData = result.slice(skip, skip + limit);
+    const limit = Number(req.query.limit) || 500;
+    const result = await quran_service_1.QuranServices.getSyncData(edition, Number(fromVersion) || 0, page, limit);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_codes_1.StatusCodes.OK,
         success: true,
         message: 'Sync data fetched successfully',
-        meta: {
-            page,
-            limit,
-            total,
-            totalPages: Math.ceil(total / limit)
-        },
-        data: paginatedData,
+        meta: result.meta,
+        data: result.data,
     });
 });
 const getReciters = (0, catchAsync_1.default)(async (req, res) => {

@@ -10,6 +10,6 @@ const auth_1 = __importDefault(require("../../middleware/auth"));
 const user_1 = require("../../../enum/user");
 const processReqBody_1 = require("../../middleware/processReqBody");
 const router = express_1.default.Router();
-router.post('/', (0, processReqBody_1.fileAndBodyProcessorUsingDiskStorage)(), (0, auth_1.default)(user_1.USER_ROLES.USER, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), message_controller_1.MessageController.sendMessage);
+router.post('/', (0, auth_1.default)(user_1.USER_ROLES.USER, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), (0, processReqBody_1.fileAndBodyProcessorUsingDiskStorage)(), message_controller_1.MessageController.sendMessage);
 router.get('/:id', (0, auth_1.default)(user_1.USER_ROLES.USER, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), message_controller_1.MessageController.getMessage);
 exports.MessageRoutes = router;

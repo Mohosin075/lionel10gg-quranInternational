@@ -141,6 +141,21 @@ const fetchSurahs = async (page = 1, limit = 10, language) => {
         data
     };
 };
+const resolveTranslationKey = async (translationKey) => {
+    if (!translationKey)
+        return 'english_saheeh';
+    const langDoc = await quran_model_1.Language.findOne({
+        $or: [
+            { key: translationKey },
+            { language: translationKey.toLowerCase() },
+            { iso: translationKey.toLowerCase() }
+        ]
+    }).lean();
+    if (langDoc) {
+        return langDoc.key;
+    }
+    return translationKey;
+};
 const getSurahDetail = async (surahNumber, translationKey = 'english_saheeh', lang, reciter) => {
     // 1. Get Surah Metadata from local constant
     const surahInfo = quran_constants_1.SURAH_LIST.find((s) => s.number === surahNumber);
@@ -152,6 +167,7 @@ const getSurahDetail = async (surahNumber, translationKey = 'english_saheeh', la
     if (isArabicOnly) {
         translationKey = 'quran-uthmani';
     }
+    translationKey = await resolveTranslationKey(translationKey);
     // 2. Check if translations exist in DB
     let ayahsData = await getSurahTranslations(surahNumber, translationKey);
     // 3. If not found, trigger ingestion (ETL)
@@ -187,6 +203,7 @@ const getSurahDetail = async (surahNumber, translationKey = 'english_saheeh', la
     };
 };
 const getAyah = async (surah, ayah, translationKey = 'english_saheeh', lang, reciter) => {
+    translationKey = await resolveTranslationKey(translationKey);
     let result = await quran_model_1.Translation.findOne({ surah, ayah, edition: translationKey }).lean();
     if (!result) {
         // Determine the correct language for this edition
@@ -213,6 +230,7 @@ const getAyah = async (surah, ayah, translationKey = 'english_saheeh', lang, rec
 };
 const searchQuran = async (keyword, translationKey = 'english_saheeh', page = 1, limit = 10) => {
     const skip = (page - 1) * limit;
+    translationKey = await resolveTranslationKey(translationKey);
     const query = {
         edition: translationKey,
         text: { $regex: keyword, $options: 'i' },
@@ -233,6 +251,7 @@ const searchQuran = async (keyword, translationKey = 'english_saheeh', page = 1,
     };
 };
 const getDailyInspiration = async (translationKey = 'english_saheeh') => {
+    translationKey = await resolveTranslationKey(translationKey);
     const count = await quran_model_1.Translation.countDocuments({ edition: translationKey });
     if (count === 0) {
         return { surah: 1, ayah: 1, text: 'In the name of Allah, the Entirely Merciful, the Especially Merciful.' };
@@ -277,19 +296,55 @@ const checkSyncMetadata = async (translationKey, clientVersion) => {
         clientVersion
     };
 };
-const getSyncData = async (translationKey, fromVersion = 0) => {
-    // Fetch translations that have a version greater than client version
-    const data = await quran_model_1.Translation.find({
+const clampSyncLimit = (limit) => {
+    const n = Number(limit) || 500;
+    return Math.min(Math.max(n, 1), 1000);
+};
+/**
+ * Paginated dump for offline-first clients.
+ * Pages in Mongo (skip/limit) — does not load the full edition into RAM.
+ * Returns ayah rows the Flutter app can insert into SQLite.
+ */
+const getSyncData = async (translationKey, fromVersion = 0, page = 1, limit = 500) => {
+    const safeLimit = clampSyncLimit(limit);
+    const safePage = Math.max(Number(page) || 1, 1);
+    const skip = (safePage - 1) * safeLimit;
+    const filter = {
         edition: translationKey,
-        version: { $gt: fromVersion }
-    }).sort({ surah: 1, ayah: 1 }).lean();
-    const dbLangInfo = await quran_model_1.Language.findOne({ key: translationKey });
-    return data.map((item) => {
-        return {
-            ...item,
-            audio: resolveAudioUrl(item.surah, item.ayah),
-        };
-    });
+        version: { $gt: fromVersion },
+    };
+    let total = await quran_model_1.Translation.countDocuments(filter);
+    // First fill: empty edition → ingest all 114 surahs once, then dump
+    if (total === 0 && fromVersion === 0) {
+        const langInfo = await quran_model_1.Language.findOne({ key: translationKey });
+        await (0, quran_worker_1.syncLanguage)(translationKey, langInfo === null || langInfo === void 0 ? void 0 : langInfo.language);
+        total = await quran_model_1.Translation.countDocuments(filter);
+    }
+    const data = await quran_model_1.Translation.find(filter)
+        .sort({ surah: 1, ayah: 1 })
+        .skip(skip)
+        .limit(safeLimit)
+        .lean();
+    const rows = data.map(item => ({
+        surah: item.surah,
+        number: item.ayah,
+        text: item.arabicText || '',
+        translation: item.text || '',
+        footnotes: item.footnotes || '',
+        audio: resolveAudioUrl(item.surah, item.ayah),
+        edition: item.edition,
+        lang: item.lang,
+        version: item.version,
+    }));
+    return {
+        data: rows,
+        meta: {
+            page: safePage,
+            limit: safeLimit,
+            total,
+            totalPages: Math.max(1, Math.ceil(total / safeLimit)),
+        },
+    };
 };
 const syncEdition = async (edition) => {
     // Run in background

@@ -78,11 +78,12 @@ const syncFromGlobalApi = async (edition, fromHadith, toHadith) => {
 };
 const getAllHadiths = async (lang = 'en', category, source, page = 1, limit = 10) => {
     const skip = (page - 1) * limit;
-    // Auto-populate DB with initial hadiths if empty
+    // Auto-populate DB with enough Hadith for offline (not a handful)
     const totalEnglish = await hadith_model_1.Hadith.countDocuments({ lang: 'en' });
     if (totalEnglish === 0) {
-        console.log('[HadithService] Auto-syncing initial hadiths 1-15 of Sahih al-Bukhari...');
-        await syncFromGlobalApi('eng-bukhari', 1, 15);
+        console.log('[HadithService] Auto-syncing Bukhari 1-100 + Muslim 1-50...');
+        await syncFromGlobalApi('eng-bukhari', 1, 100);
+        await syncFromGlobalApi('eng-muslim', 1, 50);
     }
     if (lang !== 'en') {
         const count = await hadith_model_1.Hadith.countDocuments({ lang });
@@ -131,13 +132,43 @@ const checkSyncMetadata = async (lang = 'en', clientVersion) => {
         lang,
     };
 };
-const getSyncData = async (lang = 'en', fromVersion = 0) => {
-    return await hadith_model_1.Hadith.find({
-        lang,
-        version: { $gt: fromVersion },
-    })
+const clampSyncLimit = (limit) => {
+    const n = Number(limit) || 500;
+    return Math.min(Math.max(n, 1), 1000);
+};
+const getSyncData = async (lang = 'en', fromVersion = 0, page = 1, limit = 500) => {
+    // Ingest-if-empty so download-sync can fill the phone
+    const existing = await hadith_model_1.Hadith.countDocuments({ lang });
+    if (existing === 0) {
+        const totalEnglish = await hadith_model_1.Hadith.countDocuments({ lang: 'en' });
+        if (totalEnglish === 0) {
+            console.log('[HadithService] download-sync empty — seeding Bukhari 1-100 + Muslim 1-50...');
+            await syncFromGlobalApi('eng-bukhari', 1, 100);
+            await syncFromGlobalApi('eng-muslim', 1, 50);
+        }
+        if (lang !== 'en') {
+            await getOrSyncHadithsByLanguage(lang);
+        }
+    }
+    const safeLimit = clampSyncLimit(limit);
+    const safePage = Math.max(Number(page) || 1, 1);
+    const skip = (safePage - 1) * safeLimit;
+    const filter = { lang, isActive: { $ne: false }, version: { $gt: fromVersion } };
+    const total = await hadith_model_1.Hadith.countDocuments(filter);
+    const data = await hadith_model_1.Hadith.find(filter)
         .sort({ hadithNo: 1 })
+        .skip(skip)
+        .limit(safeLimit)
         .lean();
+    return {
+        data,
+        meta: {
+            page: safePage,
+            limit: safeLimit,
+            total,
+            totalPages: Math.max(1, Math.ceil(total / safeLimit)),
+        },
+    };
 };
 const getOrSyncHadithsByLanguage = async (targetLang) => {
     const count = await hadith_model_1.Hadith.countDocuments({ lang: targetLang });

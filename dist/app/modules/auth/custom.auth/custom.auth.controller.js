@@ -9,6 +9,7 @@ const custom_auth_service_1 = require("./custom.auth.service");
 const sendResponse_1 = __importDefault(require("../../../../shared/sendResponse"));
 const http_status_codes_1 = require("http-status-codes");
 const token_service_1 = require("../../token/token.service");
+const ApiError_1 = __importDefault(require("../../../../errors/ApiError"));
 const customLogin = (0, catchAsync_1.default)(async (req, res) => {
     const { ...loginData } = req.body;
     const result = await custom_auth_service_1.CustomAuthServices.customLogin(loginData);
@@ -41,11 +42,11 @@ const adminLogin = (0, catchAsync_1.default)(async (req, res) => {
 });
 const forgetPassword = (0, catchAsync_1.default)(async (req, res) => {
     const { email, phone } = req.body;
-    const result = await custom_auth_service_1.CustomAuthServices.forgetPassword(email.toLowerCase().trim(), phone);
+    const result = await custom_auth_service_1.CustomAuthServices.forgetPassword(email ? email.toLowerCase().trim() : undefined, phone);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_codes_1.StatusCodes.OK,
         success: true,
-        message: `An OTP has been sent to your ${email || phone}. Please verify your email.`,
+        message: result,
         data: result,
     });
 });
@@ -76,7 +77,11 @@ const verifyAccount = (0, catchAsync_1.default)(async (req, res) => {
     });
 });
 const getRefreshToken = (0, catchAsync_1.default)(async (req, res) => {
-    const { refreshToken } = req.cookies;
+    var _a, _b;
+    const refreshToken = ((_a = req.body) === null || _a === void 0 ? void 0 : _a.refreshToken) || ((_b = req.cookies) === null || _b === void 0 ? void 0 : _b.refreshToken);
+    if (!refreshToken) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, 'Refresh token is required');
+    }
     const result = await custom_auth_service_1.CustomAuthServices.getRefreshToken(refreshToken);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_codes_1.StatusCodes.OK,
@@ -91,7 +96,7 @@ const resendOtp = (0, catchAsync_1.default)(async (req, res) => {
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_codes_1.StatusCodes.OK,
         success: true,
-        message: `An OTP has been sent to your ${email || phone}. Please verify your email.`,
+        message: 'If an account exists, an OTP has been sent.',
     });
 });
 const changePassword = (0, catchAsync_1.default)(async (req, res) => {
@@ -132,8 +137,8 @@ const deleteAccount = (0, catchAsync_1.default)(async (req, res) => {
     });
 });
 const socialLogin = (0, catchAsync_1.default)(async (req, res) => {
-    const { appId, deviceToken } = req.body;
-    const result = await custom_auth_service_1.CustomAuthServices.socialLogin(appId, deviceToken);
+    const { provider, idToken, deviceToken } = req.body;
+    const result = await custom_auth_service_1.CustomAuthServices.socialLogin(provider, idToken, deviceToken);
     const { status, message, accessToken, refreshToken, role } = result;
     res.cookie('refreshToken', refreshToken, {
         secure: process.env.NODE_ENV === 'production',
