@@ -1,6 +1,0 @@
-  @override
-  void onReady() {
-    super.onReady();
-    // Run the subscription popup evaluation logic on app launch/dashboard ready
-    SubscriptionService.to.checkAndShowSubscriptionPopup();
-  }

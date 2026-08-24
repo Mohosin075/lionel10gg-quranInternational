@@ -1,0 +1,235 @@
+# 🏛️ QURAN INTERNATIONAL: EXHAUSTIVE TECHNICAL MASTER BLUEPRINT
+
+---
+
+## 1. Core Architectural Pipeline & Communication
+
+```
+                     ┌──────────────────────────────────────────────┐
+                     │       ADMIN DASHBOARD (React / Next.js)      │
+                     │  • Rich-Text Content Ingestion & Markdown    │
+                     │  • 5 Scholars YouTube Video ID Parser        │
+                     │  • Dynamic Pricing & 14 Benefits Live CMS    │
+                     └──────────────────────┬───────────────────────┘
+                                            │ HTTPS / REST (JWT Auth)
+                                            ▼
+                     ┌──────────────────────────────────────────────┐
+                     │         BACKEND (Node.js / Express / Mongo)  │
+                     │  • Pre-compiled Language Pack Server (.json.gz)│
+                     │  • Stripe Webhooks Engine (€4.99–€24.99, €100)│
+                     │  • AlQuran Cloud & IslamHouse Ingestion      │
+                     └──────────────────────┬───────────────────────┘
+                                            │ One-Time Gzip Stream / REST
+                                            ▼
+                     ┌──────────────────────────────────────────────┐
+                     │           FLUTTER MOBILE CLIENT APP          │
+                     │  • SQLite + FTS5 (B-Tree & Inverted Index)   │
+                     │  • Hive NoSQL Memory-Mapped Cache ($O(1)$)   │
+                     │  • LRU Audio Cache + Positioned Viewport     │
+                     └──────────────────────────────────────────────┘
+
+```
+
+---
+
+## 2. 100+ Language Offline Translation Pipeline
+
+To eliminate live API rate limits (`HTTP 429`), recurring cloud translation billing, and network latency, the app relies on a **Pre-Compiled Language Pack Engine**:
+
+```
+                  [ 100+ Languages Extraction Phase ]
+                                   │
+         ┌─────────────────────────┴─────────────────────────┐
+         ▼                                                   ▼
+[ Quran 114 Surahs ]                                [ Knowledge Library ]
+  • Source: AlQuran Cloud API                         • Source: IslamHouse Multi-Lang[cite: 1]
+  • 109+ Verified Scholar Editions                    • 400+ Articles, 169 Books, Fatwas
+         │                                                   │
+         └─────────────────────────┬─────────────────────────┘
+                                   │
+                                   ▼
+          [ Backend Language Pack Generator (Node.js Script) ]
+            1. Fetch all surahs, ayahs, articles, books, and fatwas
+            2. Validate UTF-8 characters and schema structure
+            3. Apply Gzip compression (ZLIB deflate algorithm)
+            4. Output: `lang_{iso_code}.json.gz` (~1.8 MB per language)
+                                   │
+                                   ▼
+                     [ S3 / CDN Static File Server ]
+                                   │
+                   (User selects language in Flutter UI)
+                                   │
+                                   ▼
+                 [ Flutter Background Sync Engine ]
+            1. Stream `lang_{iso_code}.json.gz` to local disk
+            2. Decompress stream in memory
+            3. Execute `BATCH INSERT` into SQLite within a single transaction
+
+```
+
+### Complexity & Operational Metrics
+
+* **Compression Ratio:** $\approx 75\%$. A 7.5 MB raw text payload compresses to $\approx 1.8\text{ MB}$.
+* **Write Time:** Single-transaction batch insert executes across 6,236 ayahs in $\approx 250\text{ ms}$ ($O(N)$ write).
+* **Read Latency:** $O(1)$ to $O(\log N)$ on-device lookups with zero network dependencies.
+
+---
+
+## 3. Data Structures & Algorithmic Design
+
+| System Module | Storage & Data Structure | Algorithm / Engineering Mechanism | Complexity & Performance |
+| --- | --- | --- | --- |
+| **Quran & Multi-Lang Text** | SQLite Table (Composite PK: `surah_id, ayah_number, lang_code`) | **B-Tree Clustered Indexing** for indexed ayah lookups | Lookup: $O(\log N)$<br>
+
+<br>Disk Space: $O(N)$ |
+| **Multilingual Search** | SQLite **FTS5** Virtual Table | **Inverted Index Trie** with Unicode61 tokenization | Search: $O(K)$ ($K = \text{matched tokens}$)<br>
+
+<br>Space: $O(V)$ ($V = \text{vocab size}$) |
+| **Hasanat Counter** | Hive NoSQL Key-Value Box | **Atomic Integer Accumulator** triggered on surah completion | Read: $O(1)$, Write: $O(1)$<br>
+
+<br>Memory: $O(1)$ |
+| **12–16 Reciters Audio** | HashMap + Doubly LinkedList on local disk | **LRU (Least Recently Used) Cache Eviction Policy** bounded at 500 MB | Cache Hit: $O(1)$, Evict: $O(1)$<br>
+
+<br>Disk: Fixed upper bound ($M$) |
+| **Bookmark & Highlight Jump** | Viewport Indexed Node Array | **Dynamic Index Scrolling** (`ScrollablePositionedList`) to target ayah index | Jump: $O(1)$ layout rendering<br>
+
+<br>Memory: $O(V_p)$ ($V_p = \text{visible items}$) |
+| **5 Scholars Media Hub** | Normalized JSON Video Catalog | **Regex Parser + Controller Pool** to reuse a single active player instance | Parse: $O(L)$ ($L = \text{url length}$)<br>
+
+<br>Memory: $O(1)$ running player |
+
+---
+
+## 4. Complete Platform-by-Platform Feature Breakdown
+
+### A. Flutter Mobile App (Client Layer)
+
+* **Quran Module (100% Free & Offline):**
+* All 114 surahs fully accessible with no paywall or locked chapters (Surah Al-Baqarah completely free).
+* Local SQLite and FTS5 search operational in airplane mode.
+* 12–16 reciter options mapped from `[quran.com/reciters](https://quran.com/reciters)`.
+* **Global Audio Rule:** Voice recitations always execute in original Arabic regardless of selected translation language.
+* Audio files download/cache on first play, enabling offline playback without internet.
+
+
+* **Knowledge Library Reader (3 Sub-Sections):**
+* **Sub-Section 1 (400+ Articles):** Clean HTML/Rich-text articles from IslamHouse.
+
+
+* **Sub-Section 2 (Section 11 - 169 Books):** Dedicated section for 169 IslamHouse books.
+* **Sub-Section 3 (Section 12 - Fatwas):** Dedicated section for 30–39 verified fatwas.
+* Reader interface includes dynamic font resizing, 4-color highlighting (green, yellow, blue, red), bookmarks, and reading progress indicators.
+
+
+* **Islamic Scholars Media Window (5 Channels):**
+* Channels: 1) Sheikh Abu Alia, 2) Sheikh Abul Baraa, 3) Pierre Vogel, 4) One Message Foundation, 5) Alim Hamza.
+* Two distinct tabs per scholar: **Video Lectures** and **Audio Hörreisen** (Audio Travels).
+* In-app YouTube playback without navigating to external apps.
+
+
+* **Prayer Times & Qibla Finder:**
+* GPS auto-detection alongside manual city selection (Vienna, Austria default capability).
+* Magnetometer-driven Qibla compass.
+
+
+* **UI/UX & Verified Bug Fixes:**
+* **Hasanat Counter:** Increments continuously upon every read or recitation without a single-read limit.
+* **Highlights/Bookmark Navigation:** Tapping a marked ayah navigates directly to that specific ayah instead of resetting to the surah start.
+* **Samsung Layout:** Bottom padding adjusted with `SafeArea` to prevent overlapping navigation buttons.
+* **Spelling Adjustments:** Standardized to `Quran` (not Koran), `Milchschwester`, and `könyv`.
+* **Onboarding & Welcome Pop-up:** 5-second Tafsir tutorial on first launch and welcome gift modal for "Akhira Lexicon".
+
+
+
+---
+
+### B. Backend Engine (Node.js / Express / MongoDB / Stripe)
+
+* **Initial Sync Endpoint (`/api/v1/sync/all`):**
+* Delivers optimized JSON dumps containing Quran metadata, baseline translations, and library catalogs on first app launch.
+
+
+* **Static Language Pack CDN Delivery:**
+* Serves pre-compressed `lang_{iso_code}.json.gz` files when users switch languages.
+
+
+* **Stripe Subscription & One-Time Payment Architecture:**
+* **Monthly Tiers:** €4.99, €9.99, €19.99, €24.99.
+* **Annual Tiers:** €34.99, €44.99, €55.99.
+* **One-Time Top Donation:** €100.00 unlocking lifetime full access.
+* **Golden Month:** Enforces a 30-day free trial on recurring subscriptions (`trial_period_days: 30`).
+* Webhook listener updates the user's `isPremium` status upon completed checkout sessions.
+
+
+* **Deep-Link & Routing Engine:**
+* Generates uniform deep links for shared ayahs: `quraninternational://surah/{surahId}/ayah/{ayahNumber}`.
+* Serves client contact address: `gabipeter2002@gmail.com`.
+
+
+
+---
+
+### C. Admin Dashboard (React / Next.js Management CMS)
+
+* **Knowledge Library CMS:**
+* Rich-Text/HTML editor to create, edit, and organize 400+ articles, 169 books (Section 11), and 30–39 fatwas (Section 12).
+* Multi-language tagging across all content entries.
+
+
+* **Scholars Channel CMS:**
+* URL input field that extracts and validates YouTube `Video ID` values, categorizing entries into `Video Lectures` or `Audio Hörreisen`.
+
+
+* **Dynamic Pricing & Benefits Manager:**
+* Interface to manage and reorder the 14 subscription benefit lines dynamically.
+* Configurator to sync Stripe recurring `Price IDs` and the €100 one-time donation package.
+
+
+* **App Communications:**
+* Push notification broadcast system and Daily Inspiration quote manager.
+
+
+
+---
+
+## 5. Implementation Roadmap
+
+```
+[ Sprint 1: Backend Sync Engine & DB ] ──► [ Sprint 2: Flutter SQLite & Offline Cache ]
+                                                                 │
+[ Sprint 4: Admin CMS & Release QA ]   ◄── [ Sprint 3: Library Reader & Media Hub ]
+
+```
+
+1. **Sprint 1 (Backend & Data Layer):** Set up MongoDB schemas, build the Gzip compression pipeline for 100+ language packs, and configure Stripe pricing webhooks.
+2. **Sprint 2 (Flutter Core & Offline Reliability):** Initialize SQLite with FTS5 indexing, implement LRU audio caching, configure Hive atomic counters, and apply UI safe-area and navigation fixes.
+3. **Sprint 3 (Library Reader & Media Player):** Build the 3-section virtualized reader view, integrate the in-app YouTube player for 5 scholars, and connect dynamic pricing.
+4. **Sprint 4 (Admin Dashboard & Offline QA):** Finalize the React CMS, run airplane-mode validation to verify offline functionality against marketing claims, and generate the testing APK.
+
+
+extra
+
+"Thanks, what I also wanted to say is that the notification button cannot be turned off." (নোটিফিকেশন অন/অফ করার বাটন কাজ করে না)।
+কোড চেক ও গ্যাপ বিশ্লেষণ:
+
+
+settings_screen.dart
+ ফাইলে সেটিংস অপশনগুলোর রেন্ডারিং লুপটি কোনো Obx বা রিঅ্যাক্টিভ উইজেট দ্বারা র্যাপ করা নেই।
+ফলে, যখন ইউজার সুইচ বাটনে ট্যাপ করেন, তখন কন্ট্রোলারে notificationsEnabled.value আপডেট হলেও স্ক্রিন রি-বিল্ড হয় না। এই কারণে সুইচটি দেখতে সবসময় অন-ই দেখায় (অফ হয় না)। এটি একটি ফিজিক্যাল ইউজার ইন্টারফেস বাগ যা ব্লুপ্রিন্টে উল্লেখ নেই কিন্তু অ্যাপে রয়েছে।
+"Please divide the Dua section in such a way that when you click on it, you can scroll down... and it should look somewhat like the Knowledge Library to make it more orderly." (দোয়া সেকশনটি যেন নলেজ লাইব্রেরির মতো গোছানো এবং স্ক্রল করে ক্যাটাগরি আকারে পড়া যায়)।
+মাস্টার ব্লুপ্রিন্ট ও কোড গ্যাপ:
+নতুন টেকনিক্যাল ব্লুপ্রিন্টের ৪.A সেকশনে ফ্লটার অ্যাপের মডিউল লিস্ট থেকে Dua Section বা এর রি-ডিজাইন সম্পর্কিত মেকানিজমটি সম্পূর্ণ বাদ পড়েছে।
+
+
+
+"Unfortunately, the Daily Inspiration button also doesn't work :/"
+কোড চেক ও গ্যাপ বিশ্লেষণ:
+
+
+search_screen.dart
+-এ Daily Inspiration কার্ডের ডিজাইন উইজেট (লাইন ৭২৫–৮১০) চেক করেছি।
+এখানে পুরো কার্ডটি ক্লিকেবল নয়। কার্ডের ভেতরের টেক্সট বা ব্যাকগ্রাউন্ডে ট্যাপ করলে কিছুই হয় না। শুধুমাত্র নিচে থাকা ছোট বাটনটিতে (যেমন: "EXPLORE SURAH AL-INSHIRAH") নির্দিষ্ট করে ট্যাপ করলে আয়াত ওপেন হয়। সাধারণ ইউজাররা কার্ডের যেকোনো জায়গায় ট্যাপ করে আয়াত ওপেন করতে চান, তাই তাদের মনে হয়েছে বাটনটি কাজ করছে না।
+
+
+
+
