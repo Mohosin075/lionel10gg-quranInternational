@@ -26,7 +26,7 @@ const syncFromGlobalApi = async (edition: string, fromHadith: number, toHadith: 
 
   for (let i = fromHadith; i <= toHadith; i++) {
     try {
-      const engUrl = `https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/${edition}/${i}.json`;
+      const engUrl = `https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/editions/${edition}/${i}.json`;
       const engRes = await axios.get(engUrl);
       
       if (!engRes.data || !engRes.data.hadiths || engRes.data.hadiths.length === 0) {
@@ -40,7 +40,7 @@ const syncFromGlobalApi = async (edition: string, fromHadith: number, toHadith: 
 
       let arabicText = 'Arabic text unavailable online';
       try {
-        const araUrl = `https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/${arabEdition}/${i}.json`;
+        const araUrl = `https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/editions/${arabEdition}/${i}.json`;
         const araRes = await axios.get(araUrl);
         if (araRes.data && araRes.data.hadiths && araRes.data.hadiths.length > 0) {
           arabicText = araRes.data.hadiths[0].text;
@@ -178,9 +178,9 @@ const getSyncData = async (
   if (existing === 0) {
     const totalEnglish = await Hadith.countDocuments({ lang: 'en' })
     if (totalEnglish === 0) {
-      console.log('[HadithService] download-sync empty — seeding Bukhari 1-100 + Muslim 1-50...')
-      await syncFromGlobalApi('eng-bukhari', 1, 100)
-      await syncFromGlobalApi('eng-muslim', 1, 50)
+      console.log('[HadithService] download-sync empty — seeding Bukhari 1-500 + Muslim 1-250...')
+      await syncFromGlobalApi('eng-bukhari', 1, 500)
+      await syncFromGlobalApi('eng-muslim', 1, 250)
     }
     if (lang !== 'en') {
       await getOrSyncHadithsByLanguage(lang)
