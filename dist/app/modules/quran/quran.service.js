@@ -7,6 +7,9 @@ exports.QuranServices = void 0;
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable prefer-const */
 const axios_1 = __importDefault(require("axios"));
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
+const zlib_1 = __importDefault(require("zlib"));
 const quran_model_1 = require("./quran.model");
 const quran_worker_1 = require("./quran.worker");
 const quran_constants_1 = require("./quran.constants");
@@ -346,6 +349,53 @@ const getSyncData = async (translationKey, fromVersion = 0, page = 1, limit = 50
         },
     };
 };
+const getGzippedLanguagePack = async (translationKey) => {
+    const latestVersion = await getTranslationVersion(translationKey);
+    const dirPath = path_1.default.join(process.cwd(), 'uploads/lang-packs');
+    if (!fs_1.default.existsSync(dirPath)) {
+        fs_1.default.mkdirSync(dirPath, { recursive: true });
+    }
+    const filePath = path_1.default.join(dirPath, `lang_${translationKey}_v${latestVersion}.json.gz`);
+    // Check if cached file exists
+    if (fs_1.default.existsSync(filePath)) {
+        return filePath;
+    }
+    // Fetch from Mongo
+    let data = await quran_model_1.Translation.find({ edition: translationKey }).sort({ surah: 1, ayah: 1 }).lean();
+    // Ingest if empty
+    if (data.length === 0) {
+        const langInfo = await quran_model_1.Language.findOne({ key: translationKey });
+        await (0, quran_worker_1.syncLanguage)(translationKey, langInfo === null || langInfo === void 0 ? void 0 : langInfo.language);
+        data = await quran_model_1.Translation.find({ edition: translationKey }).sort({ surah: 1, ayah: 1 }).lean();
+    }
+    const rows = data.map(item => ({
+        surah: item.surah,
+        number: item.ayah,
+        text: item.arabicText || '',
+        translation: item.text || '',
+        footnotes: item.footnotes || '',
+        audio: resolveAudioUrl(item.surah, item.ayah),
+        edition: item.edition,
+        lang: item.lang,
+        version: item.version,
+    }));
+    const jsonStr = JSON.stringify(rows);
+    const compressed = zlib_1.default.gzipSync(jsonStr);
+    fs_1.default.writeFileSync(filePath, compressed);
+    // Clean up older versions
+    try {
+        const files = fs_1.default.readdirSync(dirPath);
+        for (const file of files) {
+            if (file.startsWith(`lang_${translationKey}_v`) &&
+                file.endsWith('.json.gz') &&
+                file !== `lang_${translationKey}_v${latestVersion}.json.gz`) {
+                fs_1.default.unlinkSync(path_1.default.join(dirPath, file));
+            }
+        }
+    }
+    catch (_) { }
+    return filePath;
+};
 const syncEdition = async (edition) => {
     // Run in background
     (0, quran_worker_1.syncLanguage)(edition);
@@ -367,5 +417,6 @@ exports.QuranServices = {
     checkSyncMetadata,
     getSyncData,
     syncEdition,
-    syncAll
+    syncAll,
+    getGzippedLanguagePack
 };

@@ -44,5 +44,10 @@ router.get(
   validateRequest(QuranValidations.downloadSyncValidationSchema),
   QuranController.downloadSync
 );
+router.get(
+  '/sync/download-pack',
+  validateRequest(QuranValidations.downloadSyncValidationSchema),
+  QuranController.downloadPack
+);
 
 export const QuranRoutes = router;

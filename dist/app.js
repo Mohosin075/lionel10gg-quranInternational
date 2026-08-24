@@ -59,6 +59,7 @@ const morgan_1 = __importDefault(require("morgan"));
 app.use((0, morgan_1.default)('dev'));
 // Public profile images only. Documents and media stay off the public web root.
 app.use('/images', express_1.default.static(path_1.default.join(process.cwd(), 'uploads/images')));
+app.use('/lang-packs', express_1.default.static(path_1.default.join(process.cwd(), 'uploads/lang-packs')));
 // -------------------- API Routes --------------------
 app.get('/', (req, res) => {
     res.status(http_status_codes_1.StatusCodes.OK).json({

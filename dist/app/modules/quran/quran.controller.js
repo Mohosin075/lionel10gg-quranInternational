@@ -149,6 +149,11 @@ const getReciters = (0, catchAsync_1.default)(async (req, res) => {
         data: quran_constants_1.POPULAR_RECITERS,
     });
 });
+const downloadPack = (0, catchAsync_1.default)(async (req, res) => {
+    const { edition } = req.query;
+    const filePath = await quran_service_1.QuranServices.getGzippedLanguagePack(edition);
+    res.sendFile(filePath);
+});
 exports.QuranController = {
     getLanguages,
     getSurahs,
@@ -160,5 +165,6 @@ exports.QuranController = {
     syncLanguages,
     checkSync,
     downloadSync,
-    getReciters
+    getReciters,
+    downloadPack
 };

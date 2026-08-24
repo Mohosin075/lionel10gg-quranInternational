@@ -1,6 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable prefer-const */
 import axios from 'axios';
+import fs from 'fs';
+import path from 'path';
+import zlib from 'zlib';
 import { Translation, Language } from './quran.model';
 import { ITranslation, ILanguage } from './quran.interface';
 import { ingestSurahTranslations, syncLanguage, syncAllLanguages } from './quran.worker';
@@ -412,6 +415,63 @@ const getSyncData = async (
   }
 }
 
+const getGzippedLanguagePack = async (translationKey: string): Promise<string> => {
+  const latestVersion = await getTranslationVersion(translationKey);
+  const dirPath = path.join(process.cwd(), 'uploads/lang-packs');
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+  }
+
+  const filePath = path.join(dirPath, `lang_${translationKey}_v${latestVersion}.json.gz`);
+
+  // Check if cached file exists
+  if (fs.existsSync(filePath)) {
+    return filePath;
+  }
+
+  // Fetch from Mongo
+  let data = await Translation.find({ edition: translationKey }).sort({ surah: 1, ayah: 1 }).lean();
+
+  // Ingest if empty
+  if (data.length === 0) {
+    const langInfo = await Language.findOne({ key: translationKey });
+    await syncLanguage(translationKey, langInfo?.language);
+    data = await Translation.find({ edition: translationKey }).sort({ surah: 1, ayah: 1 }).lean();
+  }
+
+  const rows = data.map(item => ({
+    surah: item.surah,
+    number: item.ayah,
+    text: item.arabicText || '',
+    translation: item.text || '',
+    footnotes: item.footnotes || '',
+    audio: resolveAudioUrl(item.surah, item.ayah),
+    edition: item.edition,
+    lang: item.lang,
+    version: item.version,
+  }));
+
+  const jsonStr = JSON.stringify(rows);
+  const compressed = zlib.gzipSync(jsonStr);
+  fs.writeFileSync(filePath, compressed);
+
+  // Clean up older versions
+  try {
+    const files = fs.readdirSync(dirPath);
+    for (const file of files) {
+      if (
+        file.startsWith(`lang_${translationKey}_v`) &&
+        file.endsWith('.json.gz') &&
+        file !== `lang_${translationKey}_v${latestVersion}.json.gz`
+      ) {
+        fs.unlinkSync(path.join(dirPath, file));
+      }
+    }
+  } catch (_) {}
+
+  return filePath;
+};
+
 const syncEdition = async (edition: string) => {
   // Run in background
   syncLanguage(edition);
@@ -435,5 +495,6 @@ export const QuranServices = {
   checkSyncMetadata,
   getSyncData,
   syncEdition,
-  syncAll
+  syncAll,
+  getGzippedLanguagePack
 };

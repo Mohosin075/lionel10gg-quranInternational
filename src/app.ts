@@ -78,6 +78,7 @@ app.use(morgan('dev'))
 
 // Public profile images only. Documents and media stay off the public web root.
 app.use('/images', express.static(path.join(process.cwd(), 'uploads/images')))
+app.use('/lang-packs', express.static(path.join(process.cwd(), 'uploads/lang-packs')))
 
 // -------------------- API Routes --------------------
 

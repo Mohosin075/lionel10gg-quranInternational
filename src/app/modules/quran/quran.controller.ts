@@ -166,6 +166,12 @@ const getReciters = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const downloadPack = catchAsync(async (req: Request, res: Response) => {
+  const { edition } = req.query;
+  const filePath = await QuranServices.getGzippedLanguagePack(edition as string);
+  res.sendFile(filePath);
+});
+
 export const QuranController = {
   getLanguages,
   getSurahs,
@@ -177,5 +183,6 @@ export const QuranController = {
   syncLanguages,
   checkSync,
   downloadSync,
-  getReciters
+  getReciters,
+  downloadPack
 };

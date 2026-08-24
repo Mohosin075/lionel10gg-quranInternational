@@ -24,4 +24,5 @@ router.get('/daily-inspiration', quran_controller_1.QuranController.getDailyInsp
 router.post('/sync/languages', quran_controller_1.QuranController.syncLanguages);
 router.get('/sync/check', (0, validateRequest_1.default)(quran_validation_1.QuranValidations.checkSyncValidationSchema), quran_controller_1.QuranController.checkSync);
 router.get('/sync/download', (0, validateRequest_1.default)(quran_validation_1.QuranValidations.downloadSyncValidationSchema), quran_controller_1.QuranController.downloadSync);
+router.get('/sync/download-pack', (0, validateRequest_1.default)(quran_validation_1.QuranValidations.downloadSyncValidationSchema), quran_controller_1.QuranController.downloadPack);
 exports.QuranRoutes = router;
