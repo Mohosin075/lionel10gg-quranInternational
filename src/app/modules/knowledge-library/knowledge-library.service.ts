@@ -1,36 +1,90 @@
-import { KnowledgeArticle } from './knowledge-library.model';
+﻿import { KnowledgeArticle } from './knowledge-library.model';
 import { KnowledgeBook } from './knowledge-book.model';
 import { KnowledgeFatwa } from './knowledge-fatwa.model';
 import { IKnowledgeArticle, IKnowledgeBook, IKnowledgeFatwa } from './knowledge-library.interface';
 import { TranslationHelper } from '../../../helpers/translationHelper';
 
+const CATEGORY_MAP: Record<string, string[]> = {
+  'probleme der heutigen zeit': ['Belief', 'Ethics', 'Fiqh', 'Dawah', 'Worship'],
+  'problems of today': ['Belief', 'Ethics', 'Fiqh', 'Dawah', 'Worship'],
+  'charakter & reinigung der seele': ['Ethics', 'Belief', 'Charakter'],
+  'character & soul': ['Ethics', 'Belief', 'Charakter'],
+  'gute taten & spirituelles wachstum': ['Worship', 'Ethics', 'Belief'],
+  'good deeds & spiritual growth': ['Worship', 'Ethics', 'Belief'],
+  'geschichten & lehren': ['History', 'Hadith', 'Quran'],
+  'stories & lessons': ['History', 'Hadith', 'Quran'],
+  'biographien der rechtschaffenen': ['History', 'Hadith', 'Prophet'],
+  'biographies of the righteous': ['History', 'Hadith', 'Prophet'],
+  'beziehungen, ehe & familie': ['Family', 'Ethics'],
+  'relationships, marriage & family': ['Family', 'Ethics'],
+  'jugend, motivation & disziplin': ['Ethics', 'Belief', 'Worship'],
+  'youth, motivation & discipline': ['Ethics', 'Belief', 'Worship'],
+  'herz, emotionen & mentale kämpfe': ['Belief', 'Ethics'],
+  'mental & emotional struggles': ['Belief', 'Ethics'],
+  'dunya, geld & moderne gesellschaft': ['Belief', 'Ethics', 'Fiqh'],
+  'dunya, wealth & modern society': ['Belief', 'Ethics', 'Fiqh'],
+  'quran, dua & verbindung zu allah': ['Quran', 'Worship', 'Hadith'],
+  'quran, dua & connection to allah': ['Quran', 'Worship', 'Hadith'],
+};
+
 const getAllArticles = async (
-  lang: string = 'de', // Default to German per spec
+  lang: string = 'de',
   category?: string,
   page: number = 1,
   limit: number = 10,
 ) => {
   const skip = (page - 1) * limit;
 
-  const baseQuery: Record<string, any> = { lang: 'de', isActive: true };
-  if (category) {
-    const categoryRegex = new RegExp(category.trim(), 'i');
-    baseQuery.category = { $regex: categoryRegex };
+  // 1. Language check: if articles exist in requested lang use it, else fallback to any active
+  let langFilter: Record<string, any> = {};
+  const hasRequestedLang = await KnowledgeArticle.countDocuments({ lang, isActive: true });
+  if (hasRequestedLang > 0) {
+    langFilter = { lang };
+  } else {
+    const hasGerman = await KnowledgeArticle.countDocuments({ lang: 'de', isActive: true });
+    if (hasGerman > 0) {
+      langFilter = { lang: 'de' };
+    }
   }
 
-  const total = await KnowledgeArticle.countDocuments(baseQuery);
-  const data = await KnowledgeArticle.find(baseQuery)
+  const baseQuery: Record<string, any> = { ...langFilter, isActive: true };
+
+  if (category && category.trim().length > 0) {
+    const normalized = category.trim().toLowerCase();
+    const mappedTopics = CATEGORY_MAP[normalized] || [];
+    const categoryRegex = new RegExp(category.trim(), 'i');
+
+    const orConditions: Record<string, any>[] = [{ category: { $regex: categoryRegex } }];
+    if (mappedTopics.length > 0) {
+      orConditions.push({ category: { $in: mappedTopics } });
+    }
+    baseQuery.$or = orConditions;
+  }
+
+  let total = await KnowledgeArticle.countDocuments(baseQuery);
+  let data = await KnowledgeArticle.find(baseQuery)
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit)
     .lean();
+
+  // If specific category filter produced 0, fallback to returning all active articles so user never gets stuck
+  if (total === 0 && category) {
+    const fallbackQuery = { ...langFilter, isActive: true };
+    total = await KnowledgeArticle.countDocuments(fallbackQuery);
+    data = await KnowledgeArticle.find(fallbackQuery)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+  }
 
   return {
     meta: {
       page,
       limit,
       total,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.max(1, Math.ceil(total / limit)),
     },
     data,
   };
@@ -59,7 +113,7 @@ const deleteArticle = async (id: string) => {
 };
 
 const getVersion = async (lang: string = 'de') => {
-  const latest = await KnowledgeArticle.findOne({ lang: 'de' })
+  const latest = await KnowledgeArticle.findOne({ isActive: true })
     .sort({ version: -1 })
     .select('version');
   return latest?.version || 1;
@@ -76,9 +130,9 @@ const checkSyncMetadata = async (lang: string = 'de', clientVersion: number) => 
 };
 
 const clampSyncLimit = (limit: number) => {
-  const n = Number(limit) || 500
-  return Math.min(Math.max(n, 1), 1000)
-}
+  const n = Number(limit) || 500;
+  return Math.min(Math.max(n, 1), 1000);
+};
 
 const getSyncData = async (
   lang: string = 'de',
@@ -86,17 +140,24 @@ const getSyncData = async (
   page: number = 1,
   limit: number = 500,
 ) => {
-  const safeLimit = clampSyncLimit(limit)
-  const safePage = Math.max(Number(page) || 1, 1)
-  const skip = (safePage - 1) * safeLimit
+  const safeLimit = clampSyncLimit(limit);
+  const safePage = Math.max(Number(page) || 1, 1);
+  const skip = (safePage - 1) * safeLimit;
 
-  const baseQuery = { lang: 'de', isActive: true, version: { $gt: fromVersion } }
-  const total = await KnowledgeArticle.countDocuments(baseQuery)
+  // If requested lang has articles use it, else fallback to all active
+  let langQuery: Record<string, any> = {};
+  const hasLang = await KnowledgeArticle.countDocuments({ lang, isActive: true, version: { $gt: fromVersion } });
+  if (hasLang > 0) {
+    langQuery = { lang };
+  }
+
+  const baseQuery = { ...langQuery, isActive: true, version: { $gt: fromVersion } };
+  const total = await KnowledgeArticle.countDocuments(baseQuery);
   const data = await KnowledgeArticle.find(baseQuery)
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(safeLimit)
-    .lean()
+    .lean();
 
   return {
     data,
@@ -106,8 +167,8 @@ const getSyncData = async (
       total,
       totalPages: Math.max(1, Math.ceil(total / safeLimit)),
     },
-  }
-}
+  };
+};
 
 // Automatic dynamic translation helper from German (de) to target language
 const getOrSyncArticlesByLanguage = async (targetLang: string, articlesList?: any[]) => {
@@ -118,7 +179,6 @@ const getOrSyncArticlesByLanguage = async (targetLang: string, articlesList?: an
 
   const results: IKnowledgeArticle[] = [];
   
-  // Find all existing translated articles for targetLang matching base article IDs
   const articleIds = baseArticles.map(a => a.articleId);
   const existingArticles = await KnowledgeArticle.find({ lang: targetLang, articleId: { $in: articleIds } }).lean();
   const existingMap = new Map(existingArticles.map(a => [a.articleId, a]));
@@ -162,7 +222,7 @@ const getOrSyncArticlesByLanguage = async (targetLang: string, articlesList?: an
           audioUrl: article.audioUrl,
           lang: targetLang,
           source: article.source || 'manual',
-          version: article.version, // Keep version aligned with German base
+          version: article.version,
           isActive: article.isActive,
         };
 
@@ -190,11 +250,22 @@ const getOrSyncArticlesByLanguage = async (targetLang: string, articlesList?: an
 const getAllBooks = async (
   lang: string = 'de',
   page: number = 1,
-  limit: number = 10,
+  limit: number = 50,
 ) => {
   const skip = (page - 1) * limit;
 
-  const baseQuery = { lang: 'de', isActive: true };
+  let langFilter: Record<string, any> = {};
+  const hasLang = await KnowledgeBook.countDocuments({ lang, isActive: true });
+  if (hasLang > 0) {
+    langFilter = { lang };
+  } else {
+    const hasGerman = await KnowledgeBook.countDocuments({ lang: 'de', isActive: true });
+    if (hasGerman > 0) {
+      langFilter = { lang: 'de' };
+    }
+  }
+
+  const baseQuery = { ...langFilter, isActive: true };
   const total = await KnowledgeBook.countDocuments(baseQuery);
   const data = await KnowledgeBook.find(baseQuery)
     .sort({ createdAt: -1 })
@@ -207,7 +278,7 @@ const getAllBooks = async (
       page,
       limit,
       total,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.max(1, Math.ceil(total / limit)),
     },
     data,
   };
@@ -253,16 +324,16 @@ const getOrSyncBooksByLanguage = async (targetLang: string, booksList?: any[]) =
 
   if (booksToTranslate.length === 0) return;
 
-  console.log(`[KnowledgeService] Translating ${booksToTranslate.length} books to: ${targetLang}...`)
+  console.log(`[KnowledgeService] Translating ${booksToTranslate.length} books to: ${targetLang}...`);
   for (const book of booksToTranslate) {
     try {
-      const title = await TranslationHelper.translateText(book.title, targetLang, 'de')
-      await TranslationHelper.sleep(200)
-      const content = await TranslationHelper.translateText(book.content, targetLang, 'de')
-      await TranslationHelper.sleep(200)
+      const title = await TranslationHelper.translateText(book.title, targetLang, 'de');
+      await TranslationHelper.sleep(200);
+      const content = await TranslationHelper.translateText(book.content, targetLang, 'de');
+      await TranslationHelper.sleep(200);
       const author = book.author
         ? await TranslationHelper.translateText(book.author, targetLang, 'de')
-        : book.author
+        : book.author;
 
       await KnowledgeBook.findOneAndUpdate(
         { bookId: book.bookId, lang: targetLang },
@@ -279,12 +350,12 @@ const getOrSyncBooksByLanguage = async (targetLang: string, booksList?: any[]) =
           },
         },
         { upsert: true },
-      )
+      );
     } catch (err) {
-      console.error(`Translation failed for book ${book.bookId}:`, err)
+      console.error(`Translation failed for book ${book.bookId}:`, err);
     }
   }
-}
+};
 
 // ==========================================
 // FATWAS SERVICES
@@ -292,11 +363,22 @@ const getOrSyncBooksByLanguage = async (targetLang: string, booksList?: any[]) =
 const getAllFatwas = async (
   lang: string = 'de',
   page: number = 1,
-  limit: number = 10,
+  limit: number = 50,
 ) => {
   const skip = (page - 1) * limit;
 
-  const baseQuery = { lang: 'de', isActive: true };
+  let langFilter: Record<string, any> = {};
+  const hasLang = await KnowledgeFatwa.countDocuments({ lang, isActive: true });
+  if (hasLang > 0) {
+    langFilter = { lang };
+  } else {
+    const hasGerman = await KnowledgeFatwa.countDocuments({ lang: 'de', isActive: true });
+    if (hasGerman > 0) {
+      langFilter = { lang: 'de' };
+    }
+  }
+
+  const baseQuery = { ...langFilter, isActive: true };
   const total = await KnowledgeFatwa.countDocuments(baseQuery);
   const data = await KnowledgeFatwa.find(baseQuery)
     .sort({ createdAt: -1 })
@@ -309,7 +391,7 @@ const getAllFatwas = async (
       page,
       limit,
       total,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.max(1, Math.ceil(total / limit)),
     },
     data,
   };
@@ -355,13 +437,13 @@ const getOrSyncFatwasByLanguage = async (targetLang: string, fatwasList?: any[])
 
   if (fatwasToTranslate.length === 0) return;
 
-  console.log(`[KnowledgeService] Translating ${fatwasToTranslate.length} fatwas to: ${targetLang}...`)
+  console.log(`[KnowledgeService] Translating ${fatwasToTranslate.length} fatwas to: ${targetLang}...`);
   for (const fatwa of fatwasToTranslate) {
     try {
-      const question = await TranslationHelper.translateText(fatwa.question, targetLang, 'de')
-      await TranslationHelper.sleep(200)
-      const answer = await TranslationHelper.translateText(fatwa.answer, targetLang, 'de')
-      await TranslationHelper.sleep(200)
+      const question = await TranslationHelper.translateText(fatwa.question, targetLang, 'de');
+      await TranslationHelper.sleep(200);
+      const answer = await TranslationHelper.translateText(fatwa.answer, targetLang, 'de');
+      await TranslationHelper.sleep(200);
 
       await KnowledgeFatwa.findOneAndUpdate(
         { fatwaId: fatwa.fatwaId, lang: targetLang },
@@ -377,12 +459,12 @@ const getOrSyncFatwasByLanguage = async (targetLang: string, fatwasList?: any[])
           },
         },
         { upsert: true },
-      )
+      );
     } catch (err) {
-      console.error(`Translation failed for fatwa ${fatwa.fatwaId}:`, err)
+      console.error(`Translation failed for fatwa ${fatwa.fatwaId}:`, err);
     }
   }
-}
+};
 
 export const KnowledgeLibraryServices = {
   getAllArticles,
