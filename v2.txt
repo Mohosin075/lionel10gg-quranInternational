@@ -1,0 +1,442 @@
+Hello Rahul, these two buttons do not work: sharing and copying
+
+Quran International
+Required Fixes and Changes
+Hello,
+Please review and fix the following issues in the Quran International app. Some of these issues are
+very important and should be tested carefully after they have been fixed.
+1. Hadiths after Sahih al-Bukhari are not loading
+The other Hadith collections after Sahih al-Bukhari are either not loading or may not be available at
+all.
+Please check all Hadith collections and make sure that all available Hadiths are properly loaded and
+accessible.
+2. Download function for Sheikh videos
+In the Sheikh section, videos cannot currently be downloaded.
+Please add a download function so users can download the available Sheikh videos for offline
+viewing.
+3. Incorrect content in the Books category in German
+In the Library fi Books category, there are strange texts and content that do not make sense when
+the app language is set to German.
+Please review and correct the German content and translations in this category.
+4. App freezes when opening or reading books
+The app often freezes or hangs when trying to open and read a book in the Books category, even
+when using a strong and stable internet connection.
+Please investigate and fix the loading/performance issue.
+5. Knowledge Library should be available in 100+ languages
+The Knowledge Library should be available in all languages supported by the Quran International
+app.
+Currently, the Knowledge Library is only available in approximately three languages.
+Please make the Knowledge Library available in 100+ languages, matching all available app
+languages where possible.
+6. Error when scrolling in Books and Fatwas
+There is an error/crash problem when scrolling in the following Library categories:
+• Books
+• Fatwas
+I will send you a screenshot showing the issue.
+Please investigate the scrolling error and fix it.
+7. Prayer times are incorrect
+The prayer times displayed in the Quran International app are not correct and can differ significantly
+from the correct prayer times, in some cases by up to approximately one hour.
+Please compare the prayer times with the correct calculation and settings. I will provide screenshots
+comparing Quran International with the Islamic Center.
+This is very important and needs to be corrected.
+Please also make sure that the correct location, calculation method, time zone, daylight saving time,
+and prayer time adjustments are being applied correctly.
+8. Remove or correct the welcome gift popup
+When opening/downloading the app, there is a popup saying that the book "Al Akhira" is a welcome
+gift.
+Unfortunately, I do not currently have this book available.
+Therefore, please either:
+1. Remove the welcome gift popup completely, or
+2. Keep it only if the book can actually be provided and downloaded from IslamHouse.
+Please do not show users a welcome gift that is not actually available.
+9. Incorrect spelling of the red highlight color
+The name/spelling of the red color in the Highlights/Markings section is incorrect.
+Please correct it. I will provide a screenshot.
+10. Change the app icon/logo
+The current app icon/logo still needs to be changed to the official Quran International logo.
+Please update the app icon accordingly.
+11. Surah Al-Fatiha Hungarian translation is incorrect
+When the app language is set to Hungarian, the translation of Surah Al-Fatiha is displayed in English
+instead of Hungarian.
+The other Surahs are already translated into Hungarian.
+Please correct Surah Al-Fatiha so that the Hungarian translation is displayed correctly.
+12. Remove 'Saddaqa Allahul Adhem' from every Surah
+Please remove the sentence:
+"Saddaqa Allahul Adhem"
+from the bottom of every Surah.
+It should no longer appear at the end of the Surahs.
+13. Tafsir often does not load
+The Tafsir often does not load, and the app displays a message saying that it is unavailable or not
+available.
+Please check all Tafsir sources and fix the loading issue.
+Tafsir should load reliably whenever it is available.
+14. Subscription and payment options
+There are currently too many payment amounts displayed.
+Please make sure there are exactly the following payment options:
+Monthly Subscriptions
+• €3.99 per month
+• €6.99 per month
+• €9.99 per month
+Yearly Subscriptions
+• €34.99 per year
+• €44.99 per year
+• €54.99 per year
+Lifetime Option
+• €100 one-time payment
+• Unlock all app features for lifetime
+Please remove any additional or duplicate payment options.
+15. Search categories are not loading correctly
+In the Search section (the second tab/field from the left after the Quran section), some search topics
+do not work.
+The following categories currently do not load any content:
+• Guidance
+• Forgiveness
+• History
+• Patience
+However, the following categories work correctly:
+• Charity
+• Faith
+Please investigate why some search categories do not load and make sure that all search topics work
+correctly.
+I will provide a screenshot.
+16. Hasanat counter displays incorrect and changing numbers
+There is an important problem with the Hasanat counter.
+The displayed numbers are sometimes incorrect.
+For example, with Surah Al-Falaq, the Hasanat amount can display one number the first time. After
+collecting the Hasanat and trying again, a different number may appear.
+The numbers should remain correct and consistent.
+Please:
+• Check the Hasanat calculation system.
+• Make sure the correct number is displayed.
+• Make sure the numbers do not randomly change after collecting Hasanat.
+• Check all Surahs individually to make sure the calculations are correct.
+• Make sure the reward/counting logic is consistent.
+This issue is very important.
+If the calculation is slightly lower than expected, that is acceptable, but the numbers must be
+technically correct and should not randomly change.
+17. Selected Quran reciter does not apply immediately
+When selecting a Quran reciter, the newly selected reciter does not work immediately.
+Currently, the user has to:
+1. Select a reciter.
+2. Leave the Quran section/app page.
+3. Go back again.
+4. Then the selected reciter works correctly.
+This should be changed.
+When a user selects a reciter, the selection should apply immediately and the newly selected reciter
+should be playable instantly without leaving and reopening the Quran section.
+Please fix this as it is very important for the user experience.
+18. Improve the Quran International registration email
+The Quran International registration/verification email needs to be improved.
+Please make the following changes:
+• Add a small Quran International logo where it currently says "Company Logo".
+• Improve and optimize the overall email design and wording.
+• Make sure the email is properly configured and authenticated so that it does not go into the Spam
+folder.
+• Please check the email sending configuration carefully, including SPF, DKIM, and DMARC
+authentication if applicable.
+• Add a short sentence telling users to also check their Spam/Junk folder if they cannot find the email.
+I registered in the app, and the email was delivered to my Spam folder with a warning that the email
+might be dangerous.
+This needs to be fixed urgently because users may not trust the registration email.
+This is very important.
+19. Qibla direction is sometimes incorrect
+The Qibla direction is not always accurate.
+Sometimes it points in the correct direction, but sometimes it points incorrectly.
+Please investigate the compass, location, and Qibla calculation.
+The direction should remain accurate and stable.
+Please also make sure that the compass calibration and device sensor data are handled correctly.
+20. Adhan sound button in Settings does not work
+The bell button in Settings, located in the top-right corner, does not currently work and does not
+display anything when pressed.
+When the user presses the button, a popup/window should appear showing the available Adhan
+sounds.
+The user should then be able to:
+• View the available Adhan sounds.
+• Select an Adhan sound.
+• Preview/play the Adhan sound.
+Please fix the button and make sure the Adhan sound selection popup works correctly.
+21. Previous/Next Adhan sound buttons do not work
+In the Adhan Sound section, there are two white navigation buttons next to the Play button.
+These buttons currently do not work correctly.
+When the user presses them:
+• The previous button should select and play the previous Adhan sound.
+• The next button should select and play the next Adhan sound.
+Please fix these buttons and make sure users can easily switch between Adhan sounds and preview
+them.
+I will provide a screenshot showing the issue.
+Final Request
+Please carefully review all 21 points and test every issue after making the corrections.
+For the issues where I mentioned screenshots, I will send the screenshots separately so you can
+identify the exact problem.
+Please especially prioritize:
+1. Prayer time accuracy.
+2. Hasanat counter calculations.
+3. Qibla direction accuracy.
+4. Quran reciter selection applying immediately.
+5. Tafsir and Hadith loading.
+6. Books and Fatwas scrolling/loading errors.
+7. Email security, authentication, and Spam folder problems.
+8. Adhan sound selection and navigation buttons.
+Thank you
+
+
+
+
+And the duas should be arranged more beautifully, like in Muslim Pro, in a vertical table,
+approximately as follows:
+1) Dua upon entering the toilet
+2) Dua upon leaving the toilet
+And in the dua section, there should be boxes like in the library that summarize all the duas,
+depending on how many boxes are needed—2, 3, 4, or IO—each box containing the correct dua
+categories, for example, a box with duas for worries & problems
+2 boxes (blocks) for dua before sleeping
+
+
+everything functions perfectly- Regarding the library, all languages should be supported in the app,
+meaning the library should be available in every language of the app, over 100 languages. This would
+be very important and a strong unique feature of the app, Inshallah.
+
+Quran International – Library Language
+Availability
+Hello,
+Please make an important change to the Quran International app regarding the Library
+section.
+Required Change
+The entire Library should be available in all languages supported by the Quran
+International app.
+The app supports more than 100 languages; therefore, the Library should also be available in
+these 100+ languages.
+Currently, the Library is only available in a small number of languages. This should be
+expanded so that users can access the Library content in the same language they have
+selected for the app.
+Please apply this to the entire Library, including:
+• Books
+• Fatwas
+• Knowledge Library content
+• Islamic educational content
+• All other available Library categories and content
+Language Requirement
+When a user changes the app language, the Library should automatically display the available
+Library content in that selected language.
+For example, if the user selects German, Hungarian, Arabic, Bosnian, English, or any other
+supported app language, the Library should be available in that language wherever
+translations or suitable content are available.
+Important
+Please ensure that this language expansion covers 100+ languages and matches the
+languages available in the Quran International app as closely as possible.
+The goal is that the Library is not limited to only a few languages, but becomes accessible
+internationally to users in all supported app languages.
+Final Request
+Please review the Library language system and update it so that the entire Library is available
+in all supported languages of the Quran International app, with support for 100+ languages.
+Thank you
+
+
+
+Quran International App – Daily Inspiration
+Language Issue
+Issue: When the app language is set to German, the text displayed in the Search section under
+“Daily Inspiration” is still shown in English instead of German.
+Requested Fix: Please review the “Daily Inspiration” content displayed in the Search section and
+ensure that the text is properly translated and displayed in German whenever the user has selected
+German as the app language.
+The language of the Daily Inspiration text should always match the language selected by the user in
+the app settings.
+Requested Action: Please investigate and fix this localization issue so that German users see the
+Daily Inspiration text in German rather than English
+
+
+Quran International App – Issues and Requested
+Fixes
+Please review the following issues in the app and implement the necessary fixes. The descriptions
+below are written to clearly explain the problems and the expected behavior.
+1. Tafsir Language Issue – Hungarian
+When the app language is set to Hungarian, the Tafsir is displayed in a different language instead
+of Hungarian. Please ensure that the Tafsir language correctly matches the Hungarian language
+selected by the user.
+2. Al-Fatiha Translation Issue
+When Hungarian is selected as the app language, Surah Al-Fatiha is displayed in English instead of
+Hungarian. The other Surahs are displayed correctly in Hungarian. Please fix Al-Fatiha so that its
+translation also matches the selected app language.
+3. Email Verification – Spam Folder Message
+After a user registers or signs in and a verification code is sent to their email address, please
+display a message informing the user to also check their Spam/Junk folder. This can be shown as a
+pop-up or a normal message in the app. Suggested text: “Please also check your Spam/Junk
+folder.”
+4. Tafsir and Arabic Text Issues – Hungarian and German
+When Hungarian or German is selected, the Tafsir does not load correctly. Tafsir content is missing
+for the individual Ayahs. Please ensure that Tafsir is available and loads correctly for every
+supported Ayah in these languages. Additionally, when Hungarian is selected, the Quran reading
+screen displays only the Hungarian translation. The original Arabic Quran text, including Arabic
+letters, is missing. Please display the original Arabic text together with the selected Hungarian
+translation.
+5. Quran Audio Playback Issue
+There is an issue with Quran audio playback. For example, when the user is on Ayah 32 and
+presses the Next (») button, the Ayah number does not correctly change to 33 and may remain
+unchanged. Please investigate the navigation and synchronization between the displayed Ayah
+number and the audio playback. There is also an issue when closing the audio player/window: the
+user currently has to close the window multiple times to stop or remove the audio. Please fix this so
+that one close action is sufficient to properly close the audio player and stop/remove the audio.
+Requested Action: Please review all five issues, identify the cause of each problem, and update
+the app accordingly. Please test the affected languages (especially Hungarian and German), Quran
+text display, Tafsir availability, email verification messaging, and audio navigation/closing behavior
+after implementing the fixes
+
+
+
+
+
+Aja Rahul. I kindly ask you to also enable the premium feattres. I will send you screenshots in English.
+and many are not in German. mase set them to the correct language
+Aja Rahil bitte noch Premürn runktbnen Éh sende Ihnen Screenshots zu stehen auf
+EfVfisch und es stehen Sehr vie& nicht aurmJtsch bitte in der RÉhtWn Sprache Cinste/Jen
+L
+L
+ZA Autunatic translation
+Ilonenoa
+3 Filos
+Download All
+(5571 kB)
+Ilme110g
+(5594 kB)
+Screenshot. (550.5
+For mrnber 5 on screenshot. please do not just write Abu AJia. but kindly write either all the
+sheikhs numbered 5 or simply the plural fcyrn of multiple sheikhs now streaming.
+
+
+Also die Preise Zusammengefasst
+1) 4.90€ Month (Abo)
+2) 44.90€ Year (Abo)
+3) 100€ One Time Donation (Lifetime)
+That is more easy für Users Inshallah
+
+
+Ich konnte das PDF gerade leider wegen eines technischen Tool-Fehlers nicht erstellen. Hier ist aber bereits der **fertig formulierte englische Text für den Entwickler**. Sobald das Tool wieder funktioniert, kann ich ihn auch direkt als PDF formatieren.
+
+# Developer Update Request – Premium Supporter Subscription
+
+Hello,
+
+Please make the following changes and updates to the **Premium Supporter subscription** and the **payment options**.
+
+I will also send you the screenshots separately for additional visual reference.
+
+## 1. Premium Supporter Subscription – Feature List
+
+Please replace the current Premium Supporter subscription feature list with the following 10 points:
+
+### Premium Supporter Subscription
+
+1. **Knowledge Library** with up to **400+ articles** to read.
+
+2. **Hasanat Counter** to track your Hasanat and your progress.
+
+3. **Offline Quran** – choose between **12 Qaris (reciters)** and listen comfortably offline without an internet connection.
+
+4. **Hadith Section** containing Hadiths.
+
+5. **Tafsir** with explanations for the verses. When clicking on the Arabic text above the respective verse, the explanation should be displayed in the selected language.
+
+6. **Unlimited Bookmarks** to save and track your reading progress.
+
+7. **160+ Books** available to read.
+
+8. **Content from Sheikhs on YouTube** available for streaming and downloading.
+
+9. **1 Golden Month on all subscriptions**.
+   *(This is valid only for subscriptions and does not apply to the one-time payment.)*
+
+10. **No Ads** – no advertisements.
+
+---
+
+## 2. Payment Options
+
+Please also update and simplify the payment options.
+
+At the moment, there are too many payment options available, which makes the subscription section confusing.
+
+Please make sure that there are **only the following three payment options**:
+
+### 1. €4.90 Monthly
+
+**Subscription**
+
+### 2. €44.90 Yearly
+
+**Subscription**
+
+### 3. €100 One-Time Donation
+
+**Lifetime Access**
+
+---
+
+## Important
+
+Please remove all other payment options.
+
+There should be **only these three payment options available** and no additional payment options.
+
+Please also replace the current Premium Supporter subscription feature list with the exact 10 features listed above.
+
+I will send you the screenshots separately for additional reference.
+
+Thank you very much for making these changes.
+
+
+And also, it's important to note that I couldn't find my location in Hungary when I wanted to select
+the place for the prayer times. Please change that or set it to detect automatically via GPS.
+
+Hey. I have updated the price list again. please only take these two prices: 4.90C monthly
+(subscription) and 39.90C yearty (subscription) Please omit the one-time donation: it should onty be
+subscriptions. better.
+
+I apologize Rahul, I have updated the price list again, sorry
+
+
+Please do:
+Month: €3.70 (Subscription)
+Year= €23.70 (Subscription)
+Please only take these 2 subscriptions, no more requests:)
+Mach bitte:
+Month- 3,70€ (Abo)
+Year- 23,70€ (Abo)
+Nimm bitte Nur diese 2 Abos sonst keine Bitte mehr•)
+ZA Automatic translation
+Ilone110gg
+Month 3,70€
+Year 22,90€
+I am Sorry
+
+
+
+Hello, peace be upon you Rahul
+I have decided, please proceed with the subscriptions as discussed with the two monthly payments
+One-time 3.70€ per month (Subscription)
+And one-time 22.90C per year (Subscription)
+That's enough, Inshallah
+Selam alejkum Rahul
+Ich habe mich entschieden lassen sie bitte mit den Abos das so mit den zwei Monatlichen Abo
+Zahlungen bitte
+Einmal 3, me Month (Abo)
+und einmal 22,90C Year (Abo)
+Nicht mehr das reicht Inshallah
+Automatic translation
+Ilone110g
+And I wanted to say that I also noticed that when you read the Quran, there iS a geen bar that goes
+down as you read, and it jumps back and forth too much. Could you make it so that the bar moves
+down with the reading progress but in a way that it doesn't jump? Just have it go straight down
+vertically in a line. You'll see what I mean. When you read, the Ayats jump back and forth because of
+the green reading bar, and that shouldn't happen. The bar should only go down vertically without
+moving the Ayats, please e:
+
+
+I just found a small issue regarding the
+font
+
+
+The Arabic script slightly overlaps into
+the bookmarks, but it's not too bad.
+

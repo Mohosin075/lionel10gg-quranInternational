@@ -1,0 +1,343 @@
+================================================================
+  QURAN INTERNATIONAL APP — CLIENT FINAL REQUIREMENTS
+  Extracted from: v2.txt (All client messages combined)
+  Note: Where client changed mind multiple times, ONLY the
+        FINAL / LATEST decision is kept.
+================================================================
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  SECTION A — BUG FIXES (HIGH PRIORITY)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[BUG-01] SHARING & COPYING BUTTONS DO NOT WORK
+  - The Share button and Copy button are broken.
+  - They must be fixed and work correctly.
+
+[BUG-02] PRAYER TIMES ARE INCORRECT (VERY IMPORTANT)
+  - Prayer times can be off by up to ~1 hour compared to
+    the Islamic Center's official times.
+  - Fix: Ensure correct location, calculation method,
+    time zone, daylight saving time, and prayer time
+    adjustments are all applied properly.
+  - Also: User could not find Hungary location manually.
+    -> Add auto GPS detection for location.
+    -> Or fix the manual location search to include Hungary.
+
+[BUG-03] QIBLA DIRECTION IS SOMETIMES INCORRECT (IMPORTANT)
+  - The Qibla compass is not always accurate.
+  - Sometimes correct, sometimes wrong direction.
+  - Fix: Check compass calibration, GPS location data,
+    and Qibla calculation algorithm.
+  - Ensure direction is stable and accurate at all times.
+
+[BUG-04] HADITHS AFTER SAHIH AL-BUKHARI NOT LOADING
+  - All Hadith collections after Sahih al-Bukhari either
+    do not load or are missing entirely.
+  - Fix: Check all Hadith collections and ensure every
+    available Hadith is properly loaded and accessible.
+
+[BUG-05] TAFSIR OFTEN DOES NOT LOAD (IMPORTANT)
+  - Tafsir frequently fails to load - shows "unavailable"
+    or "not available" message.
+  - Fix: Check all Tafsir sources and fix loading issue.
+  - Tafsir must load reliably whenever it is available.
+  - When user taps on an Arabic verse, the Tafsir/explanation
+    should appear in the user's selected language.
+
+[BUG-06] TAFSIR LANGUAGE ISSUES — HUNGARIAN & GERMAN
+  - When Hungarian is selected: Tafsir is displayed in a
+    wrong/different language instead of Hungarian.
+  - When Hungarian or German is selected: Tafsir content
+    is missing for individual Ayahs.
+  - Fix: Tafsir must match the app's selected language.
+
+[BUG-07] ARABIC TEXT MISSING IN HUNGARIAN MODE
+  - When Hungarian is selected as the app language,
+    the Quran reading screen shows ONLY the Hungarian
+    translation — the original Arabic text is missing.
+  - Fix: Always display the Arabic text TOGETHER with
+    the selected translation (e.g. Hungarian, German, etc.)
+
+[BUG-08] SURAH AL-FATIHA — WRONG LANGUAGE (HUNGARIAN)
+  - When Hungarian is selected, Surah Al-Fatiha is shown
+    in English instead of Hungarian.
+  - All other Surahs show correctly in Hungarian.
+  - Fix: Apply Hungarian translation to Surah Al-Fatiha.
+
+[BUG-09] QURAN RECITER SELECTION DOES NOT APPLY IMMEDIATELY
+  - After selecting a new reciter, user must:
+      1. Select the reciter
+      2. Leave the Quran section
+      3. Return to the Quran section
+      4. Only then does the reciter work
+  - Fix: The newly selected reciter must apply IMMEDIATELY
+    without any need to leave and return to the section.
+
+[BUG-10] QURAN AUDIO PLAYBACK — AYAH NUMBER NOT UPDATING
+  - When user presses Next button (e.g. from Ayah 32),
+    the Ayah number on screen does not update to 33.
+  - Audio and displayed Ayah number are out of sync.
+  - Fix: Sync the displayed Ayah number with audio playback.
+
+[BUG-11] AUDIO PLAYER DOES NOT CLOSE WITH ONE TAP
+  - When closing the audio player/window, user has to
+    close/tap multiple times to stop the audio.
+  - Fix: One close action must fully close the player
+    and stop/remove the audio.
+
+[BUG-12] GREEN READING BAR CAUSES AYAHS TO JUMP
+  - While reading the Quran, the green reading progress bar
+    jumps left and right, causing Ayahs to move around.
+  - Fix: The green bar should ONLY move straight DOWN
+    vertically. It must NOT cause any horizontal movement
+    or make Ayahs jump around.
+
+[BUG-13] HASANAT COUNTER — INCONSISTENT NUMBERS (IMPORTANT)
+  - The Hasanat counter shows different numbers each time
+    for the same Surah.
+  - Example: Read Surah Al-Falaq, collect Hasanat, read
+    again — a different number appears.
+  - Fix:
+      * The Hasanat calculation must be technically correct.
+      * Numbers must NOT randomly change after collecting.
+      * Check ALL Surahs individually.
+      * Counting/reward logic must be consistent.
+  - Note: Slightly lower than expected is acceptable,
+    but must be stable and never random.
+
+[BUG-14] BOOKS — APP FREEZES / HANGS WHEN READING
+  - App often freezes or hangs when opening/reading a book
+    in the Books category, even on a strong connection.
+  - Fix: Investigate and fix the loading/performance issue.
+
+[BUG-15] BOOKS & FATWAS — SCROLLING CAUSES ERROR/CRASH
+  - Scrolling within Books and Fatwas library categories
+    causes an error or crash.
+  - Fix: Investigate and fix the scrolling crash bug.
+
+[BUG-16] GERMAN LANGUAGE — INCORRECT CONTENT IN BOOKS
+  - When app language is German, the Books category shows
+    strange/incorrect text that does not make sense.
+  - Fix: Review and correct German content/translations
+    in the Books category.
+
+[BUG-17] SEARCH CATEGORIES NOT LOADING CONTENT
+  - In the Search section (2nd tab from left), these
+    categories load NO content:
+      * Guidance
+      * Forgiveness
+      * History
+      * Patience
+  - These categories DO work correctly:
+      * Charity
+      * Faith
+  - Fix: Make all search category topics load correctly.
+
+[BUG-18] ADHAN SOUND BUTTON IN SETTINGS DOES NOT WORK
+  - The bell/Adhan button in Settings (top-right corner)
+    does nothing when pressed.
+  - Fix: When pressed, show a popup with available Adhan
+    sounds where user can:
+      * View all available Adhan sounds
+      * Select an Adhan sound
+      * Preview / Play the Adhan sound
+
+[BUG-19] PREVIOUS/NEXT ADHAN SOUND BUTTONS DON'T WORK
+  - In the Adhan Sound section, the two white navigation
+    buttons next to the Play button do not work.
+  - Fix:
+      * Previous button -> play the previous Adhan sound
+      * Next button -> play the next Adhan sound
+  - Users must be able to switch between sounds easily.
+
+[BUG-20] ARABIC FONT OVERLAPS BOOKMARK ICON
+  - Arabic script slightly overlaps into the bookmark
+    button/icon area.
+  - Fix: Adjust font/layout so Arabic text does not
+    overlap with the bookmarks icon. (Minor issue)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  SECTION B — CONTENT & UI CHANGES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[UI-01] REMOVE "SADDAQA ALLAHUL ADHEM" FROM ALL SURAHS
+  - The sentence "Saddaqa Allahul Adhem" currently appears
+    at the bottom of every Surah.
+  - Action: Remove it completely from all Surahs.
+
+[UI-02] CHANGE APP ICON / LOGO
+  - The current app icon/logo is not the official one.
+  - Action: Replace with the official Quran International
+    logo/icon.
+
+[UI-03] FIX INCORRECT SPELLING OF RED HIGHLIGHT COLOR
+  - In the Highlights/Markings section, the name/spelling
+    of the red color is incorrect.
+  - Action: Fix the spelling. (Client will provide screenshot)
+
+[UI-04] REMOVE OR FIX THE "WELCOME GIFT" POPUP
+  - On first open, a popup claims "Al Akhira" is a welcome
+    gift — but the client does not have this book available.
+  - Action: REMOVE the welcome gift popup entirely,
+    OR only show it if the book is actually available
+    and downloadable from IslamHouse.
+  - Do NOT show a gift that is not actually available.
+
+[UI-05] SHEIKH SECTION — FIX LABEL FOR MULTIPLE SHEIKHS
+  - In screenshot item #5, it currently shows "Abu Alia"
+    (a single sheikh name).
+  - Action: Either list all sheikh names under that number,
+    or show a generic plural label like "Multiple Sheikhs
+    Now Streaming" instead of a single name.
+
+[UI-06] DUA SECTION — REDESIGN LAYOUT (LIKE MUSLIM PRO)
+  - The Dua section needs to be redesigned to be more
+    organized and beautiful.
+  - Requested style: Like Muslim Pro — vertical list/table.
+  - Example layout:
+      1) Dua upon entering the toilet
+      2) Dua upon leaving the toilet
+      ... etc.
+  - Also add category BOXES/BLOCKS (like the Library) where
+    each box groups related duas, for example:
+      * Box: Duas for Worries & Problems
+      * Box: Duas Before Sleeping  (2 blocks for sleep duas)
+      * Box: Duas for the Toilet
+      * (Add as many boxes as needed)
+
+[UI-07] DAILY INSPIRATION — MUST SHOW IN SELECTED LANGUAGE
+  - In the Search section, "Daily Inspiration" text is
+    shown in English even when German is selected.
+  - Action: Daily Inspiration must always display in the
+    user's selected app language (e.g., German -> German).
+
+[UI-08] SHEIKH VIDEO DOWNLOAD FUNCTION
+  - In the Sheikh section, videos currently cannot be
+    downloaded.
+  - Action: Add a download button so users can download
+    Sheikh videos for offline viewing.
+
+[UI-09] ENABLE ALL PREMIUM FEATURES
+  - The client requests that all premium features be
+    enabled in the app.
+  - Screenshots will be sent separately for reference.
+
+[UI-10] PREMIUM FEATURES — ALL UI TEXT IN CORRECT LANGUAGE
+  - Many premium feature screens are showing in English
+    instead of the user's selected language (e.g., German).
+  - Action: Ensure all premium feature UI text is correctly
+    localized and displayed in the app's selected language.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  SECTION C — SUBSCRIPTION & PAYMENT (FINAL DECISION)
+  !! Client changed pricing MULTIPLE TIMES.
+     Use ONLY this final version below. !!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[PAY-01] FINAL SUBSCRIPTION PRICING — ONLY 2 PLANS
+  -------------------------------------------------------
+  Plan 1:  EUR 3.70 / Month   (Subscription)
+  Plan 2:  EUR 22.90 / Year   (Subscription)
+  -------------------------------------------------------
+  - Remove ALL other payment options.
+  - No lifetime / one-time donation option.
+  - No monthly options at other prices.
+  - ONLY these exact 2 plans must be shown.
+
+[PAY-02] PREMIUM SUPPORTER — FEATURE LIST (REPLACE CURRENT)
+  Replace the current subscription feature list with
+  exactly these 10 features:
+
+  1.  Knowledge Library — 400+ articles to read
+  2.  Hasanat Counter — track Hasanat and progress
+  3.  Offline Quran — choose from 12 Qaris (reciters),
+      listen offline without internet
+  4.  Hadith Section — access to Hadiths
+  5.  Tafsir — verse explanations displayed in the
+      user's selected language (tap Arabic text to view)
+  6.  Unlimited Bookmarks — save and track reading progress
+  7.  160+ Books available to read
+  8.  Sheikh Content from YouTube — streaming and downloading
+  9.  1 Golden Month free on all subscriptions
+      (applies to subscriptions only, not one-time payment)
+  10. No Ads — no advertisements
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  SECTION D — LIBRARY: 100+ LANGUAGE SUPPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[LANG-01] ENTIRE LIBRARY MUST SUPPORT 100+ LANGUAGES
+  - The app supports 100+ languages.
+  - Currently the Library is only in ~3 languages.
+  - Action: Make the ENTIRE Library available in all
+    supported app languages (100+).
+  - This applies to:
+      * Books
+      * Fatwas
+      * Knowledge Library content
+      * Islamic educational content
+      * All other Library categories
+  - When user changes the app language, Library should
+    automatically show content in that language.
+  - Example: German -> Library shows German content.
+             Hungarian -> Library shows Hungarian content.
+             Arabic, Bosnian, English, etc. -> same logic.
+  - This is considered a major unique feature of the app.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  SECTION E — EMAIL & REGISTRATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[EMAIL-01] REGISTRATION EMAIL GOING TO SPAM (URGENT)
+  - The registration/verification email lands in Spam.
+  - Gmail shows a warning: "This email might be dangerous."
+  - This makes users distrust the app.
+  - Fix:
+      * Configure SPF, DKIM, and DMARC authentication.
+      * Improve overall email design and wording.
+      * Replace "Company Logo" placeholder with the actual
+        Quran International logo.
+
+[EMAIL-02] SHOW "CHECK SPAM FOLDER" MESSAGE IN APP
+  - After registration/sign-in when a verification email
+    is sent, display a message inside the app saying:
+    "Please also check your Spam/Junk folder."
+  - Can be shown as a popup or inline message.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  SECTION F — PRIORITY ORDER
+  (As specified by client)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Priority 1:  Prayer time accuracy               [BUG-02]
+  Priority 2:  Hasanat counter calculations       [BUG-13]
+  Priority 3:  Qibla direction accuracy           [BUG-03]
+  Priority 4:  Quran reciter applies immediately  [BUG-09]
+  Priority 5:  Tafsir and Hadith loading          [BUG-04] [BUG-05]
+  Priority 6:  Books & Fatwas scroll/load errors  [BUG-14] [BUG-15]
+  Priority 7:  Email spam/authentication fix      [EMAIL-01]
+  Priority 8:  Adhan sound buttons                [BUG-18] [BUG-19]
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  NOTES FOR DEVELOPER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - Client will send screenshots separately for issues
+    that were mentioned with "will send screenshot".
+  - All issues must be tested after fixing.
+  - Payment pricing was changed many times.
+    Use ONLY the prices in [PAY-01]:
+    EUR 3.70/month and EUR 22.90/year.
+  - All UI strings and content must respect the user's
+    selected app language at all times.
+
+================================================================
+  END OF REQUIREMENTS
+================================================================
