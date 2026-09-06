@@ -5,9 +5,18 @@ const getTafsir = async (surah: number, ayah: number, edition: string = 'arabic_
   let result = await Tafsir.findOne({ surah, ayah, edition, lang }).lean();
 
   if (!result) {
-    // Trigger ingestion for the whole surah
-    await ingestSurahTafsir(surah, edition, lang);
-    result = await Tafsir.findOne({ surah, ayah, edition, lang }).lean();
+    try {
+      // Trigger ingestion for the whole surah
+      await ingestSurahTafsir(surah, edition, lang);
+      result = await Tafsir.findOne({ surah, ayah, edition, lang }).lean();
+    } catch (err) {
+      console.error(`[TafsirService] Ingestion failed for surah ${surah} (${edition}, ${lang}):`, err);
+    }
+  }
+
+  // Fallback: If requested language/edition was not found or failed, return Arabic base tafsir
+  if (!result) {
+    result = await Tafsir.findOne({ surah, ayah, edition: 'arabic_moyassar', lang: 'ar' }).lean();
   }
 
   return result;
@@ -17,8 +26,17 @@ const getSurahTafsir = async (surah: number, edition: string = 'arabic_moyassar'
   let results = await Tafsir.find({ surah, edition, lang }).sort({ ayah: 1 }).lean();
 
   if (results.length === 0) {
-    await ingestSurahTafsir(surah, edition, lang);
-    results = await Tafsir.find({ surah, edition, lang }).sort({ ayah: 1 }).lean();
+    try {
+      await ingestSurahTafsir(surah, edition, lang);
+      results = await Tafsir.find({ surah, edition, lang }).sort({ ayah: 1 }).lean();
+    } catch (err) {
+      console.error(`[TafsirService] Surah ingestion failed for surah ${surah} (${edition}, ${lang}):`, err);
+    }
+  }
+
+  // Fallback: Return Arabic base tafsir if requested language returned empty
+  if (results.length === 0) {
+    results = await Tafsir.find({ surah, edition: 'arabic_moyassar', lang: 'ar' }).sort({ ayah: 1 }).lean();
   }
 
   return results;

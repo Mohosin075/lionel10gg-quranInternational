@@ -5,13 +5,13 @@ Issue	কেন Valid
 BUG-01: Share/Copy বাটন কাজ করে না	সরাসরি functional bug - solved
 BUG-08: Al-Fatiha Hungarian-এ ইংরেজি আসে	Data/localization bug, বাকি Surah ঠিক আছে তাই clearly fixable - solved
 BUG-09: Reciter select করলে immediately apply হয় না	State management bug - solved
-BUG-10: Audio-এ Ayah number sync না	UI sync bug
-BUG-11: Audio player একবারে বন্ধ হয় না	Bug — clearly wrong behavior
-BUG-12: Green bar jump করে Ayah নাড়িয়ে দেয়	Scroll/animation bug
-BUG-16: German Books-এ ভুল content	Content/localization bug
-BUG-17: Search categories load হয় না	API/data bug
-BUG-18 & 19: Adhan button কাজ করে না	Broken feature
-BUG-20: Arabic font overlap	Minor layout bug
+BUG-10: Audio-এ Ayah number sync না	UI sync bug - solved
+BUG-11: Audio player একবারে বন্ধ হয় না	Bug — clearly wrong behavior - solved
+BUG-12: Green bar jump করে Ayah নাড়িয়ে দেয়	Scroll/animation bug - solved
+BUG-16: German Books-এ ভুল content	Content/localization bug - solved
+BUG-17: Search categories load হয় না	API/data bug - solved
+BUG-18 & 19: Adhan button কাজ করে না	Broken feature - solved
+BUG-20: Arabic font overlap	Minor layout bug - solved
 UI-01: "Saddaqa Allahul Adhem" remove করা	Simple text removal
 UI-03: Red color spelling ভুল	Simple text fix
 UI-04: Welcome gift popup (book নেই)	UX deception — must fix
@@ -26,7 +26,7 @@ Issue	কেন Complex
 BUG-02: Prayer time ভুল	নির্ভর করে calculation method, location API, timezone library-এর উপর। একাধিক variable — fix করা যাবে কিন্তু carefully test করতে হবে।
 BUG-03: Qibla direction ভুল	Device sensor (magnetometer) + GPS accuracy-এর উপর নির্ভরশীল। কিছুটা device-dependent সমস্যাও হতে পারে।
 BUG-04: Hadith collections load না	Data source/API issue — check করতে হবে কোন collections available আছে।
-BUG-05 & BUG-06: Tafsir load হয় না	API বা data availability issue — সব ভাষায় Tafsir নাও থাকতে পারে।
+BUG-05 & BUG-06: Tafsir load হয় না	API বা data availability issue — solved
 BUG-13: Hasanat counter inconsistent	Calculation logic bug — fixable কিন্তু সব Surah test করতে হবে।
 BUG-14: Books app freeze করে	Performance/memory issue — profiling লাগবে।
 BUG-15: Books & Fatwas scroll crash	Rendering bug — reproducible হলে fixable।
@@ -35,7 +35,7 @@ UI-09: Enable all premium features	Business/backend logic জড়িত, scree
 UI-10: Premium UI wrong language	Localization scope বড়
 ❌ NOT FULLY VALID বা UNREALISTIC
 Issue	কেন Problematic
-BUG-07: Arabic text missing in Hungarian mode	এটা intentional হতে পারে যদি Hungarian translation-only mode design করা থাকে। Client চাইছে Arabic + Translation একসাথে — এটা valid request কিন্তু design decision, bug না।
+BUG-07: Arabic text missing in Hungarian mode	Client চাইছে Arabic + Translation একসাথে — fixed & solved
 LANG-01: Library 100+ ভাষায় করা	⚠️ এটা সবচেয়ে non-trivial request। Library content (Books, Fatwas, Knowledge) manually ১০০+ ভাষায় translate করা মানুষের পক্ষে সম্ভব না — এটার জন্য IslamHouse বা অন্য external source-এর content availability-এর উপর নির্ভর করে। Developer শুধু system build করতে পারবে; content যদি না থাকে, ভাষা show করা যাবে না। Client-কে এটা clearly জানাতে হবে।
 BUG-02: Hungary location not found	GPS auto-detect যোগ করা valid। কিন্তু Hungary location manually না পাওয়াটা কোনো location database-এর limitation হতে পারে — সব location provider Hungary city-level support নাও দিতে পারে।
 UI-02: App Icon পরিবর্তন	Valid, কিন্তু এটা App Store / Play Store submission process — শুধু code change না, re-publish লাগবে।
