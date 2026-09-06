@@ -69,7 +69,8 @@ const search = catchAsync(async (req: Request, res: Response) => {
 
 const getDailyInspiration = catchAsync(async (req: Request, res: Response) => {
   const edition = (req.query.edition as string) || (req.query.lang as string) || (req.query.language as string) || 'english_saheeh';
-  const result = await QuranServices.getDailyInspiration(edition);
+  const lang = (req.query.lang as string) || (req.query.language as string);
+  const result = await QuranServices.getDailyInspiration(edition, lang);
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,

@@ -12,10 +12,10 @@ BUG-16: German Books-এ ভুল content	Content/localization bug - solved
 BUG-17: Search categories load হয় না	API/data bug - solved
 BUG-18 & 19: Adhan button কাজ করে না	Broken feature - solved
 BUG-20: Arabic font overlap	Minor layout bug - solved
-UI-01: "Saddaqa Allahul Adhem" remove করা	Simple text removal
-UI-03: Red color spelling ভুল	Simple text fix
-UI-04: Welcome gift popup (book নেই)	UX deception — must fix
-UI-07: Daily Inspiration wrong language	Localization bug
+UI-01: "Saddaqa Allahul Adhem" remove করা	Simple text removal - solved
+UI-03: Red color spelling ভুল	Simple text fix - solved
+UI-04: Welcome gift popup (book নেই)	UX deception — must fix - solved
+UI-07: Daily Inspiration wrong language	Localization bug - solved
 UI-08: Sheikh video download নেই	Missing feature, doable
 EMAIL-01: Email spam-এ যায়	SPF/DKIM/DMARC — valid technical fix
 EMAIL-02: "Check spam" message দেখানো	Simple UX improvement

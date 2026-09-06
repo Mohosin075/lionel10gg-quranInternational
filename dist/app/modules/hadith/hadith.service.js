@@ -27,7 +27,7 @@ const syncFromGlobalApi = async (edition, fromHadith, toHadith) => {
     const arabEdition = edition.replace('eng-', 'ara-');
     for (let i = fromHadith; i <= toHadith; i++) {
         try {
-            const engUrl = `https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/${edition}/${i}.json`;
+            const engUrl = `https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/editions/${edition}/${i}.json`;
             const engRes = await axios_1.default.get(engUrl);
             if (!engRes.data || !engRes.data.hadiths || engRes.data.hadiths.length === 0) {
                 continue;
@@ -38,7 +38,7 @@ const syncFromGlobalApi = async (edition, fromHadith, toHadith) => {
                 : 'General';
             let arabicText = 'Arabic text unavailable online';
             try {
-                const araUrl = `https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/${arabEdition}/${i}.json`;
+                const araUrl = `https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/editions/${arabEdition}/${i}.json`;
                 const araRes = await axios_1.default.get(araUrl);
                 if (araRes.data && araRes.data.hadiths && araRes.data.hadiths.length > 0) {
                     arabicText = araRes.data.hadiths[0].text;
@@ -78,17 +78,33 @@ const syncFromGlobalApi = async (edition, fromHadith, toHadith) => {
 };
 const getAllHadiths = async (lang = 'en', category, source, page = 1, limit = 10) => {
     const skip = (page - 1) * limit;
-    // Auto-populate DB with enough Hadith for offline (not a handful)
+    // Auto-populate DB in the background — don't block the HTTP response
     const totalEnglish = await hadith_model_1.Hadith.countDocuments({ lang: 'en' });
     if (totalEnglish === 0) {
-        console.log('[HadithService] Auto-syncing Bukhari 1-100 + Muslim 1-50...');
-        await syncFromGlobalApi('eng-bukhari', 1, 100);
-        await syncFromGlobalApi('eng-muslim', 1, 50);
+        console.log('[HadithService] Triggering background seed: Bukhari 1-500 + Muslim 1-250...');
+        // Fire-and-forget so the request is not kept alive for minutes
+        void (async () => {
+            try {
+                await syncFromGlobalApi('eng-bukhari', 1, 500);
+                await syncFromGlobalApi('eng-muslim', 1, 250);
+            }
+            catch (err) {
+                console.error('[HadithService] Background seed failed:', err);
+            }
+        })();
     }
     if (lang !== 'en') {
         const count = await hadith_model_1.Hadith.countDocuments({ lang });
         if (count === 0) {
-            await getOrSyncHadithsByLanguage(lang);
+            // Background translation — can take a very long time
+            void (async () => {
+                try {
+                    await getOrSyncHadithsByLanguage(lang);
+                }
+                catch (err) {
+                    console.error(`[HadithService] Background lang sync failed (${lang}):`, err);
+                }
+            })();
         }
     }
     const query = { lang, isActive: true };
@@ -137,18 +153,37 @@ const clampSyncLimit = (limit) => {
     return Math.min(Math.max(n, 1), 1000);
 };
 const getSyncData = async (lang = 'en', fromVersion = 0, page = 1, limit = 500) => {
-    // Ingest-if-empty so download-sync can fill the phone
+    // Fire-and-forget seed so the HTTP response is NOT blocked for minutes
     const existing = await hadith_model_1.Hadith.countDocuments({ lang });
     if (existing === 0) {
         const totalEnglish = await hadith_model_1.Hadith.countDocuments({ lang: 'en' });
         if (totalEnglish === 0) {
-            console.log('[HadithService] download-sync empty — seeding Bukhari 1-100 + Muslim 1-50...');
-            await syncFromGlobalApi('eng-bukhari', 1, 100);
-            await syncFromGlobalApi('eng-muslim', 1, 50);
+            console.log('[HadithService] download-sync empty — seeding in background...');
+            void (async () => {
+                try {
+                    await syncFromGlobalApi('eng-bukhari', 1, 500);
+                    await syncFromGlobalApi('eng-muslim', 1, 250);
+                }
+                catch (err) {
+                    console.error('[HadithService] Background seed error:', err);
+                }
+            })();
         }
         if (lang !== 'en') {
-            await getOrSyncHadithsByLanguage(lang);
+            void (async () => {
+                try {
+                    await getOrSyncHadithsByLanguage(lang);
+                }
+                catch (err) {
+                    console.error(`[HadithService] Background lang sync error (${lang}):`, err);
+                }
+            })();
         }
+        // Return empty immediately — client will retry and get data once seeded
+        return {
+            data: [],
+            meta: { page: 1, limit, total: 0, totalPages: 1 },
+        };
     }
     const safeLimit = clampSyncLimit(limit);
     const safePage = Math.max(Number(page) || 1, 1);

@@ -6,17 +6,35 @@ const tafsir_worker_1 = require("./tafsir.worker");
 const getTafsir = async (surah, ayah, edition = 'arabic_moyassar', lang = 'ar') => {
     let result = await tafsir_model_1.Tafsir.findOne({ surah, ayah, edition, lang }).lean();
     if (!result) {
-        // Trigger ingestion for the whole surah
-        await (0, tafsir_worker_1.ingestSurahTafsir)(surah, edition, lang);
-        result = await tafsir_model_1.Tafsir.findOne({ surah, ayah, edition, lang }).lean();
+        try {
+            // Trigger ingestion for the whole surah
+            await (0, tafsir_worker_1.ingestSurahTafsir)(surah, edition, lang);
+            result = await tafsir_model_1.Tafsir.findOne({ surah, ayah, edition, lang }).lean();
+        }
+        catch (err) {
+            console.error(`[TafsirService] Ingestion failed for surah ${surah} (${edition}, ${lang}):`, err);
+        }
+    }
+    // Fallback: If requested language/edition was not found or failed, return Arabic base tafsir
+    if (!result) {
+        result = await tafsir_model_1.Tafsir.findOne({ surah, ayah, edition: 'arabic_moyassar', lang: 'ar' }).lean();
     }
     return result;
 };
 const getSurahTafsir = async (surah, edition = 'arabic_moyassar', lang = 'ar') => {
     let results = await tafsir_model_1.Tafsir.find({ surah, edition, lang }).sort({ ayah: 1 }).lean();
     if (results.length === 0) {
-        await (0, tafsir_worker_1.ingestSurahTafsir)(surah, edition, lang);
-        results = await tafsir_model_1.Tafsir.find({ surah, edition, lang }).sort({ ayah: 1 }).lean();
+        try {
+            await (0, tafsir_worker_1.ingestSurahTafsir)(surah, edition, lang);
+            results = await tafsir_model_1.Tafsir.find({ surah, edition, lang }).sort({ ayah: 1 }).lean();
+        }
+        catch (err) {
+            console.error(`[TafsirService] Surah ingestion failed for surah ${surah} (${edition}, ${lang}):`, err);
+        }
+    }
+    // Fallback: Return Arabic base tafsir if requested language returned empty
+    if (results.length === 0) {
+        results = await tafsir_model_1.Tafsir.find({ surah, edition: 'arabic_moyassar', lang: 'ar' }).sort({ ayah: 1 }).lean();
     }
     return results;
 };

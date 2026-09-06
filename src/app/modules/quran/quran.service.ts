@@ -296,10 +296,30 @@ const searchQuran = async (keyword: string, translationKey: string = 'english_sa
   };
 };
 
-const getDailyInspiration = async (translationKey: string = 'english_saheeh') => {
+const getDailyInspiration = async (translationKey: string = 'english_saheeh', lang?: string) => {
   translationKey = await resolveTranslationKey(translationKey);
   const count = await Translation.countDocuments({ edition: translationKey });
   if (count === 0) {
+    const inspirationalVerses = [
+      { surah: 94, ayah: 5 },
+      { surah: 94, ayah: 6 },
+      { surah: 2, ayah: 152 },
+      { surah: 3, ayah: 139 },
+      { surah: 65, ayah: 3 },
+      { surah: 1, ayah: 1 },
+    ];
+    const picked = inspirationalVerses[Math.floor(Math.random() * inspirationalVerses.length)];
+    try {
+      const ayahDoc = await getAyah(picked.surah, picked.ayah, translationKey, lang);
+      if (ayahDoc && ayahDoc.text) {
+        return {
+          surah: picked.surah,
+          ayah: picked.ayah,
+          text: ayahDoc.text,
+          edition: translationKey,
+        };
+      }
+    } catch (_) {}
     return { surah: 1, ayah: 1, text: 'In the name of Allah, the Entirely Merciful, the Especially Merciful.' };
   }
   
