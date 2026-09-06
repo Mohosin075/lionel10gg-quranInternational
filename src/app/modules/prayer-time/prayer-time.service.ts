@@ -42,13 +42,19 @@ const adhanRecitations: IAdhanRecitation[] = [
   },
 ];
 
-const getPrayerTimes = async (city: string, country: string) => {
+const getPrayerTimes = async (
+  city: string,
+  country: string,
+  method = 3,
+  school = 0,
+) => {
   try {
     const response = await axios.get(`${BASE_URL}/timingsByCity`, {
       params: {
         city,
         country,
-        method: 2, // ISNA or other methods can be configured
+        method, // 3 = Muslim World League (European & Global Islamic Center standard)
+        school, // 0 = Shafi'i/Standard (1x shadow), 1 = Hanafi (2x shadow)
       },
     });
 
