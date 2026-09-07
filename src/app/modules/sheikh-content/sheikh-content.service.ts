@@ -54,7 +54,9 @@ const deleteContent = async (id: string): Promise<ISheikhContent | null> => {
 /** Known channel IDs (verified Aug 2026 — OMF + Alim Hamza corrected). */
 const SPEAKER_YOUTUBE_CHANNELS: Record<string, string> = {
   'abu alia': 'UCY4bNa8fwU9WRzsJh84FA5A',
+  'sheikh abu alia': 'UCY4bNa8fwU9WRzsJh84FA5A',
   'abul baraa': 'UCRsfPhTdW-GBdqHjj-29tvQ',
+  'sheikh abul baraa': 'UCRsfPhTdW-GBdqHjj-29tvQ',
   'pierre vogel': 'UCRkFMKQApHodjgV0IVuAXHQ',
   'one message foundation': 'UCvJyEIx_it2jFYP5M1OzGng',
   'alim hamza': 'UC477ugR0xa6V_ivtjGu0y6g',
@@ -63,7 +65,9 @@ const SPEAKER_YOUTUBE_CHANNELS: Record<string, string> = {
 /** Official handles for the 5 client channels. */
 const SPEAKER_CHANNEL_HANDLES: Record<string, string> = {
   'abu alia': '@abu_alia',
+  'sheikh abu alia': '@abu_alia',
   'abul baraa': '@abulbaraatube1927',
+  'sheikh abul baraa': '@abulbaraatube1927',
   'pierre vogel': '@pierrevogeloffiziell',
   'one message foundation': '@onemessagefoundation',
   'alim hamza': '@alimhamza1',

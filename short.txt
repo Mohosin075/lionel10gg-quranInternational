@@ -30,7 +30,7 @@ BUG-05 & BUG-06: Tafsir load হয় না	API বা data availability issue
 BUG-13: Hasanat counter inconsistent	Calculation logic bug — fixable কিন্তু সব Surah test করতে হবে। - solved
 BUG-14: Books app freeze করে	Performance/memory issue — profiling লাগবে। - solved (Virtualized chunk rendering + SQLite lightweight metadata querying implemented)
 BUG-15: Books & Fatwas scroll crash	Rendering bug — reproducible হলে fixable। - solved (ListView.builder viewport virtualization eliminates GPU raster overflow)
-UI-05: Sheikh label	Minor UI text change।
+UI-05: Sheikh label	Minor UI text change। - solved (Added plural 'Multiple Sheikhs Now Streaming' headers, localized 'Sheikhs' tab, and official 5 scholars subtitle)
 UI-09: Enable all premium features	Business/backend logic জড়িত, screenshot ছাড়া unclear।
 UI-10: Premium UI wrong language	Localization scope বড়
 ❌ NOT FULLY VALID বা UNREALISTIC
