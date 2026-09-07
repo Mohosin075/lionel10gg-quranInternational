@@ -1,4 +1,5 @@
-﻿import { KnowledgeArticle } from './knowledge-library.model';
+import mongoose from 'mongoose';
+import { KnowledgeArticle } from './knowledge-library.model';
 import { KnowledgeBook } from './knowledge-book.model';
 import { KnowledgeFatwa } from './knowledge-fatwa.model';
 import { IKnowledgeArticle, IKnowledgeBook, IKnowledgeFatwa } from './knowledge-library.interface';
@@ -268,6 +269,7 @@ const getAllBooks = async (
   const baseQuery = { ...langFilter, isActive: true };
   const total = await KnowledgeBook.countDocuments(baseQuery);
   const data = await KnowledgeBook.find(baseQuery)
+    .select('-content')
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit)
@@ -285,7 +287,11 @@ const getAllBooks = async (
 };
 
 const getBookById = async (id: string) => {
-  return await KnowledgeBook.findById(id).lean();
+  if (mongoose.Types.ObjectId.isValid(id)) {
+    const book = await KnowledgeBook.findById(id).lean();
+    if (book) return book;
+  }
+  return await KnowledgeBook.findOne({ bookId: id, isActive: true }).lean();
 };
 
 const createBook = async (payload: Partial<IKnowledgeBook>) => {

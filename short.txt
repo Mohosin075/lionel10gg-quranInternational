@@ -27,9 +27,9 @@ BUG-02: Prayer time ভুল	নির্ভর করে calculation method, l
 BUG-03: Qibla direction ভুল	Device sensor (magnetometer) + GPS accuracy-এর উপর নির্ভরশীল। কিছুটা device-dependent সমস্যাও হতে পারে। - solved
 BUG-04: Hadith collections load না	Data source/API issue — check করতে হবে কোন collections available আছে।
 BUG-05 & BUG-06: Tafsir load হয় না	API বা data availability issue — solved
-BUG-13: Hasanat counter inconsistent	Calculation logic bug — fixable কিন্তু সব Surah test করতে হবে।
-BUG-14: Books app freeze করে	Performance/memory issue — profiling লাগবে।
-BUG-15: Books & Fatwas scroll crash	Rendering bug — reproducible হলে fixable।
+BUG-13: Hasanat counter inconsistent	Calculation logic bug — fixable কিন্তু সব Surah test করতে হবে। - solved
+BUG-14: Books app freeze করে	Performance/memory issue — profiling লাগবে। - solved (Virtualized chunk rendering + SQLite lightweight metadata querying implemented)
+BUG-15: Books & Fatwas scroll crash	Rendering bug — reproducible হলে fixable। - solved (ListView.builder viewport virtualization eliminates GPU raster overflow)
 UI-05: Sheikh label	Minor UI text change।
 UI-09: Enable all premium features	Business/backend logic জড়িত, screenshot ছাড়া unclear।
 UI-10: Premium UI wrong language	Localization scope বড়

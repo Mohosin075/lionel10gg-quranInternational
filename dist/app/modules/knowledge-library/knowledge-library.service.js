@@ -1,6 +1,10 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.KnowledgeLibraryServices = void 0;
+const mongoose_1 = __importDefault(require("mongoose"));
 const knowledge_library_model_1 = require("./knowledge-library.model");
 const knowledge_book_model_1 = require("./knowledge-book.model");
 const knowledge_fatwa_model_1 = require("./knowledge-fatwa.model");
@@ -217,6 +221,7 @@ const getAllBooks = async (lang = 'de', page = 1, limit = 50) => {
     const baseQuery = { ...langFilter, isActive: true };
     const total = await knowledge_book_model_1.KnowledgeBook.countDocuments(baseQuery);
     const data = await knowledge_book_model_1.KnowledgeBook.find(baseQuery)
+        .select('-content')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -232,7 +237,12 @@ const getAllBooks = async (lang = 'de', page = 1, limit = 50) => {
     };
 };
 const getBookById = async (id) => {
-    return await knowledge_book_model_1.KnowledgeBook.findById(id).lean();
+    if (mongoose_1.default.Types.ObjectId.isValid(id)) {
+        const book = await knowledge_book_model_1.KnowledgeBook.findById(id).lean();
+        if (book)
+            return book;
+    }
+    return await knowledge_book_model_1.KnowledgeBook.findOne({ bookId: id, isActive: true }).lean();
 };
 const createBook = async (payload) => {
     return await knowledge_book_model_1.KnowledgeBook.create(payload);

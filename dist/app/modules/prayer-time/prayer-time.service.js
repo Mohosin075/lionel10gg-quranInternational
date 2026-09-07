@@ -41,13 +41,14 @@ const adhanRecitations = [
         audioUrl: 'https://www.islamcan.com/audio/adhan/azan6.mp3',
     },
 ];
-const getPrayerTimes = async (city, country) => {
+const getPrayerTimes = async (city, country, method = 3, school = 0) => {
     try {
         const response = await axios_1.default.get(`${BASE_URL}/timingsByCity`, {
             params: {
                 city,
                 country,
-                method: 2, // ISNA or other methods can be configured
+                method, // 3 = Muslim World League (European & Global Islamic Center standard)
+                school, // 0 = Shafi'i/Standard (1x shadow), 1 = Hanafi (2x shadow)
             },
         });
         const timings = response.data.data.timings;
