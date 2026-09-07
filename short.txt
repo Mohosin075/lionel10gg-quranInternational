@@ -31,15 +31,15 @@ BUG-13: Hasanat counter inconsistent	Calculation logic bug — fixable কিন
 BUG-14: Books app freeze করে	Performance/memory issue — profiling লাগবে। - solved (Virtualized chunk rendering + SQLite lightweight metadata querying implemented)
 BUG-15: Books & Fatwas scroll crash	Rendering bug — reproducible হলে fixable। - solved (ListView.builder viewport virtualization eliminates GPU raster overflow)
 UI-05: Sheikh label	Minor UI text change। - solved (Added plural 'Multiple Sheikhs Now Streaming' headers, localized 'Sheikhs' tab, and official 5 scholars subtitle)
-UI-09: Enable all premium features	Business/backend logic জড়িত, screenshot ছাড়া unclear।
-UI-10: Premium UI wrong language	Localization scope বড়
+UI-09: Enable all premium features	Business/backend logic জড়িত, screenshot ছাড়া unclear। - later i will solve
+UI-10: Premium UI wrong language	Localization scope বড় - solved (Dynamic benefits now localized via serial keys; German, Hungarian, & primary languages updated with official 10 benefit points, plan names, intervals, and checkout headers)
 ❌ NOT FULLY VALID বা UNREALISTIC
 Issue	কেন Problematic
 BUG-07: Arabic text missing in Hungarian mode	Client চাইছে Arabic + Translation একসাথে — fixed & solved
 LANG-01: Library 100+ ভাষায় করা	⚠️ এটা সবচেয়ে non-trivial request। Library content (Books, Fatwas, Knowledge) manually ১০০+ ভাষায় translate করা মানুষের পক্ষে সম্ভব না — এটার জন্য IslamHouse বা অন্য external source-এর content availability-এর উপর নির্ভর করে। Developer শুধু system build করতে পারবে; content যদি না থাকে, ভাষা show করা যাবে না। Client-কে এটা clearly জানাতে হবে।
 BUG-02: Hungary location not found	GPS auto-detect ও Hungary-এর প্রধান শহরসমূহ (Budapest, Debrecen ইত্যাদি) এবং অনলাইন সিটি সার্চ যুক্ত করা হয়েছে - solved
 UI-02: App Icon পরিবর্তন	Valid, কিন্তু এটা App Store / Play Store submission process — শুধু code change না, re-publish লাগবে।
-UI-06: Dua redesign like Muslim Pro	Valid idea, কিন্তু Muslim Pro-এর exact UX copy করা trademark/copyright issue হতে পারে। Inspired design করা উচিত।
+UI-06: Dua redesign like Muslim Pro	Valid idea, কিন্তু Muslim Pro-এর exact UX copy করা trademark/copyright issue হতে পারে। Inspired design করা উচিত। - solved (Muslim Pro-inspired UI implemented: pill search bar, Daily Remembrances Al-Ma'thurat hero card, Hisnul Muslim horizontal category cards with chapter counts, Essential Duas quick-access carousel, and favorites bookmarking)
 সারসংক্ষেপ
 ✅ Straightforward Fix:     ~১৮টি issue
 ⚠️  Complex but Doable:     ~১০টি issue
