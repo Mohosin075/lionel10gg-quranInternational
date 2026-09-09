@@ -12,12 +12,14 @@ if (!dbUrl) {
 }
 
 const books = [
-  { edition: 'eng-bukhari', limit: 100 },
-  { edition: 'eng-muslim', limit: 100 },
-  { edition: 'eng-abudawud', limit: 50 },
-  { edition: 'eng-tirmidhi', limit: 50 },
-  { edition: 'eng-nasai', limit: 50 },
-  { edition: 'eng-ibnmajah', limit: 50 },
+  { edition: 'eng-bukhari', limit: 200 },
+  { edition: 'eng-muslim', limit: 200 },
+  { edition: 'eng-abudawud', limit: 200 },
+  { edition: 'eng-tirmidhi', limit: 200 },
+  { edition: 'eng-nasai', limit: 200 },
+  { edition: 'eng-ibnmajah', limit: 200 },
+  { edition: 'eng-malik', limit: 200 },
+  { edition: 'eng-nawawi', limit: 200 },
 ];
 
 async function run() {

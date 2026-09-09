@@ -11,6 +11,7 @@ const router = express.Router();
 router.get('/version', HadithController.getVersion);
 router.get('/check-sync', HadithController.checkSync);
 router.get('/download-sync', HadithController.downloadSync);
+router.get('/collections', HadithController.getCollections);
 router.get('/', HadithController.getAllHadiths);
 router.get('/:id', HadithController.getHadithById);
 

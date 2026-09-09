@@ -15,6 +15,7 @@ const router = express_1.default.Router();
 router.get('/version', hadith_controller_1.HadithController.getVersion);
 router.get('/check-sync', hadith_controller_1.HadithController.checkSync);
 router.get('/download-sync', hadith_controller_1.HadithController.downloadSync);
+router.get('/collections', hadith_controller_1.HadithController.getCollections);
 router.get('/', hadith_controller_1.HadithController.getAllHadiths);
 router.get('/:id', hadith_controller_1.HadithController.getHadithById);
 // Admin-only management

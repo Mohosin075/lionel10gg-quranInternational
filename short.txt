@@ -25,7 +25,7 @@ PAY-02: Premium feature list update	Simple content change - solved
 Issue	কেন Complex
 BUG-02: Prayer time ভুল	নির্ভর করে calculation method, location API, timezone library-এর উপর। একাধিক variable — fix করা যাবে কিন্তু carefully test করতে হবে। - solved
 BUG-03: Qibla direction ভুল	Device sensor (magnetometer) + GPS accuracy-এর উপর নির্ভরশীল। কিছুটা device-dependent সমস্যাও হতে পারে। - solved
-BUG-04: Hadith collections load না	Data source/API issue — check করতে হবে কোন collections available আছে।
+BUG-04: Hadith collections load না	Data source/API issue — check করতে হবে কোন collections available আছে। - solved (Expanded HADITH_SOURCE_MAP for all 8 collections including Muwatta Malik & 40 Nawawi, updated seeders, and added GET /collections API endpoint)
 BUG-05 & BUG-06: Tafsir load হয় না	API বা data availability issue — solved
 BUG-13: Hasanat counter inconsistent	Calculation logic bug — fixable কিন্তু সব Surah test করতে হবে। - solved
 BUG-14: Books app freeze করে	Performance/memory issue — profiling লাগবে। - solved (Virtualized chunk rendering + SQLite lightweight metadata querying implemented)

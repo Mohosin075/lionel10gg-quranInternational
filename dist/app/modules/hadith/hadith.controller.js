@@ -109,7 +109,18 @@ const syncFromGlobalApi = (0, catchAsync_1.default)(async (req, res) => {
         data: result,
     });
 });
+const getCollections = (0, catchAsync_1.default)(async (req, res) => {
+    const lang = req.query.lang || 'en';
+    const result = await hadith_service_1.HadithServices.getCollections(lang);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        success: true,
+        message: 'Hadith collections fetched successfully',
+        data: result,
+    });
+});
 exports.HadithController = {
+    getCollections,
     getAllHadiths,
     getHadithById,
     createHadith,
