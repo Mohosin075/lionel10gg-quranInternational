@@ -25,6 +25,7 @@ import { DashboardRoutes } from '../app/modules/dashboard/dashboard.route'
 import { SubscriptionRoutes } from '../app/modules/subscription/subscription.route'
 import { InAppPurchaseRoutes } from '../app/modules/in-app-purchase/in-app-purchase.route'
 import { PaymentRoutes } from '../app/modules/payment/payment.route'
+import { OfflinePackRoutes } from '../app/modules/offline-pack/offline-pack.route'
 const router = express.Router()
 
 const apiRoutes: { path: string; route: Router }[] = [
@@ -52,6 +53,7 @@ const apiRoutes: { path: string; route: Router }[] = [
   { path: '/hadith', route: HadithRoutes },
   { path: '/knowledge-library', route: KnowledgeLibraryRoutes },
   { path: '/sheikh-content', route: SheikhContentRoutes },
+  { path: '/offline-pack', route: OfflinePackRoutes },
 ]
 
 apiRoutes.forEach(route => {
