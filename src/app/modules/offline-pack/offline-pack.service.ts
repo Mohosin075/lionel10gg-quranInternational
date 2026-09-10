@@ -8,6 +8,10 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Hadith } from '../hadith/hadith.model';
 import { Dua } from '../dua/dua.model';
 import { KnowledgeArticle } from '../knowledge-library/knowledge-library.model';
+import { Translation } from '../quran/quran.model';
+import { Tafsir } from '../tafsir/tafsir.model';
+import { KnowledgeBook } from '../knowledge-library/knowledge-book.model';
+import { KnowledgeFatwa } from '../knowledge-library/knowledge-fatwa.model';
 import { OfflinePack } from './offline-pack.model';
 import { BatchJob } from './batch-job.model';
 
@@ -26,7 +30,14 @@ const BUCKET = process.env.AWS_BUCKET_NAME!;
 const S3_PACK_PREFIX = 'offline-packs';
 
 // ─── Module → Model resolver ──────────────────────────────────────────────────
-export type SupportedModule = 'hadith' | 'dua' | 'knowledge';
+export type SupportedModule =
+  | 'hadith'
+  | 'dua'
+  | 'knowledge'
+  | 'quran'
+  | 'tafsir'
+  | 'book'
+  | 'fatwa';
 
 const getModuleData = async (module: SupportedModule, lang: string): Promise<object[]> => {
   switch (module) {
@@ -36,6 +47,14 @@ const getModuleData = async (module: SupportedModule, lang: string): Promise<obj
       return await Dua.find({ lang }).lean();
     case 'knowledge':
       return await KnowledgeArticle.find({ lang }).lean();
+    case 'quran':
+      return await Translation.find({ lang }).sort({ surah: 1, ayah: 1 }).lean();
+    case 'tafsir':
+      return await Tafsir.find({ lang }).sort({ surah: 1, ayah: 1 }).lean();
+    case 'book':
+      return await KnowledgeBook.find({ lang }).lean();
+    case 'fatwa':
+      return await KnowledgeFatwa.find({ lang }).lean();
     default:
       throw new Error(`Unsupported module: ${module}`);
   }
@@ -182,10 +201,24 @@ const listPacks = async () => {
 
 // ─── Coverage Matrix (DB records + S3 packs + Active jobs per lang) ───────────
 const getCoverageMatrix = async () => {
-  const [hadithCounts, duaCounts, knowledgeCounts, packs, activeJobs] = await Promise.all([
+  const [
+    hadithCounts,
+    duaCounts,
+    knowledgeCounts,
+    quranCounts,
+    tafsirCounts,
+    bookCounts,
+    fatwaCounts,
+    packs,
+    activeJobs,
+  ] = await Promise.all([
     Hadith.aggregate([{ $match: { isActive: true } }, { $group: { _id: '$lang', count: { $sum: 1 } } }]),
     Dua.aggregate([{ $group: { _id: '$lang', count: { $sum: 1 } } }]),
     KnowledgeArticle.aggregate([{ $group: { _id: '$lang', count: { $sum: 1 } } }]),
+    Translation.aggregate([{ $group: { _id: '$lang', count: { $sum: 1 } } }]),
+    Tafsir.aggregate([{ $group: { _id: '$lang', count: { $sum: 1 } } }]),
+    KnowledgeBook.aggregate([{ $group: { _id: '$lang', count: { $sum: 1 } } }]),
+    KnowledgeFatwa.aggregate([{ $group: { _id: '$lang', count: { $sum: 1 } } }]),
     OfflinePack.find({}).lean(),
     BatchJob.find({ status: { $in: ['in_progress', 'validating', 'finalizing', 'completed'] } }).lean(),
   ]);
@@ -196,16 +229,33 @@ const getCoverageMatrix = async () => {
       hadithCount: number;
       duaCount: number;
       knowledgeCount: number;
+      quranCount: number;
+      tafsirCount: number;
+      bookCount: number;
+      fatwaCount: number;
       hadithPack?: any;
       duaPack?: any;
       knowledgePack?: any;
+      quranPack?: any;
+      tafsirPack?: any;
+      bookPack?: any;
+      fatwaPack?: any;
       activeJobs?: Record<string, any>;
     }
   > = {};
 
   const ensureLang = (l: string) => {
     if (!matrix[l]) {
-      matrix[l] = { hadithCount: 0, duaCount: 0, knowledgeCount: 0, activeJobs: {} };
+      matrix[l] = {
+        hadithCount: 0,
+        duaCount: 0,
+        knowledgeCount: 0,
+        quranCount: 0,
+        tafsirCount: 0,
+        bookCount: 0,
+        fatwaCount: 0,
+        activeJobs: {},
+      };
     }
   };
 
@@ -227,12 +277,41 @@ const getCoverageMatrix = async () => {
       matrix[k._id].knowledgeCount = k.count;
     }
   }
+  for (const q of quranCounts) {
+    if (q._id) {
+      ensureLang(q._id);
+      matrix[q._id].quranCount = q.count;
+    }
+  }
+  for (const t of tafsirCounts) {
+    if (t._id) {
+      ensureLang(t._id);
+      matrix[t._id].tafsirCount = t.count;
+    }
+  }
+  for (const b of bookCounts) {
+    if (b._id) {
+      ensureLang(b._id);
+      matrix[b._id].bookCount = b.count;
+    }
+  }
+  for (const f of fatwaCounts) {
+    if (f._id) {
+      ensureLang(f._id);
+      matrix[f._id].fatwaCount = f.count;
+    }
+  }
+
   for (const p of packs) {
     if (p.lang) {
       ensureLang(p.lang);
       if (p.module === 'hadith') matrix[p.lang].hadithPack = p;
       if (p.module === 'dua') matrix[p.lang].duaPack = p;
       if (p.module === 'knowledge') matrix[p.lang].knowledgePack = p;
+      if (p.module === 'quran') matrix[p.lang].quranPack = p;
+      if (p.module === 'tafsir') matrix[p.lang].tafsirPack = p;
+      if (p.module === 'book') matrix[p.lang].bookPack = p;
+      if (p.module === 'fatwa') matrix[p.lang].fatwaPack = p;
     }
   }
   for (const j of activeJobs) {

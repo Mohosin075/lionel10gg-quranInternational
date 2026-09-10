@@ -17,6 +17,10 @@ import FormData from 'form-data';
 import { Hadith } from '../hadith/hadith.model';
 import { Dua } from '../dua/dua.model';
 import { KnowledgeArticle } from '../knowledge-library/knowledge-library.model';
+import { Translation } from '../quran/quran.model';
+import { Tafsir } from '../tafsir/tafsir.model';
+import { KnowledgeBook } from '../knowledge-library/knowledge-book.model';
+import { KnowledgeFatwa } from '../knowledge-library/knowledge-fatwa.model';
 import { BatchJob } from './batch-job.model';
 import { SupportedModule } from './offline-pack.service';
 
@@ -29,10 +33,10 @@ const authHeader = () => ({
 
 // ─── Build system prompt ───────────────────────────────────────────────────────
 const buildTranslationPrompt = (targetLang: string): string =>
-  `You are a professional Islamic scholar and translator. Translate the following Islamic text accurately into language code "${targetLang}". 
-  Always output each field with its exact English uppercase prefix (e.g. "TITLE: ...", "TRANSLATION: ...", "CHAPTER: ...", "CATEGORY: ...", "CONTENT: ...").
-  Preserve all Arabic terms (like "Allah", "Hadith", "Sahih", "Du'a") accurately. 
-  Return ONLY the translated formatted text, nothing else.`;
+  `You are an expert Islamic scholar and professional translator. Translate the following Islamic religious text accurately into language code "${targetLang}".
+Preserve Islamic theological integrity, respect, and proper terminology.
+Keep any structural keys like TITLE:, CONTENT:, AYAH:, TAFSIR:, TRANSLATION:, QUESTION:, ANSWER:, CHAPTER:, CATEGORY: intact in your response.
+Return ONLY the translated formatted text, nothing else.`;
 
 // ─── Fetch source documents ────────────────────────────────────────────────────
 const getSourceDocs = async (module: SupportedModule) => {
@@ -48,6 +52,22 @@ const getSourceDocs = async (module: SupportedModule) => {
     case 'knowledge':
       return await KnowledgeArticle.find({ lang: 'en' })
         .select('_id articleId slug title content category source readTime imageUrl audioUrl')
+        .lean();
+    case 'quran':
+      return await Translation.find({ lang: 'en' })
+        .select('_id surah ayah text arabicText footnotes edition')
+        .lean();
+    case 'tafsir':
+      return await Tafsir.find({ lang: 'en' })
+        .select('_id surah ayah text edition')
+        .lean();
+    case 'book':
+      return await KnowledgeBook.find({ lang: 'en' })
+        .select('_id bookId title author content source lang')
+        .lean();
+    case 'fatwa':
+      return await KnowledgeFatwa.find({ lang: 'en' })
+        .select('_id fatwaId question answer scholar lang')
         .lean();
     default:
       throw new Error(`Unsupported module: ${module}`);
@@ -69,6 +89,14 @@ const buildBatchJsonl = (
       textToTranslate = `TRANSLATION: ${doc.translation}\nCHAPTER: ${doc.chapter}\nCATEGORY: ${doc.category}`;
     } else if (module === 'dua') {
       textToTranslate = `TITLE: ${doc.title}\nTRANSLATION: ${doc.translation}`;
+    } else if (module === 'quran') {
+      textToTranslate = `AYAH: ${doc.text}`;
+    } else if (module === 'tafsir') {
+      textToTranslate = `TAFSIR: ${doc.text}`;
+    } else if (module === 'book') {
+      textToTranslate = `TITLE: ${doc.title}\nDESCRIPTION: ${(doc.description || '').slice(0, 1000)}`;
+    } else if (module === 'fatwa') {
+      textToTranslate = `QUESTION: ${doc.question}\nANSWER: ${(doc.answer || '').slice(0, 2000)}`;
     } else {
       // Knowledge: translate title + first 2000 chars of content (to stay within token limit)
       const contentSnippet = (doc.content || '').slice(0, 2000);
@@ -358,6 +386,99 @@ const processBatchResult = async (jobId: string): Promise<{ savedCount: number; 
             upsert: true,
           },
         });
+      } else if (module === 'quran') {
+        const ayahMatch = translatedText.match(/(?:AYAH|Ayah|আয়াত):\s*([\s\S]*?)$/i);
+        const sourceDoc = await Translation.findById(docId).lean();
+        if (!sourceDoc) continue;
+        const text = ayahMatch?.[1]?.trim() || translatedText.trim();
+        bulkOps.push({
+          updateOne: {
+            filter: { surah: sourceDoc.surah, ayah: sourceDoc.ayah, lang: targetLang, edition: `translated_${targetLang}` },
+            update: {
+              $set: {
+                surah: sourceDoc.surah,
+                ayah: sourceDoc.ayah,
+                lang: targetLang,
+                edition: `translated_${targetLang}`,
+                arabicText: sourceDoc.arabicText,
+                text,
+                footnotes: sourceDoc.footnotes,
+                version: 1,
+              },
+            },
+            upsert: true,
+          },
+        });
+      } else if (module === 'tafsir') {
+        const tafsirMatch = translatedText.match(/(?:TAFSIR|Tafsir|তাফসীর):\s*([\s\S]*?)$/i);
+        const sourceDoc = await Tafsir.findById(docId).lean();
+        if (!sourceDoc) continue;
+        const text = tafsirMatch?.[1]?.trim() || translatedText.trim();
+        bulkOps.push({
+          updateOne: {
+            filter: { surah: sourceDoc.surah, ayah: sourceDoc.ayah, lang: targetLang, edition: `translated_${targetLang}` },
+            update: {
+              $set: {
+                surah: sourceDoc.surah,
+                ayah: sourceDoc.ayah,
+                lang: targetLang,
+                edition: `translated_${targetLang}`,
+                text,
+                version: 1,
+              },
+            },
+            upsert: true,
+          },
+        });
+      } else if (module === 'book') {
+        const titleMatch = translatedText.match(/(?:TITLE|Title):\s*([\s\S]*?)(?:\n(?:CONTENT|Content):|$)/i);
+        const contentMatch = translatedText.match(/(?:CONTENT|Content):\s*([\s\S]*?)$/i);
+        const sourceDoc = await KnowledgeBook.findById(docId).lean();
+        if (!sourceDoc) continue;
+        const title = titleMatch?.[1]?.trim() || sourceDoc.title;
+        const content = contentMatch?.[1]?.trim() || translatedText.trim();
+        bulkOps.push({
+          updateOne: {
+            filter: { bookId: sourceDoc.bookId, lang: targetLang },
+            update: {
+              $set: {
+                bookId: sourceDoc.bookId,
+                title,
+                content,
+                author: sourceDoc.author,
+                source: sourceDoc.source,
+                lang: targetLang,
+                version: 1,
+                isActive: true,
+              },
+            },
+            upsert: true,
+          },
+        });
+      } else if (module === 'fatwa') {
+        const qMatch = translatedText.match(/(?:QUESTION|Question):\s*([\s\S]*?)(?:\n(?:ANSWER|Answer):|$)/i);
+        const aMatch = translatedText.match(/(?:ANSWER|Answer):\s*([\s\S]*?)$/i);
+        const sourceDoc = await KnowledgeFatwa.findById(docId).lean();
+        if (!sourceDoc) continue;
+        const question = qMatch?.[1]?.trim() || sourceDoc.question;
+        const answer = aMatch?.[1]?.trim() || translatedText.trim();
+        bulkOps.push({
+          updateOne: {
+            filter: { fatwaId: sourceDoc.fatwaId, lang: targetLang },
+            update: {
+              $set: {
+                fatwaId: sourceDoc.fatwaId,
+                question,
+                answer,
+                scholar: sourceDoc.scholar,
+                lang: targetLang,
+                version: 1,
+                isActive: true,
+              },
+            },
+            upsert: true,
+          },
+        });
       }
 
       savedCount++;
@@ -374,6 +495,10 @@ const processBatchResult = async (jobId: string): Promise<{ savedCount: number; 
     if (module === 'hadith') await Hadith.bulkWrite(chunk);
     else if (module === 'dua') await Dua.bulkWrite(chunk);
     else if (module === 'knowledge') await KnowledgeArticle.bulkWrite(chunk);
+    else if (module === 'quran') await Translation.bulkWrite(chunk);
+    else if (module === 'tafsir') await Tafsir.bulkWrite(chunk);
+    else if (module === 'book') await KnowledgeBook.bulkWrite(chunk);
+    else if (module === 'fatwa') await KnowledgeFatwa.bulkWrite(chunk);
   }
 
   // Mark job as processed

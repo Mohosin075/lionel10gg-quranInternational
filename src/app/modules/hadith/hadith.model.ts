@@ -17,9 +17,9 @@ const HadithSchema = new Schema<IHadith>(
   { timestamps: true }
 );
 
-// Optimize query patterns for front-end searches and sync endpoints
+// Optimize query patterns for front-end searches and sync endpoints (O(log N) B-Tree)
+HadithSchema.index({ lang: 1, source: 1, hadithNo: 1 }, { unique: true });
 HadithSchema.index({ lang: 1, category: 1 });
-HadithSchema.index({ hadithNo: 1, lang: 1 }, { unique: true });
 HadithSchema.index({ version: 1, lang: 1 });
 
 export const Hadith = model<IHadith>('Hadith', HadithSchema);

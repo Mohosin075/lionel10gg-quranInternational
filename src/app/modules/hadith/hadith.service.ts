@@ -14,18 +14,37 @@ const EDITION_SOURCE_MAP: Record<string, string> = {
   nawawi: 'Forty Hadith Nawawi',
 };
 
+export const LANG_CODE_MAP: Record<string, string> = {
+  en: 'eng',
+  bn: 'ben',
+  ur: 'urd',
+  id: 'ind',
+  fr: 'fra',
+  tr: 'tur',
+  es: 'spa',
+  ru: 'rus',
+  ta: 'tam',
+  ar: 'ara',
+};
+
 const getSourceName = (edition: string): string => {
   const bookKey = edition.toLowerCase().split('-')[1] || 'hadith';
   return EDITION_SOURCE_MAP[bookKey] || 'Official Hadith';
 };
 
-const syncFromGlobalApi = async (edition: string, fromHadith: number, toHadith: number) => {
+const syncFromGlobalApi = async (
+  edition: string,
+  fromHadith: number,
+  toHadith: number,
+  lang: string = 'en',
+) => {
   let createdCount = 0;
   let updatedCount = 0;
 
   const sourceName = getSourceName(edition);
-  const arabEdition = edition.replace('eng-', 'ara-');
-  const hadithBookKey = edition.split('-')[1] || 'hadith';
+  const editionParts = edition.split('-');
+  const hadithBookKey = editionParts[1] || 'hadith';
+  const arabEdition = `ara-${hadithBookKey}`;
 
   // Fast Bulk Fetch Approach (Single HTTP Call per edition)
   try {
@@ -83,14 +102,14 @@ const syncFromGlobalApi = async (edition: string, fromHadith: number, toHadith: 
             translation: engHadith.text,
             authenticity,
             category: chapterName,
-            lang: 'en',
+            lang,
             version: 1,
             isActive: true,
           };
 
           return {
             updateOne: {
-              filter: { hadithNo, lang: 'en' },
+              filter: { hadithNo, source: sourceName, lang },
               update: { $set: hadithData },
               upsert: true,
             },
@@ -155,13 +174,13 @@ const syncFromGlobalApi = async (edition: string, fromHadith: number, toHadith: 
         translation: engHadith.text,
         authenticity,
         category: chapterName,
-        lang: 'en',
+        lang,
         version: 1,
         isActive: true,
       };
 
       const result = await Hadith.findOneAndUpdate(
-        { hadithNo, lang: 'en' },
+        { hadithNo, source: sourceName, lang },
         { $set: hadithData },
         { upsert: true, new: false }
       );
@@ -419,6 +438,28 @@ const getOrSyncHadithsByLanguage = async (targetLang: string) => {
   return results;
 };
 
+// ─── Tier 1 Top 10 Languages Bulk Sync ────────────────────────────────────────
+const syncTier1Languages = async (
+  bookKey = 'bukhari',
+  fromHadith = 1,
+  toHadith = 100,
+) => {
+  const results: Record<string, { createdCount: number; updatedCount: number; error?: string }> = {};
+  const tier1Langs = ['en', 'bn', 'ur', 'id', 'fr', 'tr', 'es', 'ru', 'ta', 'ar'];
+
+  for (const lang of tier1Langs) {
+    const prefix = LANG_CODE_MAP[lang] || lang;
+    const edition = `${prefix}-${bookKey}`;
+    try {
+      const res = await syncFromGlobalApi(edition, fromHadith, toHadith, lang);
+      results[lang] = res;
+    } catch (err: any) {
+      results[lang] = { createdCount: 0, updatedCount: 0, error: err.message };
+    }
+  }
+  return results;
+};
+
 export const HadithServices = {
   getCollections,
   getAllHadiths,
@@ -431,4 +472,5 @@ export const HadithServices = {
   getSyncData,
   getOrSyncHadithsByLanguage,
   syncFromGlobalApi,
+  syncTier1Languages,
 };

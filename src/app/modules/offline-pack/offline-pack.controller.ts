@@ -4,7 +4,15 @@ import catchAsync from '../../../shared/catchAsync';
 import sendResponse from '../../../shared/sendResponse';
 import { OfflinePackService, SupportedModule } from './offline-pack.service';
 
-const VALID_MODULES: SupportedModule[] = ['hadith', 'dua', 'knowledge'];
+const VALID_MODULES: SupportedModule[] = [
+  'hadith',
+  'dua',
+  'knowledge',
+  'quran',
+  'tafsir',
+  'book',
+  'fatwa',
+];
 
 const validateModule = (mod: string): SupportedModule => {
   if (!VALID_MODULES.includes(mod as SupportedModule)) {

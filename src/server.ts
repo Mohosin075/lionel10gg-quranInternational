@@ -8,6 +8,7 @@ import { UserServices } from './app/modules/user/user.service'
 import { socketHelper } from './helpers/socketHelper'
 import { Server as HttpServer } from 'http'
 import './task/duaSyncCron'
+import './task/offlinePackCron'
 import { seedSubscriptionPlans } from './app/modules/subscription/subscription.seed'
 
 // Uncaught exceptions
