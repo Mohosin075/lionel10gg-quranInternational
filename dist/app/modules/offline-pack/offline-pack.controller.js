@@ -65,9 +65,20 @@ const listPacks = (0, catchAsync_1.default)(async (_req, res) => {
         data: result,
     });
 });
+// GET /offline-pack/coverage  (Admin: see 109-language DB records & pack readiness)
+const getCoverage = (0, catchAsync_1.default)(async (_req, res) => {
+    const result = await offline_pack_service_1.OfflinePackService.getCoverageMatrix();
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        success: true,
+        message: 'Language coverage matrix retrieved successfully',
+        data: result,
+    });
+});
 exports.OfflinePackController = {
     checkSync,
     downloadPack,
     generatePack,
     listPacks,
+    getCoverage,
 };

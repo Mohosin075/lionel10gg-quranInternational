@@ -30,8 +30,9 @@ const authHeader = () => ({
 });
 // ─── Build system prompt ───────────────────────────────────────────────────────
 const buildTranslationPrompt = (targetLang) => `You are a professional Islamic scholar and translator. Translate the following Islamic text accurately into language code "${targetLang}". 
-  Preserve all Arabic terms (like "Allah", "Hadith", "Sahih") as-is. 
-  Return ONLY the translated text, nothing else.`;
+  Always output each field with its exact English uppercase prefix (e.g. "TITLE: ...", "TRANSLATION: ...", "CHAPTER: ...", "CATEGORY: ...", "CONTENT: ...").
+  Preserve all Arabic terms (like "Allah", "Hadith", "Sahih", "Du'a") accurately. 
+  Return ONLY the translated formatted text, nothing else.`;
 // ─── Fetch source documents ────────────────────────────────────────────────────
 const getSourceDocs = async (module) => {
     switch (module) {
@@ -102,6 +103,17 @@ const uploadBatchFile = async (jsonlContent) => {
 const createBatchJob = async (module, targetLang) => {
     if (!process.env.OPENAI_API_KEY) {
         throw new Error('OPENAI_API_KEY not set in environment variables.');
+    }
+    if (targetLang.toLowerCase() === 'en') {
+        throw new Error('English is the primary source language and does not require translation.');
+    }
+    const existingActiveJob = await batch_job_model_1.BatchJob.findOne({
+        module,
+        targetLang,
+        status: { $in: ['in_progress', 'validating', 'finalizing'] },
+    });
+    if (existingActiveJob) {
+        throw new Error(`An active translation job is already running for ${module.toUpperCase()} [${targetLang}]. Please wait for it to complete.`);
     }
     const docs = await getSourceDocs(module);
     if (docs.length === 0)
@@ -217,17 +229,42 @@ const processBatchResult = async (jobId) => {
                 });
             }
             else if (module === 'dua') {
-                const titleMatch = translatedText.match(/TITLE:\s*([\s\S]*?)(?:\nTRANSLATION:|$)/);
-                const translationMatch = translatedText.match(/TRANSLATION:\s*([\s\S]*?)$/);
+                const titleMatch = translatedText.match(/(?:TITLE|Title|শিরোনাম|TITRE|TITEL|TÍTULO):\s*([\s\S]*?)(?:\n(?:TRANSLATION|Translation|অনুবাদ|TRADUCTION|ÜBERSETZUNG|TRADUCCIÓN):|$)/i);
+                const translationMatch = translatedText.match(/(?:TRANSLATION|Translation|অনুবাদ|TRADUCTION|ÜBERSETZUNG|TRADUCCIÓN):\s*([\s\S]*?)$/i);
                 const sourceDoc = await dua_model_1.Dua.findById(docId).lean();
                 if (!sourceDoc)
                     continue;
+                let title = (_j = titleMatch === null || titleMatch === void 0 ? void 0 : titleMatch[1]) === null || _j === void 0 ? void 0 : _j.trim();
+                let translation = (_k = translationMatch === null || translationMatch === void 0 ? void 0 : translationMatch[1]) === null || _k === void 0 ? void 0 : _k.trim();
+                if (!title || !translation) {
+                    const parts = translatedText.split('\n\n');
+                    if (parts.length >= 2) {
+                        title = title || parts[0].replace(/^(?:TITLE|Title|শিরোনাম|TITRE):\s*/i, '').trim();
+                        translation = translation || parts.slice(1).join('\n\n').replace(/^(?:TRANSLATION|Translation|অনুবাদ|TRADUCTION):\s*/i, '').trim();
+                    }
+                    else {
+                        const lines = translatedText.split('\n');
+                        if (lines.length >= 2) {
+                            title = title || lines[0].replace(/^(?:TITLE|Title|শিরোনাম|TITRE):\s*/i, '').trim();
+                            translation = translation || lines.slice(1).join('\n').replace(/^(?:TRANSLATION|Translation|অনুবাদ|TRADUCTION):\s*/i, '').trim();
+                        }
+                        else {
+                            title = title || sourceDoc.title;
+                            translation = translation || translatedText;
+                        }
+                    }
+                }
+                if (title === sourceDoc.title && translation.includes(':')) {
+                    const colonIdx = translation.indexOf(':');
+                    title = translation.slice(0, colonIdx).trim();
+                    translation = translation.slice(colonIdx + 1).trim();
+                }
+                const filter = sourceDoc.externalId
+                    ? { externalId: sourceDoc.externalId, lang: targetLang }
+                    : { arabic: sourceDoc.arabic, lang: targetLang };
                 bulkOps.push({
                     updateOne: {
-                        // externalId may be null/sparse — fall back to _id-based upsert if missing
-                        filter: sourceDoc.externalId
-                            ? { externalId: sourceDoc.externalId, lang: targetLang }
-                            : { _id: new (require('mongoose').Types.ObjectId)(), lang: targetLang }, // new doc
+                        filter,
                         update: {
                             $set: {
                                 externalId: sourceDoc.externalId,
@@ -236,8 +273,9 @@ const processBatchResult = async (jobId) => {
                                 repeat: sourceDoc.repeat,
                                 reference: sourceDoc.reference,
                                 category: sourceDoc.category,
-                                title: ((_j = titleMatch === null || titleMatch === void 0 ? void 0 : titleMatch[1]) === null || _j === void 0 ? void 0 : _j.trim()) || sourceDoc.title,
-                                translation: ((_k = translationMatch === null || translationMatch === void 0 ? void 0 : translationMatch[1]) === null || _k === void 0 ? void 0 : _k.trim()) || translatedText,
+                                transliteration: sourceDoc.transliteration,
+                                title: title || sourceDoc.title,
+                                translation: translation || translatedText,
                                 lang: targetLang,
                                 version: 1,
                             },
@@ -247,11 +285,24 @@ const processBatchResult = async (jobId) => {
                 });
             }
             else if (module === 'knowledge') {
-                const titleMatch = translatedText.match(/TITLE:\s*([\s\S]*?)(?:\nCONTENT:|$)/);
-                const contentMatch = translatedText.match(/CONTENT:\s*([\s\S]*?)$/);
+                const titleMatch = translatedText.match(/(?:TITLE|Title|শিরোনাম|TITRE):\s*([\s\S]*?)(?:\n(?:CONTENT|Content|বিষয়বস্তু|CONTENU):|$)/i);
+                const contentMatch = translatedText.match(/(?:CONTENT|Content|বিষয়বস্তু|CONTENU):\s*([\s\S]*?)$/i);
                 const sourceDoc = await knowledge_library_model_1.KnowledgeArticle.findById(docId).lean();
                 if (!sourceDoc)
                     continue;
+                let title = (_l = titleMatch === null || titleMatch === void 0 ? void 0 : titleMatch[1]) === null || _l === void 0 ? void 0 : _l.trim();
+                let content = (_m = contentMatch === null || contentMatch === void 0 ? void 0 : contentMatch[1]) === null || _m === void 0 ? void 0 : _m.trim();
+                if (!title || !content) {
+                    const parts = translatedText.split('\n\n');
+                    if (parts.length >= 2) {
+                        title = title || parts[0].trim();
+                        content = content || parts.slice(1).join('\n\n').trim();
+                    }
+                    else {
+                        title = title || sourceDoc.title;
+                        content = content || translatedText;
+                    }
+                }
                 bulkOps.push({
                     updateOne: {
                         filter: { articleId: sourceDoc.articleId, lang: targetLang },
@@ -264,8 +315,8 @@ const processBatchResult = async (jobId) => {
                                 readTime: sourceDoc.readTime,
                                 imageUrl: sourceDoc.imageUrl,
                                 audioUrl: sourceDoc.audioUrl,
-                                title: ((_l = titleMatch === null || titleMatch === void 0 ? void 0 : titleMatch[1]) === null || _l === void 0 ? void 0 : _l.trim()) || sourceDoc.title,
-                                content: ((_m = contentMatch === null || contentMatch === void 0 ? void 0 : contentMatch[1]) === null || _m === void 0 ? void 0 : _m.trim()) || sourceDoc.content,
+                                title: title || sourceDoc.title,
+                                content: content || sourceDoc.content,
                                 lang: targetLang,
                                 version: 1,
                                 isActive: true,
@@ -299,6 +350,44 @@ const processBatchResult = async (jobId) => {
     return { savedCount, errorCount };
 };
 const listBatchJobs = async () => {
+    var _a;
+    // Auto-sync status with OpenAI for any active jobs!
+    if (process.env.OPENAI_API_KEY) {
+        const activeJobs = await batch_job_model_1.BatchJob.find({
+            status: { $in: ['in_progress', 'validating', 'finalizing'] },
+        }).limit(10);
+        for (const job of activeJobs) {
+            try {
+                const res = await axios_1.default.get(`${OPENAI_API_URL}/batches/${job.batchId}`, {
+                    headers: authHeader(),
+                    timeout: 7000,
+                });
+                const batch = res.data;
+                const newStatus = batch.status;
+                const completedCount = ((_a = batch.request_counts) === null || _a === void 0 ? void 0 : _a.completed) || 0;
+                const outputFileId = batch.output_file_id || job.outputFileId;
+                await batch_job_model_1.BatchJob.findOneAndUpdate({ batchId: job.batchId }, {
+                    status: newStatus,
+                    processedCount: completedCount,
+                    outputFileId,
+                    errorFileId: batch.error_file_id,
+                });
+                // If batch completed on OpenAI, auto-process into database!
+                if (newStatus === 'completed' && outputFileId) {
+                    try {
+                        await processBatchResult(job.batchId);
+                    }
+                    catch (pErr) {
+                        console.error(`[BatchTranslate] Auto-process error for ${job.batchId}:`, pErr);
+                    }
+                }
+            }
+            catch (pollErr) {
+                // Continue silently if rate-limited or transient network error
+                console.warn(`[BatchTranslate] Poll error for ${job.batchId}:`, pollErr === null || pollErr === void 0 ? void 0 : pollErr.message);
+            }
+        }
+    }
     return await batch_job_model_1.BatchJob.find({}).sort({ createdAt: -1 }).limit(100).lean();
 };
 exports.BatchTranslateService = {

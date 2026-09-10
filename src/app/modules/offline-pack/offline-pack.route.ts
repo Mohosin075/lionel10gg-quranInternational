@@ -30,6 +30,13 @@ router.get(
   OfflinePackController.listPacks,
 );
 
+// GET /api/v1/offline-pack/coverage (Language coverage matrix with live DB & pack counts)
+router.get(
+  '/coverage',
+  auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  OfflinePackController.getCoverage,
+);
+
 // ── Admin-only: OpenAI Batch Translation ─────────────────────────────────────
 // Step 0: List all batch jobs
 // GET /api/v1/offline-pack/batch-jobs

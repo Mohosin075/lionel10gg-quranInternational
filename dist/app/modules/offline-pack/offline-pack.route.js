@@ -22,6 +22,8 @@ router.get('/download/:module', offline_pack_controller_1.OfflinePackController.
 router.post('/generate', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), offline_pack_controller_1.OfflinePackController.generatePack);
 // GET /api/v1/offline-pack/list
 router.get('/list', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), offline_pack_controller_1.OfflinePackController.listPacks);
+// GET /api/v1/offline-pack/coverage (Language coverage matrix with live DB & pack counts)
+router.get('/coverage', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), offline_pack_controller_1.OfflinePackController.getCoverage);
 // ── Admin-only: OpenAI Batch Translation ─────────────────────────────────────
 // Step 0: List all batch jobs
 // GET /api/v1/offline-pack/batch-jobs

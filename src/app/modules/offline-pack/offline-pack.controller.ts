@@ -1,4 +1,4 @@
-﻿import { Request, Response } from 'express';
+import { Request, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import catchAsync from '../../../shared/catchAsync';
 import sendResponse from '../../../shared/sendResponse';
@@ -75,9 +75,22 @@ const listPacks = catchAsync(async (_req: Request, res: Response) => {
   });
 });
 
+// GET /offline-pack/coverage  (Admin: see 109-language DB records & pack readiness)
+const getCoverage = catchAsync(async (_req: Request, res: Response) => {
+  const result = await OfflinePackService.getCoverageMatrix();
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Language coverage matrix retrieved successfully',
+    data: result,
+  });
+});
+
 export const OfflinePackController = {
   checkSync,
   downloadPack,
   generatePack,
   listPacks,
+  getCoverage,
 };
