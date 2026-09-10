@@ -162,15 +162,17 @@ const syncFromGlobalApi = async (edition, fromHadith, toHadith) => {
     }
     return { createdCount, updatedCount };
 };
+// Total ~10,042 hadiths distributed across all 8 collections
+// so every section of the app has content from day one.
 const ALL_HADITH_COLLECTIONS = [
-    { key: 'bukhari', edition: 'eng-bukhari', name: 'Sahih al-Bukhari', range: { from: 1, to: 10000 } },
-    { key: 'muslim', edition: 'eng-muslim', name: 'Sahih Muslim', range: { from: 1, to: 10000 } },
-    { key: 'abudawud', edition: 'eng-abudawud', name: 'Sunan Abi Dawud', range: { from: 1, to: 10000 } },
-    { key: 'tirmidhi', edition: 'eng-tirmidhi', name: 'Jami at-Tirmidhi', range: { from: 1, to: 10000 } },
-    { key: 'nasai', edition: 'eng-nasai', name: 'Sunan an-Nasai', range: { from: 1, to: 10000 } },
-    { key: 'ibnmajah', edition: 'eng-ibnmajah', name: 'Sunan Ibn Majah', range: { from: 1, to: 10000 } },
-    { key: 'malik', edition: 'eng-malik', name: 'Muwatta Malik', range: { from: 1, to: 10000 } },
-    { key: 'nawawi', edition: 'eng-nawawi', name: 'Forty Hadith Nawawi', range: { from: 1, to: 10000 } },
+    { key: 'bukhari', edition: 'eng-bukhari', name: 'Sahih al-Bukhari', range: { from: 1, to: 3000 } },
+    { key: 'muslim', edition: 'eng-muslim', name: 'Sahih Muslim', range: { from: 1, to: 1500 } },
+    { key: 'abudawud', edition: 'eng-abudawud', name: 'Sunan Abi Dawud', range: { from: 1, to: 1500 } },
+    { key: 'tirmidhi', edition: 'eng-tirmidhi', name: 'Jami at-Tirmidhi', range: { from: 1, to: 1000 } },
+    { key: 'nasai', edition: 'eng-nasai', name: 'Sunan an-Nasai', range: { from: 1, to: 1000 } },
+    { key: 'ibnmajah', edition: 'eng-ibnmajah', name: 'Sunan Ibn Majah', range: { from: 1, to: 1000 } },
+    { key: 'malik', edition: 'eng-malik', name: 'Muwatta Malik', range: { from: 1, to: 500 } },
+    { key: 'nawawi', edition: 'eng-nawawi', name: 'Forty Hadith Nawawi', range: { from: 1, to: 42 } },
 ];
 const seedAllHadithCollections = async () => {
     console.log('[HadithService] Triggering background seed for all 8 Hadith collections...');

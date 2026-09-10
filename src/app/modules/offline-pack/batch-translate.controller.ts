@@ -1,4 +1,4 @@
-﻿import { Request, Response } from 'express';
+import { Request, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import catchAsync from '../../../shared/catchAsync';
 import sendResponse from '../../../shared/sendResponse';
@@ -50,8 +50,21 @@ const processBatchResult = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+// GET /offline-pack/batch-jobs
+const getBatchJobs = catchAsync(async (req: Request, res: Response) => {
+  const result = await BatchTranslateService.listBatchJobs();
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Batch jobs fetched successfully',
+    data: result,
+  });
+});
+
 export const BatchController = {
   startBatchTranslation,
   getBatchStatus,
   processBatchResult,
+  getBatchJobs,
 };

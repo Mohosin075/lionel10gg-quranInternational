@@ -26,9 +26,11 @@ import { SubscriptionRoutes } from '../app/modules/subscription/subscription.rou
 import { InAppPurchaseRoutes } from '../app/modules/in-app-purchase/in-app-purchase.route'
 import { PaymentRoutes } from '../app/modules/payment/payment.route'
 import { OfflinePackRoutes } from '../app/modules/offline-pack/offline-pack.route'
+import { AppConfigRoutes } from '../app/modules/app-config/app-config.route'
 const router = express.Router()
 
 const apiRoutes: { path: string; route: Router }[] = [
+  { path: '/app-config', route: AppConfigRoutes },
   { path: '/user', route: UserRoutes },
   { path: '/auth', route: AuthRoutes },
   { path: '/dashboard', route: DashboardRoutes },

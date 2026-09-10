@@ -327,8 +327,13 @@ const processBatchResult = async (jobId: string): Promise<{ savedCount: number; 
   return { savedCount, errorCount };
 };
 
+const listBatchJobs = async () => {
+  return await BatchJob.find({}).sort({ createdAt: -1 }).limit(100).lean();
+};
+
 export const BatchTranslateService = {
   createBatchJob,
   checkBatchStatus,
   processBatchResult,
+  listBatchJobs,
 };

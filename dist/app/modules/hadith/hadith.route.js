@@ -21,6 +21,7 @@ router.get('/:id', hadith_controller_1.HadithController.getHadithById);
 // Admin-only management
 router.post('/', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), (0, validateRequest_1.default)(hadith_validation_1.HadithValidations.createHadithZodSchema), hadith_controller_1.HadithController.createHadith);
 router.patch('/:id', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), (0, validateRequest_1.default)(hadith_validation_1.HadithValidations.updateHadithZodSchema), hadith_controller_1.HadithController.updateHadith);
+router.put('/:id', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), (0, validateRequest_1.default)(hadith_validation_1.HadithValidations.updateHadithZodSchema), hadith_controller_1.HadithController.updateHadith);
 router.delete('/:id', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), hadith_controller_1.HadithController.deleteHadith);
 router.post('/sync-external', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), hadith_controller_1.HadithController.syncFromGlobalApi);
 exports.HadithRoutes = router;

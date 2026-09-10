@@ -52,6 +52,25 @@ const createDua = async (payload: Partial<IDua>) => {
   return await Dua.create(payload);
 };
 
+const updateDua = async (id: string, payload: Partial<IDua>) => {
+  const current = await Dua.findById(id);
+  const newVersion = current ? (current.version || 1) + 1 : 1;
+  return await Dua.findByIdAndUpdate(
+    id,
+    { ...payload, version: newVersion },
+    { new: true },
+  );
+};
+
+const deleteDua = async (id: string) => {
+  return await Dua.findByIdAndDelete(id);
+};
+
+const getCategories = async (lang: string = 'en') => {
+  const categories = await Dua.distinct('category', { lang });
+  return categories.filter(Boolean);
+};
+
 const getVersion = async (lang: string = 'en') => {
   const latest = await Dua.findOne({ lang }).sort({ version: -1 }).select('version');
   return latest?.version || 1;
@@ -267,6 +286,9 @@ export const DuaService = {
   getAllDuas,
   getDuaById,
   createDua,
+  updateDua,
+  deleteDua,
+  getCategories,
   getVersion,
   checkSyncMetadata,
   getSyncData,

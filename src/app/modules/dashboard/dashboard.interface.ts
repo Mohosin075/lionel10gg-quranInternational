@@ -13,6 +13,10 @@ export type IAnalyticsResponse = {
     totalHighlights: number;
     totalVerseViews: number;
   };
+  totalHadiths?: number;
+  totalDuas?: number;
+  totalOfflinePacks?: number;
+  activeBatchJobs?: number;
 };
 
 export type IUserManagementResponse = {

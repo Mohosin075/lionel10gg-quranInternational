@@ -44,6 +44,42 @@ const createDua = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const updateDua = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const result = await DuaService.updateDua(id, req.body);
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Dua updated successfully',
+    data: result,
+  });
+});
+
+const deleteDua = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const result = await DuaService.deleteDua(id);
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Dua deleted successfully',
+    data: result,
+  });
+});
+
+const getCategories = catchAsync(async (req: Request, res: Response) => {
+  const lang = (req.query.lang as string) || 'en';
+  const result = await DuaService.getCategories(lang);
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Dua categories fetched successfully',
+    data: result,
+  });
+});
+
 const getVersion = catchAsync(async (req: Request, res: Response) => {
   const lang = req.query.lang as string || 'en';
   const result = await DuaService.getVersion(lang);
@@ -104,6 +140,9 @@ export const DuaController = {
   getAllDuas,
   getDuaById,
   createDua,
+  updateDua,
+  deleteDua,
+  getCategories,
   getVersion,
   checkSync,
   downloadSync,

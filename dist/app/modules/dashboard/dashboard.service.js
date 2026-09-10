@@ -5,12 +5,21 @@ const user_model_1 = require("../user/user.model");
 const bookmark_model_1 = require("../bookmark/bookmark.model");
 const highlight_model_1 = require("../highlight/highlight.model");
 const notification_model_1 = require("../notification/notification.model");
+const hadith_model_1 = require("../hadith/hadith.model");
+const dua_model_1 = require("../dua/dua.model");
+const offline_pack_model_1 = require("../offline-pack/offline-pack.model");
+const batch_job_model_1 = require("../offline-pack/batch-job.model");
 const user_1 = require("../../../enum/user");
 const getAnalytics = async () => {
     const totalUsers = await user_model_1.User.countDocuments();
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const activeUsers7d = await user_model_1.User.countDocuments({ updatedAt: { $gte: sevenDaysAgo } });
     const dailyActiveUsers = await user_model_1.User.countDocuments({ updatedAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) } });
+    // Content counts
+    const totalHadiths = await hadith_model_1.Hadith.countDocuments({ isActive: true });
+    const totalDuas = await dua_model_1.Dua.countDocuments();
+    const totalOfflinePacks = await offline_pack_model_1.OfflinePack.countDocuments();
+    const activeBatchJobs = await batch_job_model_1.BatchJob.countDocuments({ status: { $in: ['in_progress', 'validating'] } });
     // Bookmarks count
     const totalBookmarks = await bookmark_model_1.Bookmark.countDocuments();
     const totalHighlights = await highlight_model_1.Highlight.countDocuments();
@@ -63,6 +72,10 @@ const getAnalytics = async () => {
             totalHighlights,
             totalVerseViews: 423567, // Mock
         },
+        totalHadiths,
+        totalDuas,
+        totalOfflinePacks,
+        activeBatchJobs,
     };
 };
 const getUserManagement = async () => {

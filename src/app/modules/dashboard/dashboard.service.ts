@@ -2,6 +2,10 @@ import { User } from '../user/user.model';
 import { Bookmark } from '../bookmark/bookmark.model';
 import { Highlight } from '../highlight/highlight.model';
 import { Notification } from '../notification/notification.model';
+import { Hadith } from '../hadith/hadith.model';
+import { Dua } from '../dua/dua.model';
+import { OfflinePack } from '../offline-pack/offline-pack.model';
+import { BatchJob } from '../offline-pack/batch-job.model';
 import { USER_STATUS } from '../../../enum/user';
 import { IAnalyticsResponse, IUserManagementResponse, INotificationManagementResponse, IReportResponse } from './dashboard.interface';
 
@@ -10,6 +14,12 @@ const getAnalytics = async (): Promise<IAnalyticsResponse> => {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const activeUsers7d = await User.countDocuments({ updatedAt: { $gte: sevenDaysAgo } });
   const dailyActiveUsers = await User.countDocuments({ updatedAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) } });
+
+  // Content counts
+  const totalHadiths = await Hadith.countDocuments({ isActive: true });
+  const totalDuas = await Dua.countDocuments();
+  const totalOfflinePacks = await OfflinePack.countDocuments();
+  const activeBatchJobs = await BatchJob.countDocuments({ status: { $in: ['in_progress', 'validating'] } });
 
   // Bookmarks count
   const totalBookmarks = await Bookmark.countDocuments();
@@ -69,6 +79,10 @@ const getAnalytics = async (): Promise<IAnalyticsResponse> => {
       totalHighlights,
       totalVerseViews: 423567, // Mock
     },
+    totalHadiths,
+    totalDuas,
+    totalOfflinePacks,
+    activeBatchJobs,
   };
 };
 

@@ -31,6 +31,14 @@ router.get(
 );
 
 // ── Admin-only: OpenAI Batch Translation ─────────────────────────────────────
+// Step 0: List all batch jobs
+// GET /api/v1/offline-pack/batch-jobs
+router.get(
+  '/batch-jobs',
+  auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  BatchController.getBatchJobs,
+);
+
 // Step 1: Start a batch translation job
 // POST /api/v1/offline-pack/batch-translate  { module: "hadith", targetLang: "de" }
 router.post(

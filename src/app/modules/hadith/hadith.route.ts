@@ -30,6 +30,13 @@ router.patch(
   HadithController.updateHadith
 );
 
+router.put(
+  '/:id',
+  auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  validateRequest(HadithValidations.updateHadithZodSchema),
+  HadithController.updateHadith
+);
+
 router.delete(
   '/:id',
   auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),

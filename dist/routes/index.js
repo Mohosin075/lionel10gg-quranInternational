@@ -28,8 +28,11 @@ const dashboard_route_1 = require("../app/modules/dashboard/dashboard.route");
 const subscription_route_1 = require("../app/modules/subscription/subscription.route");
 const in_app_purchase_route_1 = require("../app/modules/in-app-purchase/in-app-purchase.route");
 const payment_route_1 = require("../app/modules/payment/payment.route");
+const offline_pack_route_1 = require("../app/modules/offline-pack/offline-pack.route");
+const app_config_route_1 = require("../app/modules/app-config/app-config.route");
 const router = express_1.default.Router();
 const apiRoutes = [
+    { path: '/app-config', route: app_config_route_1.AppConfigRoutes },
     { path: '/user', route: user_route_1.UserRoutes },
     { path: '/auth', route: auth_route_1.AuthRoutes },
     { path: '/dashboard', route: dashboard_route_1.DashboardRoutes },
@@ -53,6 +56,7 @@ const apiRoutes = [
     { path: '/hadith', route: hadith_route_1.HadithRoutes },
     { path: '/knowledge-library', route: knowledge_library_route_1.KnowledgeLibraryRoutes },
     { path: '/sheikh-content', route: sheikh_content_route_1.SheikhContentRoutes },
+    { path: '/offline-pack', route: offline_pack_route_1.OfflinePackRoutes },
 ];
 apiRoutes.forEach(route => {
     router.use(route.path, route.route);
