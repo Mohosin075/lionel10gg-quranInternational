@@ -70,4 +70,13 @@ router.post(
   BatchController.processBatchResult,
 );
 
+// Cancel a batch job on OpenAI and mark as cancelled in MongoDB
+// POST /api/v1/offline-pack/batch-cancel/:jobId
+router.post(
+  '/batch-cancel/:jobId',
+  auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  BatchController.cancelBatchJob,
+);
+
 export const OfflinePackRoutes = router;
+

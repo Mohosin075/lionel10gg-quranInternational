@@ -37,4 +37,7 @@ router.get('/batch-status/:jobId', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, 
 // Step 3: Once "completed", process & save results to MongoDB
 // POST /api/v1/offline-pack/batch-process/:jobId
 router.post('/batch-process/:jobId', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), batch_translate_controller_1.BatchController.processBatchResult);
+// Cancel a batch job on OpenAI and mark as cancelled in MongoDB
+// POST /api/v1/offline-pack/batch-cancel/:jobId
+router.post('/batch-cancel/:jobId', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.SUPER_ADMIN), batch_translate_controller_1.BatchController.cancelBatchJob);
 exports.OfflinePackRoutes = router;

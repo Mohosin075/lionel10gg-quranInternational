@@ -429,9 +429,33 @@ const listBatchJobs = async () => {
   return await BatchJob.find({}).sort({ createdAt: -1 }).limit(100).lean();
 };
 
+const cancelBatchJob = async (jobId: string) => {
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      await axios.post(
+        `${OPENAI_API_URL}/batches/${jobId}/cancel`,
+        {},
+        { headers: authHeader(), timeout: 7000 }
+      );
+      console.log(`[BatchTranslate] OpenAI batch ${jobId} cancellation requested.`);
+    } catch (err: any) {
+      console.warn(`[BatchTranslate] OpenAI cancel call note:`, err?.response?.data || err?.message);
+    }
+  }
+
+  const job = await BatchJob.findOneAndUpdate(
+    { batchId: jobId },
+    { status: 'cancelled', updatedAt: new Date() },
+    { new: true }
+  );
+  return job;
+};
+
 export const BatchTranslateService = {
   createBatchJob,
   checkBatchStatus,
   processBatchResult,
   listBatchJobs,
+  cancelBatchJob,
 };
+

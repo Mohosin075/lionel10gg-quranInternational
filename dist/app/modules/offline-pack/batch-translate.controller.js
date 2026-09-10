@@ -56,9 +56,21 @@ const getBatchJobs = (0, catchAsync_1.default)(async (req, res) => {
         data: result,
     });
 });
+// POST /offline-pack/batch-cancel/:jobId
+const cancelBatchJob = (0, catchAsync_1.default)(async (req, res) => {
+    const { jobId } = req.params;
+    const result = await batch_translate_service_1.BatchTranslateService.cancelBatchJob(jobId);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        success: true,
+        message: `Batch translation job ${jobId} cancelled successfully`,
+        data: result,
+    });
+});
 exports.BatchController = {
     startBatchTranslation,
     getBatchStatus,
     processBatchResult,
     getBatchJobs,
+    cancelBatchJob,
 };

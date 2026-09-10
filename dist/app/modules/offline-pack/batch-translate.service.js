@@ -390,9 +390,24 @@ const listBatchJobs = async () => {
     }
     return await batch_job_model_1.BatchJob.find({}).sort({ createdAt: -1 }).limit(100).lean();
 };
+const cancelBatchJob = async (jobId) => {
+    var _a;
+    if (process.env.OPENAI_API_KEY) {
+        try {
+            await axios_1.default.post(`${OPENAI_API_URL}/batches/${jobId}/cancel`, {}, { headers: authHeader(), timeout: 7000 });
+            console.log(`[BatchTranslate] OpenAI batch ${jobId} cancellation requested.`);
+        }
+        catch (err) {
+            console.warn(`[BatchTranslate] OpenAI cancel call note:`, ((_a = err === null || err === void 0 ? void 0 : err.response) === null || _a === void 0 ? void 0 : _a.data) || (err === null || err === void 0 ? void 0 : err.message));
+        }
+    }
+    const job = await batch_job_model_1.BatchJob.findOneAndUpdate({ batchId: jobId }, { status: 'cancelled', updatedAt: new Date() }, { new: true });
+    return job;
+};
 exports.BatchTranslateService = {
     createBatchJob,
     checkBatchStatus,
     processBatchResult,
     listBatchJobs,
+    cancelBatchJob,
 };
