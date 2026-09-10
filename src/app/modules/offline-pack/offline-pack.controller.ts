@@ -95,10 +95,24 @@ const getCoverage = catchAsync(async (_req: Request, res: Response) => {
   });
 });
 
+// GET /offline-pack/available-languages (Public: mobile app discovers languages with live data)
+const getAvailableLanguages = catchAsync(async (_req: Request, res: Response) => {
+  const result = await OfflinePackService.getAvailableLanguages();
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Available content languages retrieved successfully',
+    data: result,
+  });
+});
+
 export const OfflinePackController = {
   checkSync,
   downloadPack,
   generatePack,
   listPacks,
   getCoverage,
+  getAvailableLanguages,
 };
+

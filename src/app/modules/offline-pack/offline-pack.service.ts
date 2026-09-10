@@ -326,6 +326,96 @@ const getCoverageMatrix = async () => {
   return matrix;
 };
 
+// ─── Available Languages (Online Public Discovery) ────────────────────────────
+let availableLanguagesCache: { timestamp: number; data: any } | null = null;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5-minute memory cache
+
+const getAvailableLanguages = async () => {
+  const now = Date.now();
+  if (availableLanguagesCache && now - availableLanguagesCache.timestamp < CACHE_TTL_MS) {
+    return availableLanguagesCache.data;
+  }
+
+  const matrix = await getCoverageMatrix();
+  const availableCodes: string[] = [];
+  const languages: Array<{
+    code: string;
+    totalRecords: number;
+    modules: string[];
+    hasPacks: boolean;
+    details: Record<string, number>;
+  }> = [];
+
+  for (const [lang, stats] of Object.entries(matrix)) {
+    const totalRecords =
+      (stats.hadithCount || 0) +
+      (stats.duaCount || 0) +
+      (stats.knowledgeCount || 0) +
+      (stats.quranCount || 0) +
+      (stats.tafsirCount || 0) +
+      (stats.bookCount || 0) +
+      (stats.fatwaCount || 0);
+
+    const hasAnyPack = !!(
+      stats.hadithPack ||
+      stats.duaPack ||
+      stats.knowledgePack ||
+      stats.quranPack ||
+      stats.tafsirPack ||
+      stats.bookPack ||
+      stats.fatwaPack
+    );
+
+    if (totalRecords > 0 || hasAnyPack) {
+      availableCodes.push(lang);
+      const modules: string[] = [];
+      if (stats.hadithCount > 0 || stats.hadithPack) modules.push('hadith');
+      if (stats.duaCount > 0 || stats.duaPack) modules.push('dua');
+      if (stats.knowledgeCount > 0 || stats.knowledgePack) modules.push('knowledge');
+      if (stats.quranCount > 0 || stats.quranPack) modules.push('quran');
+      if (stats.tafsirCount > 0 || stats.tafsirPack) modules.push('tafsir');
+      if (stats.bookCount > 0 || stats.bookPack) modules.push('book');
+      if (stats.fatwaCount > 0 || stats.fatwaPack) modules.push('fatwa');
+
+      languages.push({
+        code: lang,
+        totalRecords,
+        modules,
+        hasPacks: hasAnyPack,
+        details: {
+          hadithCount: stats.hadithCount,
+          duaCount: stats.duaCount,
+          knowledgeCount: stats.knowledgeCount,
+          quranCount: stats.quranCount,
+          tafsirCount: stats.tafsirCount,
+          bookCount: stats.bookCount,
+          fatwaCount: stats.fatwaCount,
+        },
+      });
+    }
+  }
+
+  // Base fallback guarantee: ensure 'en' is always supported
+  if (!availableCodes.includes('en')) {
+    availableCodes.push('en');
+    languages.push({
+      code: 'en',
+      totalRecords: 1,
+      modules: ['hadith', 'dua', 'quran'],
+      hasPacks: false,
+      details: {},
+    });
+  }
+
+  const result = {
+    availableCodes,
+    languages,
+  };
+
+  availableLanguagesCache = { timestamp: now, data: result };
+  return result;
+};
+
 export const OfflinePackService = {
   generateAndUploadPack,
   checkSync,
@@ -333,4 +423,6 @@ export const OfflinePackService = {
   listPacks,
   computeSha256,
   getCoverageMatrix,
+  getAvailableLanguages,
 };
+
