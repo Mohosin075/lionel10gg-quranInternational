@@ -3,8 +3,9 @@ import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
 import { promisify } from 'util';
-import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import config from '../../../config';
 import { Hadith } from '../hadith/hadith.model';
 import { Dua } from '../dua/dua.model';
 import { KnowledgeArticle } from '../knowledge-library/knowledge-library.model';
@@ -19,14 +20,14 @@ const gzip = promisify(zlib.gzip);
 
 // ─── S3 Client ────────────────────────────────────────────────────────────────
 const s3 = new S3Client({
-  region: process.env.AWS_REGION || 'ap-southeast-1',
+  region: config.aws.region || 'ap-southeast-1',
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+    accessKeyId: config.aws.access_key_id!,
+    secretAccessKey: config.aws.secret_access_key!,
   },
 });
 
-const BUCKET = process.env.AWS_BUCKET_NAME!;
+const BUCKET = config.aws.bucket_name!;
 const S3_PACK_PREFIX = 'offline-packs';
 
 // ─── Module → Model resolver ──────────────────────────────────────────────────
@@ -128,8 +129,26 @@ const generateAndUploadPack = async (
   try {
     await uploadToS3(key, compressed, sha256);
     downloadUrl = await getPresignedUrl(key);
+
+    // 3. Clean up previous S3 object to prevent duplicate files accumulation
+    if (existing?.s3Key && existing.s3Key !== key) {
+      try {
+        await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: existing.s3Key }));
+        console.log(`[OfflinePack] 🧹 Cleaned up previous S3 pack version: ${existing.s3Key}`);
+      } catch (cleanErr: any) {
+        console.warn(`[OfflinePack] Notice: Old S3 pack cleanup (${existing.s3Key}):`, cleanErr?.message);
+      }
+    }
   } catch (s3Err: any) {
     console.warn(`[OfflinePack] Notice: S3 upload fallback to local storage for ${key} (${s3Err?.message || s3Err})`);
+  }
+
+  // Clean up previous local file version
+  if (existing?.version && existing.version !== version) {
+    const oldLocalFile = path.join(localDir, `${module}_${lang}_v${existing.version}.json.gz`);
+    if (fs.existsSync(oldLocalFile)) {
+      try { fs.unlinkSync(oldLocalFile); } catch {}
+    }
   }
 
   await OfflinePack.findOneAndUpdate(

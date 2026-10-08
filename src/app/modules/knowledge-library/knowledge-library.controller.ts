@@ -133,7 +133,8 @@ const getAllBooks = catchAsync(async (req: Request, res: Response) => {
 
 const getBookById = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const result = await KnowledgeLibraryServices.getBookById(id);
+  const lang = (req.query.lang as string) || undefined;
+  const result = await KnowledgeLibraryServices.getBookById(id, lang);
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,

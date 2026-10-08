@@ -40,38 +40,82 @@ Return ONLY the translated formatted text, nothing else.`;
 
 // ─── Fetch source documents ────────────────────────────────────────────────────
 const getSourceDocs = async (module: SupportedModule) => {
+  let docs: any[] = [];
   switch (module) {
     case 'hadith':
-      return await Hadith.find({ lang: 'en', isActive: true })
+      docs = await Hadith.find({ lang: 'en', isActive: true })
         .select('_id hadithNo translation chapter category source authenticity arabicText')
         .lean();
+      if (docs.length === 0) {
+        docs = await Hadith.find({ isActive: true })
+          .select('_id hadithNo translation chapter category source authenticity arabicText')
+          .lean();
+      }
+      break;
     case 'dua':
-      return await Dua.find({ lang: 'en' })
+      docs = await Dua.find({ lang: 'en' })
         .select('_id externalId title translation transliteration category reference arabic')
         .lean();
+      if (docs.length === 0) {
+        docs = await Dua.find()
+          .select('_id externalId title translation transliteration category reference arabic')
+          .lean();
+      }
+      break;
     case 'knowledge':
-      return await KnowledgeArticle.find({ lang: 'en' })
+      docs = await KnowledgeArticle.find({ lang: 'en' })
         .select('_id articleId slug title content category source readTime imageUrl audioUrl')
         .lean();
+      if (docs.length === 0) {
+        docs = await KnowledgeArticle.find()
+          .select('_id articleId slug title content category source readTime imageUrl audioUrl')
+          .lean();
+      }
+      break;
     case 'quran':
-      return await Translation.find({ lang: 'en' })
+      docs = await Translation.find({ lang: 'en' })
         .select('_id surah ayah text arabicText footnotes edition')
         .lean();
+      if (docs.length === 0) {
+        docs = await Translation.find()
+          .select('_id surah ayah text arabicText footnotes edition')
+          .lean();
+      }
+      break;
     case 'tafsir':
-      return await Tafsir.find({ lang: 'en' })
+      docs = await Tafsir.find({ lang: 'en' })
         .select('_id surah ayah text edition')
         .lean();
+      if (docs.length === 0) {
+        docs = await Tafsir.find()
+          .select('_id surah ayah text edition')
+          .lean();
+      }
+      break;
     case 'book':
-      return await KnowledgeBook.find({ lang: 'en' })
+      docs = await KnowledgeBook.find({ lang: 'en' })
         .select('_id bookId title author content source lang')
         .lean();
+      if (docs.length === 0) {
+        docs = await KnowledgeBook.find()
+          .select('_id bookId title author content source lang')
+          .lean();
+      }
+      break;
     case 'fatwa':
-      return await KnowledgeFatwa.find({ lang: 'en' })
+      docs = await KnowledgeFatwa.find({ lang: 'en' })
         .select('_id fatwaId question answer scholar lang')
         .lean();
+      if (docs.length === 0) {
+        docs = await KnowledgeFatwa.find()
+          .select('_id fatwaId question answer scholar lang')
+          .lean();
+      }
+      break;
     default:
       throw new Error(`Unsupported module: ${module}`);
   }
+  return docs;
 };
 
 // ─── Build JSONL batch request payload ────────────────────────────────────────
@@ -94,7 +138,8 @@ const buildBatchJsonl = (
     } else if (module === 'tafsir') {
       textToTranslate = `TAFSIR: ${doc.text}`;
     } else if (module === 'book') {
-      textToTranslate = `TITLE: ${doc.title}\nDESCRIPTION: ${(doc.description || '').slice(0, 1000)}`;
+      const contentSnippet = (doc.content || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').slice(0, 1500);
+      textToTranslate = `TITLE: ${doc.title}\nCONTENT: ${contentSnippet}`;
     } else if (module === 'fatwa') {
       textToTranslate = `QUESTION: ${doc.question}\nANSWER: ${(doc.answer || '').slice(0, 2000)}`;
     } else {
@@ -131,10 +176,15 @@ const uploadBatchFile = async (jsonlContent: string): Promise<string> => {
     contentType: 'application/jsonl',
   });
 
-  const res = await axios.post(`${OPENAI_API_URL}/files`, formData, {
-    headers: { ...authHeader(), ...formData.getHeaders() },
-  });
-  return res.data.id; // file_id
+  try {
+    const res = await axios.post(`${OPENAI_API_URL}/files`, formData, {
+      headers: { ...authHeader(), ...formData.getHeaders() },
+    });
+    return res.data.id; // file_id
+  } catch (err: any) {
+    const openAiMsg = err?.response?.data?.error?.message || err?.message;
+    throw new Error(`OpenAI API Error (${err?.response?.status || 500}): ${openAiMsg}`);
+  }
 };
 
 // ─── Create OpenAI Batch Job ──────────────────────────────────────────────────
@@ -160,7 +210,7 @@ const createBatchJob = async (
   }
 
   const docs = await getSourceDocs(module);
-  if (docs.length === 0) throw new Error(`No English source documents found for module "${module}".`);
+  if (docs.length === 0) throw new Error(`No source documents found in database for module "${module}". Please add or seed initial content for ${module} first.`);
 
   const jsonl = buildBatchJsonl(docs, module, targetLang);
 
@@ -168,16 +218,22 @@ const createBatchJob = async (
   const fileId = await uploadBatchFile(jsonl);
 
   // 2. Create batch
-  const batchRes = await axios.post(
-    `${OPENAI_API_URL}/batches`,
-    {
-      input_file_id: fileId,
-      endpoint: '/v1/chat/completions',
-      completion_window: '24h',
-      metadata: { module, targetLang, recordCount: String(docs.length) },
-    },
-    { headers: authHeader() },
-  );
+  let batchRes: any;
+  try {
+    batchRes = await axios.post(
+      `${OPENAI_API_URL}/batches`,
+      {
+        input_file_id: fileId,
+        endpoint: '/v1/chat/completions',
+        completion_window: '24h',
+        metadata: { module, targetLang, recordCount: String(docs.length) },
+      },
+      { headers: authHeader() },
+    );
+  } catch (err: any) {
+    const openAiMsg = err?.response?.data?.error?.message || err?.message;
+    throw new Error(`OpenAI Batch Creation Failed (${err?.response?.status || 500}): ${openAiMsg}`);
+  }
 
   const batchId = batchRes.data.id;
   const estimatedMinutes = Math.ceil(docs.length / 500); // rough estimate
@@ -431,12 +487,19 @@ const processBatchResult = async (jobId: string): Promise<{ savedCount: number; 
           },
         });
       } else if (module === 'book') {
-        const titleMatch = translatedText.match(/(?:TITLE|Title):\s*([\s\S]*?)(?:\n(?:CONTENT|Content):|$)/i);
-        const contentMatch = translatedText.match(/(?:CONTENT|Content):\s*([\s\S]*?)$/i);
+        const titleMatch = translatedText.match(/(?:TITLE|Title):\s*([\s\S]*?)(?:\n(?:CONTENT|Content|DESCRIPTION|Description):|$)/i);
+        const contentMatch = translatedText.match(/(?:CONTENT|Content|DESCRIPTION|Description):\s*([\s\S]*?)$/i);
         const sourceDoc = await KnowledgeBook.findById(docId).lean();
         if (!sourceDoc) continue;
-        const title = titleMatch?.[1]?.trim() || sourceDoc.title;
-        const content = contentMatch?.[1]?.trim() || translatedText.trim();
+        let title = titleMatch?.[1]?.trim() || sourceDoc.title;
+        title = title.replace(/(?:DESCRIPTION|CONTENT|বিবরণ):.*$/is, '').trim();
+        if (!title) title = sourceDoc.title;
+
+        let content = contentMatch?.[1]?.trim() || '';
+        // If content is empty or contains raw prompt markers, preserve sourceDoc.content
+        if (!content || /^title:/i.test(content) || content.length < 5) {
+          content = sourceDoc.content || '';
+        }
         bulkOps.push({
           updateOne: {
             filter: { bookId: sourceDoc.bookId, lang: targetLang },

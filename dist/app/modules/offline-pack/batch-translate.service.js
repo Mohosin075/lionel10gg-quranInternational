@@ -22,6 +22,10 @@ const form_data_1 = __importDefault(require("form-data"));
 const hadith_model_1 = require("../hadith/hadith.model");
 const dua_model_1 = require("../dua/dua.model");
 const knowledge_library_model_1 = require("../knowledge-library/knowledge-library.model");
+const quran_model_1 = require("../quran/quran.model");
+const tafsir_model_1 = require("../tafsir/tafsir.model");
+const knowledge_book_model_1 = require("../knowledge-library/knowledge-book.model");
+const knowledge_fatwa_model_1 = require("../knowledge-library/knowledge-fatwa.model");
 const batch_job_model_1 = require("./batch-job.model");
 const OPENAI_API_URL = 'https://api.openai.com/v1';
 const MODEL = 'gpt-4o-mini';
@@ -29,28 +33,88 @@ const authHeader = () => ({
     Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
 });
 // ─── Build system prompt ───────────────────────────────────────────────────────
-const buildTranslationPrompt = (targetLang) => `You are a professional Islamic scholar and translator. Translate the following Islamic text accurately into language code "${targetLang}". 
-  Always output each field with its exact English uppercase prefix (e.g. "TITLE: ...", "TRANSLATION: ...", "CHAPTER: ...", "CATEGORY: ...", "CONTENT: ...").
-  Preserve all Arabic terms (like "Allah", "Hadith", "Sahih", "Du'a") accurately. 
-  Return ONLY the translated formatted text, nothing else.`;
+const buildTranslationPrompt = (targetLang) => `You are an expert Islamic scholar and professional translator. Translate the following Islamic religious text accurately into language code "${targetLang}".
+Preserve Islamic theological integrity, respect, and proper terminology.
+Keep any structural keys like TITLE:, CONTENT:, AYAH:, TAFSIR:, TRANSLATION:, QUESTION:, ANSWER:, CHAPTER:, CATEGORY: intact in your response.
+Return ONLY the translated formatted text, nothing else.`;
 // ─── Fetch source documents ────────────────────────────────────────────────────
 const getSourceDocs = async (module) => {
+    let docs = [];
     switch (module) {
         case 'hadith':
-            return await hadith_model_1.Hadith.find({ lang: 'en', isActive: true })
+            docs = await hadith_model_1.Hadith.find({ lang: 'en', isActive: true })
                 .select('_id hadithNo translation chapter category source authenticity arabicText')
                 .lean();
+            if (docs.length === 0) {
+                docs = await hadith_model_1.Hadith.find({ isActive: true })
+                    .select('_id hadithNo translation chapter category source authenticity arabicText')
+                    .lean();
+            }
+            break;
         case 'dua':
-            return await dua_model_1.Dua.find({ lang: 'en' })
+            docs = await dua_model_1.Dua.find({ lang: 'en' })
                 .select('_id externalId title translation transliteration category reference arabic')
                 .lean();
+            if (docs.length === 0) {
+                docs = await dua_model_1.Dua.find()
+                    .select('_id externalId title translation transliteration category reference arabic')
+                    .lean();
+            }
+            break;
         case 'knowledge':
-            return await knowledge_library_model_1.KnowledgeArticle.find({ lang: 'en' })
+            docs = await knowledge_library_model_1.KnowledgeArticle.find({ lang: 'en' })
                 .select('_id articleId slug title content category source readTime imageUrl audioUrl')
                 .lean();
+            if (docs.length === 0) {
+                docs = await knowledge_library_model_1.KnowledgeArticle.find()
+                    .select('_id articleId slug title content category source readTime imageUrl audioUrl')
+                    .lean();
+            }
+            break;
+        case 'quran':
+            docs = await quran_model_1.Translation.find({ lang: 'en' })
+                .select('_id surah ayah text arabicText footnotes edition')
+                .lean();
+            if (docs.length === 0) {
+                docs = await quran_model_1.Translation.find()
+                    .select('_id surah ayah text arabicText footnotes edition')
+                    .lean();
+            }
+            break;
+        case 'tafsir':
+            docs = await tafsir_model_1.Tafsir.find({ lang: 'en' })
+                .select('_id surah ayah text edition')
+                .lean();
+            if (docs.length === 0) {
+                docs = await tafsir_model_1.Tafsir.find()
+                    .select('_id surah ayah text edition')
+                    .lean();
+            }
+            break;
+        case 'book':
+            docs = await knowledge_book_model_1.KnowledgeBook.find({ lang: 'en' })
+                .select('_id bookId title author content source lang')
+                .lean();
+            if (docs.length === 0) {
+                docs = await knowledge_book_model_1.KnowledgeBook.find()
+                    .select('_id bookId title author content source lang')
+                    .lean();
+            }
+            break;
+        case 'fatwa':
+            docs = await knowledge_fatwa_model_1.KnowledgeFatwa.find({ lang: 'en' })
+                .select('_id fatwaId question answer scholar lang')
+                .lean();
+            if (docs.length === 0) {
+                docs = await knowledge_fatwa_model_1.KnowledgeFatwa.find()
+                    .select('_id fatwaId question answer scholar lang')
+                    .lean();
+            }
+            break;
         default:
             throw new Error(`Unsupported module: ${module}`);
     }
+    return docs;
 };
 // ─── Build JSONL batch request payload ────────────────────────────────────────
 const buildBatchJsonl = (docs, module, targetLang) => {
@@ -63,6 +127,19 @@ const buildBatchJsonl = (docs, module, targetLang) => {
         }
         else if (module === 'dua') {
             textToTranslate = `TITLE: ${doc.title}\nTRANSLATION: ${doc.translation}`;
+        }
+        else if (module === 'quran') {
+            textToTranslate = `AYAH: ${doc.text}`;
+        }
+        else if (module === 'tafsir') {
+            textToTranslate = `TAFSIR: ${doc.text}`;
+        }
+        else if (module === 'book') {
+            const contentSnippet = (doc.content || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').slice(0, 1500);
+            textToTranslate = `TITLE: ${doc.title}\nCONTENT: ${contentSnippet}`;
+        }
+        else if (module === 'fatwa') {
+            textToTranslate = `QUESTION: ${doc.question}\nANSWER: ${(doc.answer || '').slice(0, 2000)}`;
         }
         else {
             // Knowledge: translate title + first 2000 chars of content (to stay within token limit)
@@ -88,19 +165,27 @@ const buildBatchJsonl = (docs, module, targetLang) => {
 };
 // ─── Upload JSONL file to OpenAI ──────────────────────────────────────────────
 const uploadBatchFile = async (jsonlContent) => {
+    var _a, _b, _c, _d;
     const formData = new form_data_1.default();
     formData.append('purpose', 'batch');
     formData.append('file', Buffer.from(jsonlContent, 'utf8'), {
         filename: 'batch_requests.jsonl',
         contentType: 'application/jsonl',
     });
-    const res = await axios_1.default.post(`${OPENAI_API_URL}/files`, formData, {
-        headers: { ...authHeader(), ...formData.getHeaders() },
-    });
-    return res.data.id; // file_id
+    try {
+        const res = await axios_1.default.post(`${OPENAI_API_URL}/files`, formData, {
+            headers: { ...authHeader(), ...formData.getHeaders() },
+        });
+        return res.data.id; // file_id
+    }
+    catch (err) {
+        const openAiMsg = ((_c = (_b = (_a = err === null || err === void 0 ? void 0 : err.response) === null || _a === void 0 ? void 0 : _a.data) === null || _b === void 0 ? void 0 : _b.error) === null || _c === void 0 ? void 0 : _c.message) || (err === null || err === void 0 ? void 0 : err.message);
+        throw new Error(`OpenAI API Error (${((_d = err === null || err === void 0 ? void 0 : err.response) === null || _d === void 0 ? void 0 : _d.status) || 500}): ${openAiMsg}`);
+    }
 };
 // ─── Create OpenAI Batch Job ──────────────────────────────────────────────────
 const createBatchJob = async (module, targetLang) => {
+    var _a, _b, _c, _d;
     if (!process.env.OPENAI_API_KEY) {
         throw new Error('OPENAI_API_KEY not set in environment variables.');
     }
@@ -117,17 +202,24 @@ const createBatchJob = async (module, targetLang) => {
     }
     const docs = await getSourceDocs(module);
     if (docs.length === 0)
-        throw new Error(`No English source documents found for module "${module}".`);
+        throw new Error(`No source documents found in database for module "${module}". Please add or seed initial content for ${module} first.`);
     const jsonl = buildBatchJsonl(docs, module, targetLang);
     // 1. Upload JSONL file
     const fileId = await uploadBatchFile(jsonl);
     // 2. Create batch
-    const batchRes = await axios_1.default.post(`${OPENAI_API_URL}/batches`, {
-        input_file_id: fileId,
-        endpoint: '/v1/chat/completions',
-        completion_window: '24h',
-        metadata: { module, targetLang, recordCount: String(docs.length) },
-    }, { headers: authHeader() });
+    let batchRes;
+    try {
+        batchRes = await axios_1.default.post(`${OPENAI_API_URL}/batches`, {
+            input_file_id: fileId,
+            endpoint: '/v1/chat/completions',
+            completion_window: '24h',
+            metadata: { module, targetLang, recordCount: String(docs.length) },
+        }, { headers: authHeader() });
+    }
+    catch (err) {
+        const openAiMsg = ((_c = (_b = (_a = err === null || err === void 0 ? void 0 : err.response) === null || _a === void 0 ? void 0 : _a.data) === null || _b === void 0 ? void 0 : _b.error) === null || _c === void 0 ? void 0 : _c.message) || (err === null || err === void 0 ? void 0 : err.message);
+        throw new Error(`OpenAI Batch Creation Failed (${((_d = err === null || err === void 0 ? void 0 : err.response) === null || _d === void 0 ? void 0 : _d.status) || 500}): ${openAiMsg}`);
+    }
     const batchId = batchRes.data.id;
     const estimatedMinutes = Math.ceil(docs.length / 500); // rough estimate
     // 3. Persist job record
@@ -169,7 +261,7 @@ const checkBatchStatus = async (jobId) => {
 };
 // ─── Process Completed Batch → Save to MongoDB ───────────────────────────────
 const processBatchResult = async (jobId) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t;
     const localJob = await batch_job_model_1.BatchJob.findOne({ batchId: jobId });
     if (!localJob)
         throw new Error(`Batch job "${jobId}" not found in database.`);
@@ -326,6 +418,114 @@ const processBatchResult = async (jobId) => {
                     },
                 });
             }
+            else if (module === 'quran') {
+                const ayahMatch = translatedText.match(/(?:AYAH|Ayah|আয়াত):\s*([\s\S]*?)$/i);
+                const sourceDoc = await quran_model_1.Translation.findById(docId).lean();
+                if (!sourceDoc)
+                    continue;
+                const text = ((_o = ayahMatch === null || ayahMatch === void 0 ? void 0 : ayahMatch[1]) === null || _o === void 0 ? void 0 : _o.trim()) || translatedText.trim();
+                bulkOps.push({
+                    updateOne: {
+                        filter: { surah: sourceDoc.surah, ayah: sourceDoc.ayah, lang: targetLang, edition: `translated_${targetLang}` },
+                        update: {
+                            $set: {
+                                surah: sourceDoc.surah,
+                                ayah: sourceDoc.ayah,
+                                lang: targetLang,
+                                edition: `translated_${targetLang}`,
+                                arabicText: sourceDoc.arabicText,
+                                text,
+                                footnotes: sourceDoc.footnotes,
+                                version: 1,
+                            },
+                        },
+                        upsert: true,
+                    },
+                });
+            }
+            else if (module === 'tafsir') {
+                const tafsirMatch = translatedText.match(/(?:TAFSIR|Tafsir|তাফসীর):\s*([\s\S]*?)$/i);
+                const sourceDoc = await tafsir_model_1.Tafsir.findById(docId).lean();
+                if (!sourceDoc)
+                    continue;
+                const text = ((_p = tafsirMatch === null || tafsirMatch === void 0 ? void 0 : tafsirMatch[1]) === null || _p === void 0 ? void 0 : _p.trim()) || translatedText.trim();
+                bulkOps.push({
+                    updateOne: {
+                        filter: { surah: sourceDoc.surah, ayah: sourceDoc.ayah, lang: targetLang, edition: `translated_${targetLang}` },
+                        update: {
+                            $set: {
+                                surah: sourceDoc.surah,
+                                ayah: sourceDoc.ayah,
+                                lang: targetLang,
+                                edition: `translated_${targetLang}`,
+                                text,
+                                version: 1,
+                            },
+                        },
+                        upsert: true,
+                    },
+                });
+            }
+            else if (module === 'book') {
+                const titleMatch = translatedText.match(/(?:TITLE|Title):\s*([\s\S]*?)(?:\n(?:CONTENT|Content|DESCRIPTION|Description):|$)/i);
+                const contentMatch = translatedText.match(/(?:CONTENT|Content|DESCRIPTION|Description):\s*([\s\S]*?)$/i);
+                const sourceDoc = await knowledge_book_model_1.KnowledgeBook.findById(docId).lean();
+                if (!sourceDoc)
+                    continue;
+                let title = ((_q = titleMatch === null || titleMatch === void 0 ? void 0 : titleMatch[1]) === null || _q === void 0 ? void 0 : _q.trim()) || sourceDoc.title;
+                title = title.replace(/(?:DESCRIPTION|CONTENT|বিবরণ):.*$/is, '').trim();
+                if (!title)
+                    title = sourceDoc.title;
+                let content = ((_r = contentMatch === null || contentMatch === void 0 ? void 0 : contentMatch[1]) === null || _r === void 0 ? void 0 : _r.trim()) || '';
+                // If content is empty or contains raw prompt markers, preserve sourceDoc.content
+                if (!content || /^title:/i.test(content) || content.length < 5) {
+                    content = sourceDoc.content || '';
+                }
+                bulkOps.push({
+                    updateOne: {
+                        filter: { bookId: sourceDoc.bookId, lang: targetLang },
+                        update: {
+                            $set: {
+                                bookId: sourceDoc.bookId,
+                                title,
+                                content,
+                                author: sourceDoc.author,
+                                source: sourceDoc.source,
+                                lang: targetLang,
+                                version: 1,
+                                isActive: true,
+                            },
+                        },
+                        upsert: true,
+                    },
+                });
+            }
+            else if (module === 'fatwa') {
+                const qMatch = translatedText.match(/(?:QUESTION|Question):\s*([\s\S]*?)(?:\n(?:ANSWER|Answer):|$)/i);
+                const aMatch = translatedText.match(/(?:ANSWER|Answer):\s*([\s\S]*?)$/i);
+                const sourceDoc = await knowledge_fatwa_model_1.KnowledgeFatwa.findById(docId).lean();
+                if (!sourceDoc)
+                    continue;
+                const question = ((_s = qMatch === null || qMatch === void 0 ? void 0 : qMatch[1]) === null || _s === void 0 ? void 0 : _s.trim()) || sourceDoc.question;
+                const answer = ((_t = aMatch === null || aMatch === void 0 ? void 0 : aMatch[1]) === null || _t === void 0 ? void 0 : _t.trim()) || translatedText.trim();
+                bulkOps.push({
+                    updateOne: {
+                        filter: { fatwaId: sourceDoc.fatwaId, lang: targetLang },
+                        update: {
+                            $set: {
+                                fatwaId: sourceDoc.fatwaId,
+                                question,
+                                answer,
+                                scholar: sourceDoc.scholar,
+                                lang: targetLang,
+                                version: 1,
+                                isActive: true,
+                            },
+                        },
+                        upsert: true,
+                    },
+                });
+            }
             savedCount++;
         }
         catch (err) {
@@ -343,6 +543,14 @@ const processBatchResult = async (jobId) => {
             await dua_model_1.Dua.bulkWrite(chunk);
         else if (module === 'knowledge')
             await knowledge_library_model_1.KnowledgeArticle.bulkWrite(chunk);
+        else if (module === 'quran')
+            await quran_model_1.Translation.bulkWrite(chunk);
+        else if (module === 'tafsir')
+            await tafsir_model_1.Tafsir.bulkWrite(chunk);
+        else if (module === 'book')
+            await knowledge_book_model_1.KnowledgeBook.bulkWrite(chunk);
+        else if (module === 'fatwa')
+            await knowledge_fatwa_model_1.KnowledgeFatwa.bulkWrite(chunk);
     }
     // Mark job as processed
     await batch_job_model_1.BatchJob.findOneAndUpdate({ batchId: jobId }, { status: 'processed', processedCount: savedCount });

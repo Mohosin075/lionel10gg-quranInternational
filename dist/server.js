@@ -12,6 +12,7 @@ const socket_io_1 = require("socket.io");
 const user_service_1 = require("./app/modules/user/user.service");
 const socketHelper_1 = require("./helpers/socketHelper");
 require("./task/duaSyncCron");
+require("./task/offlinePackCron");
 const subscription_seed_1 = require("./app/modules/subscription/subscription.seed");
 // Uncaught exceptions
 process.on('uncaughtException', error => {

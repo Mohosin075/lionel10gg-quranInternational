@@ -14,6 +14,9 @@ const router = express_1.default.Router();
 // Check if a newer pack is available for download
 // GET /api/v1/offline-pack/check-sync?module=hadith&lang=de&version=1
 router.get('/check-sync', offline_pack_controller_1.OfflinePackController.checkSync);
+// Discover all languages that have active database content / published packs
+// GET /api/v1/offline-pack/available-languages
+router.get('/available-languages', offline_pack_controller_1.OfflinePackController.getAvailableLanguages);
 // Stream the gzip pack file directly (Content-Encoding: gzip)
 // GET /api/v1/offline-pack/download/hadith?lang=de
 router.get('/download/:module', offline_pack_controller_1.OfflinePackController.downloadPack);

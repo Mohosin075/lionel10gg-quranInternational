@@ -236,7 +236,19 @@ const getAllBooks = async (lang = 'de', page = 1, limit = 50) => {
         data,
     };
 };
-const getBookById = async (id) => {
+const getBookById = async (id, lang) => {
+    if (lang) {
+        const localized = await knowledge_book_model_1.KnowledgeBook.findOne({
+            $or: [
+                { bookId: id },
+                ...(mongoose_1.default.Types.ObjectId.isValid(id) ? [{ _id: id }] : []),
+            ],
+            lang,
+            isActive: true,
+        }).lean();
+        if (localized)
+            return localized;
+    }
     if (mongoose_1.default.Types.ObjectId.isValid(id)) {
         const book = await knowledge_book_model_1.KnowledgeBook.findById(id).lean();
         if (book)

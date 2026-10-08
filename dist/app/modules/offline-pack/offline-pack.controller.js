@@ -8,7 +8,15 @@ const http_status_codes_1 = require("http-status-codes");
 const catchAsync_1 = __importDefault(require("../../../shared/catchAsync"));
 const sendResponse_1 = __importDefault(require("../../../shared/sendResponse"));
 const offline_pack_service_1 = require("./offline-pack.service");
-const VALID_MODULES = ['hadith', 'dua', 'knowledge'];
+const VALID_MODULES = [
+    'hadith',
+    'dua',
+    'knowledge',
+    'quran',
+    'tafsir',
+    'book',
+    'fatwa',
+];
 const validateModule = (mod) => {
     if (!VALID_MODULES.includes(mod)) {
         throw new Error(`Invalid module "${mod}". Supported: ${VALID_MODULES.join(', ')}`);
@@ -75,10 +83,21 @@ const getCoverage = (0, catchAsync_1.default)(async (_req, res) => {
         data: result,
     });
 });
+// GET /offline-pack/available-languages (Public: mobile app discovers languages with live data)
+const getAvailableLanguages = (0, catchAsync_1.default)(async (_req, res) => {
+    const result = await offline_pack_service_1.OfflinePackService.getAvailableLanguages();
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        success: true,
+        message: 'Available content languages retrieved successfully',
+        data: result,
+    });
+});
 exports.OfflinePackController = {
     checkSync,
     downloadPack,
     generatePack,
     listPacks,
     getCoverage,
+    getAvailableLanguages,
 };

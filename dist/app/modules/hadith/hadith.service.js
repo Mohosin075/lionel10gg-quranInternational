@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.HadithServices = void 0;
+exports.HadithServices = exports.LANG_CODE_MAP = void 0;
 const axios_1 = __importDefault(require("axios"));
 const hadith_model_1 = require("./hadith.model");
 const translationHelper_1 = require("../../../helpers/translationHelper");
@@ -17,17 +17,30 @@ const EDITION_SOURCE_MAP = {
     malik: 'Muwatta Malik',
     nawawi: 'Forty Hadith Nawawi',
 };
+exports.LANG_CODE_MAP = {
+    en: 'eng',
+    bn: 'ben',
+    ur: 'urd',
+    id: 'ind',
+    fr: 'fra',
+    tr: 'tur',
+    es: 'spa',
+    ru: 'rus',
+    ta: 'tam',
+    ar: 'ara',
+};
 const getSourceName = (edition) => {
     const bookKey = edition.toLowerCase().split('-')[1] || 'hadith';
     return EDITION_SOURCE_MAP[bookKey] || 'Official Hadith';
 };
-const syncFromGlobalApi = async (edition, fromHadith, toHadith) => {
+const syncFromGlobalApi = async (edition, fromHadith, toHadith, lang = 'en') => {
     var _a, _b, _c, _d, _e, _f;
     let createdCount = 0;
     let updatedCount = 0;
     const sourceName = getSourceName(edition);
-    const arabEdition = edition.replace('eng-', 'ara-');
-    const hadithBookKey = edition.split('-')[1] || 'hadith';
+    const editionParts = edition.split('-');
+    const hadithBookKey = editionParts[1] || 'hadith';
+    const arabEdition = `ara-${hadithBookKey}`;
     // Fast Bulk Fetch Approach (Single HTTP Call per edition)
     try {
         const engUrl = `https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/editions/${edition}.min.json`;
@@ -79,13 +92,13 @@ const syncFromGlobalApi = async (edition, fromHadith, toHadith) => {
                         translation: engHadith.text,
                         authenticity,
                         category: chapterName,
-                        lang: 'en',
+                        lang,
                         version: 1,
                         isActive: true,
                     };
                     return {
                         updateOne: {
-                            filter: { hadithNo, lang: 'en' },
+                            filter: { hadithNo, source: sourceName, lang },
                             update: { $set: hadithData },
                             upsert: true,
                         },
@@ -143,11 +156,11 @@ const syncFromGlobalApi = async (edition, fromHadith, toHadith) => {
                 translation: engHadith.text,
                 authenticity,
                 category: chapterName,
-                lang: 'en',
+                lang,
                 version: 1,
                 isActive: true,
             };
-            const result = await hadith_model_1.Hadith.findOneAndUpdate({ hadithNo, lang: 'en' }, { $set: hadithData }, { upsert: true, new: false });
+            const result = await hadith_model_1.Hadith.findOneAndUpdate({ hadithNo, source: sourceName, lang }, { $set: hadithData }, { upsert: true, new: false });
             if (result) {
                 updatedCount++;
             }
@@ -366,6 +379,23 @@ const getOrSyncHadithsByLanguage = async (targetLang) => {
     }
     return results;
 };
+// ─── Tier 1 Top 10 Languages Bulk Sync ────────────────────────────────────────
+const syncTier1Languages = async (bookKey = 'bukhari', fromHadith = 1, toHadith = 100) => {
+    const results = {};
+    const tier1Langs = ['en', 'bn', 'ur', 'id', 'fr', 'tr', 'es', 'ru', 'ta', 'ar'];
+    for (const lang of tier1Langs) {
+        const prefix = exports.LANG_CODE_MAP[lang] || lang;
+        const edition = `${prefix}-${bookKey}`;
+        try {
+            const res = await syncFromGlobalApi(edition, fromHadith, toHadith, lang);
+            results[lang] = res;
+        }
+        catch (err) {
+            results[lang] = { createdCount: 0, updatedCount: 0, error: err.message };
+        }
+    }
+    return results;
+};
 exports.HadithServices = {
     getCollections,
     getAllHadiths,
@@ -378,4 +408,5 @@ exports.HadithServices = {
     getSyncData,
     getOrSyncHadithsByLanguage,
     syncFromGlobalApi,
+    syncTier1Languages,
 };

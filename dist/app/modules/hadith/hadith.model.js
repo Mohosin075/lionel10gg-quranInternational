@@ -14,8 +14,8 @@ const HadithSchema = new mongoose_1.Schema({
     version: { type: Number, required: true, default: 1 },
     isActive: { type: Boolean, required: true, default: true },
 }, { timestamps: true });
-// Optimize query patterns for front-end searches and sync endpoints
+// Optimize query patterns for front-end searches and sync endpoints (O(log N) B-Tree)
+HadithSchema.index({ lang: 1, source: 1, hadithNo: 1 }, { unique: true });
 HadithSchema.index({ lang: 1, category: 1 });
-HadithSchema.index({ hadithNo: 1, lang: 1 }, { unique: true });
 HadithSchema.index({ version: 1, lang: 1 });
 exports.Hadith = (0, mongoose_1.model)('Hadith', HadithSchema);
