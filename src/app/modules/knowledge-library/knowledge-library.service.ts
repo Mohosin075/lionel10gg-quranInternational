@@ -3,7 +3,6 @@ import { KnowledgeArticle } from './knowledge-library.model';
 import { KnowledgeBook } from './knowledge-book.model';
 import { KnowledgeFatwa } from './knowledge-fatwa.model';
 import { IKnowledgeArticle, IKnowledgeBook, IKnowledgeFatwa } from './knowledge-library.interface';
-import { TranslationHelper } from '../../../helpers/translationHelper';
 
 const CATEGORY_MAP: Record<string, string[]> = {
   'probleme der heutigen zeit': ['Belief', 'Ethics', 'Fiqh', 'Dawah', 'Worship'],
@@ -171,78 +170,15 @@ const getSyncData = async (
   };
 };
 
-// Automatic dynamic translation helper from German (de) to target language
+// Fetch articles in target language, fallback to base German articles if not yet translated
 const getOrSyncArticlesByLanguage = async (targetLang: string, articlesList?: any[]) => {
+  const existingArticles = await KnowledgeArticle.find({ lang: targetLang, isActive: true }).lean();
+  if (existingArticles.length > 0) {
+    return existingArticles as unknown as IKnowledgeArticle[];
+  }
+
   const baseArticles = articlesList || await KnowledgeArticle.find({ lang: 'de', isActive: true }).lean();
-  if (baseArticles.length === 0) return [];
-
-  console.log(`[KnowledgeService] Checking/translating articles from German to: ${targetLang}...`);
-
-  const results: IKnowledgeArticle[] = [];
-  
-  const articleIds = baseArticles.map(a => a.articleId);
-  const existingArticles = await KnowledgeArticle.find({ lang: targetLang, articleId: { $in: articleIds } }).lean();
-  const existingMap = new Map(existingArticles.map(a => [a.articleId, a]));
-
-  const articlesToTranslate: IKnowledgeArticle[] = [];
-  for (const base of baseArticles) {
-    const existing = existingMap.get(base.articleId);
-    if (!existing || existing.version < base.version) {
-      articlesToTranslate.push(base as unknown as IKnowledgeArticle);
-    } else {
-      results.push(existing as unknown as IKnowledgeArticle);
-    }
-  }
-
-  if (articlesToTranslate.length === 0) {
-    return results;
-  }
-
-  console.log(`[KnowledgeService] Translating ${articlesToTranslate.length} out-of-date/new articles to: ${targetLang}...`);
-  const BATCH_SIZE = 5;
-
-  for (let i = 0; i < articlesToTranslate.length; i += BATCH_SIZE) {
-    const batch = articlesToTranslate.slice(i, i + BATCH_SIZE);
-    
-    for (const article of batch) {
-      try {
-        const translatedTitle = await TranslationHelper.translateText(article.title, targetLang, 'de');
-        await TranslationHelper.sleep(200);
-        const translatedContent = await TranslationHelper.translateText(article.content, targetLang, 'de');
-        await TranslationHelper.sleep(200);
-        const translatedCategory = await TranslationHelper.translateText(article.category, targetLang, 'de');
-
-        const translatedDoc = {
-          articleId: article.articleId,
-          slug: `${article.slug}-${targetLang}`,
-          title: translatedTitle,
-          content: translatedContent,
-          category: translatedCategory,
-          readTime: article.readTime,
-          imageUrl: article.imageUrl,
-          audioUrl: article.audioUrl,
-          lang: targetLang,
-          source: article.source || 'manual',
-          version: article.version,
-          isActive: article.isActive,
-        };
-
-        const updated = await KnowledgeArticle.findOneAndUpdate(
-          { articleId: article.articleId, lang: targetLang },
-          { $set: translatedDoc },
-          { upsert: true, new: true }
-        ).lean();
-
-        if (updated) {
-          results.push(updated as unknown as IKnowledgeArticle);
-        }
-      } catch (err) {
-        console.error(`Translation failed for Knowledge Article ${article.articleId} to ${targetLang}:`, err);
-      }
-    }
-  }
-
-  return results;
+  return baseArticles as unknown as IKnowledgeArticle[];
 };
 
 // ==========================================
@@ -328,51 +264,7 @@ const getOrSyncBooksByLanguage = async (targetLang: string, booksList?: any[]) =
   const baseBooks = booksList || await KnowledgeBook.find({ lang: 'de', isActive: true }).lean();
   if (baseBooks.length === 0) return;
 
-  const bookIds = baseBooks.map(b => b.bookId);
-  const existingBooks = await KnowledgeBook.find({ lang: targetLang, bookId: { $in: bookIds } }).lean();
-  const existingMap = new Map(existingBooks.map(b => [b.bookId, b]));
-
-  const booksToTranslate = [];
-  for (const base of baseBooks) {
-    const existing = existingMap.get(base.bookId);
-    if (!existing || existing.version < base.version) {
-      booksToTranslate.push(base);
-    }
-  }
-
-  if (booksToTranslate.length === 0) return;
-
-  console.log(`[KnowledgeService] Translating ${booksToTranslate.length} books to: ${targetLang}...`);
-  for (const book of booksToTranslate) {
-    try {
-      const title = await TranslationHelper.translateText(book.title, targetLang, 'de');
-      await TranslationHelper.sleep(200);
-      const content = await TranslationHelper.translateText(book.content, targetLang, 'de');
-      await TranslationHelper.sleep(200);
-      const author = book.author
-        ? await TranslationHelper.translateText(book.author, targetLang, 'de')
-        : book.author;
-
-      await KnowledgeBook.findOneAndUpdate(
-        { bookId: book.bookId, lang: targetLang },
-        {
-          $set: {
-            bookId: book.bookId,
-            title,
-            author,
-            content,
-            lang: targetLang,
-            source: book.source || 'islamhouse',
-            version: book.version || 1,
-            isActive: true,
-          },
-        },
-        { upsert: true },
-      );
-    } catch (err) {
-      console.error(`Translation failed for book ${book.bookId}:`, err);
-    }
-  }
+  // Books for targetLang are managed via OpenAI Batch from Dashboard
 };
 
 // ==========================================
@@ -441,47 +333,7 @@ const getOrSyncFatwasByLanguage = async (targetLang: string, fatwasList?: any[])
   const baseFatwas = fatwasList || await KnowledgeFatwa.find({ lang: 'de', isActive: true }).lean();
   if (baseFatwas.length === 0) return;
 
-  const fatwaIds = baseFatwas.map(f => f.fatwaId);
-  const existingFatwas = await KnowledgeFatwa.find({ lang: targetLang, fatwaId: { $in: fatwaIds } }).lean();
-  const existingMap = new Map(existingFatwas.map(f => [f.fatwaId, f]));
-
-  const fatwasToTranslate = [];
-  for (const base of baseFatwas) {
-    const existing = existingMap.get(base.fatwaId);
-    if (!existing || existing.version < base.version) {
-      fatwasToTranslate.push(base);
-    }
-  }
-
-  if (fatwasToTranslate.length === 0) return;
-
-  console.log(`[KnowledgeService] Translating ${fatwasToTranslate.length} fatwas to: ${targetLang}...`);
-  for (const fatwa of fatwasToTranslate) {
-    try {
-      const question = await TranslationHelper.translateText(fatwa.question, targetLang, 'de');
-      await TranslationHelper.sleep(200);
-      const answer = await TranslationHelper.translateText(fatwa.answer, targetLang, 'de');
-      await TranslationHelper.sleep(200);
-
-      await KnowledgeFatwa.findOneAndUpdate(
-        { fatwaId: fatwa.fatwaId, lang: targetLang },
-        {
-          $set: {
-            fatwaId: fatwa.fatwaId,
-            question,
-            answer,
-            scholar: fatwa.scholar,
-            lang: targetLang,
-            version: fatwa.version || 1,
-            isActive: true,
-          },
-        },
-        { upsert: true },
-      );
-    } catch (err) {
-      console.error(`Translation failed for fatwa ${fatwa.fatwaId}:`, err);
-    }
-  }
+  // Fatwas for targetLang are managed via OpenAI Batch from Dashboard
 };
 
 export const KnowledgeLibraryServices = {

@@ -195,7 +195,7 @@ const getOrSyncDuasByLanguage = async (targetLang: string, category?: string) =>
     return await Dua.find(query).lean();
   }
 
-  // খ) ডাটা না থাকলে ইংরেজি ডাটা থেকে অনুবাদ শুরু করুন
+  // খ) ডাটা না থাকলে ইংরেজি ডাটা রিটার্ন করুন (অনুবাদ ড্যাশবোর্ডের OpenAI Batch API দিয়ে পরিচালিত হয়)
   let englishDuas = await Dua.find({ lang: 'en' }).lean();
 
   if (englishDuas.length === 0) {
@@ -203,83 +203,10 @@ const getOrSyncDuasByLanguage = async (targetLang: string, category?: string) =>
     englishDuas = await Dua.find({ lang: 'en' }).lean();
   }
 
-  console.log(`Translating all duas to: ${targetLang}...`);
-
-  // Custom translation function using the GTX client (more stable)
-  const translateText = async (text: string, to: string): Promise<string> => {
-    try {
-      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=${to}&dt=t&q=${encodeURIComponent(text)}`;
-      const res = await axios.get(url);
-      let translated = '';
-      if (res.data && res.data[0]) {
-        for (const segment of res.data[0]) {
-          translated += segment[0];
-        }
-      }
-      return translated;
-    } catch (error) {
-      console.error('Translation API error:', error);
-      throw error;
-    }
-  };
-
-  // গ) অনুবাদ লজিক (Sequential processing for rate limit safety)
-  const results: IDua[] = [];
-
-  // To be safe with the free API, we process in chunks of 5 and wait between them
-  const BATCH_SIZE = 5;
-
-  for (let i = 0; i < englishDuas.length; i += BATCH_SIZE) {
-    const batch = englishDuas.slice(i, i + BATCH_SIZE);
-    
-    // Process items in batch sequentially to be even safer
-    const translatedBatch: (IDua | null)[] = [];
-    
-    for (const dua of batch) {
-      try {
-        const translatedTitle = await translateText(dua.title, targetLang);
-        // Small delay between title and text translation
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        const translatedText = await translateText(dua.translation, targetLang);
-
-        translatedBatch.push({
-          externalId: dua.externalId,
-          title: translatedTitle,
-          arabic: dua.arabic,
-          translation: translatedText,
-          transliteration: dua.transliteration,
-          category: translatedTitle,
-          audio: dua.audio,
-          repeat: dua.repeat,
-          lang: targetLang,
-          version: 1,
-        } as IDua);
-      } catch (err) {
-        console.error(`Translation failed for ${dua.externalId}:`, err);
-        translatedBatch.push(null);
-      }
-      // Delay between each dua
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
-
-    const validDuas = translatedBatch.filter((d) => d !== null) as IDua[];
-    if (validDuas.length > 0) {
-      await Dua.insertMany(validDuas);
-      results.push(...validDuas);
-    }
-
-    console.log(`Translated ${i + validDuas.length} of ${englishDuas.length}`);
-
-    // Delay between batches to avoid rate limits
-    if (i + BATCH_SIZE < englishDuas.length) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-    }
-  }
-
   if (category) {
-    return results.filter((d) => d.category === category);
+    return englishDuas.filter((d) => d.category === category);
   }
-  return results;
+  return englishDuas;
 };
 
 export const DuaService = {

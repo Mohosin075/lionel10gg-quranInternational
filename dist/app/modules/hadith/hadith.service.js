@@ -6,7 +6,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.HadithServices = exports.LANG_CODE_MAP = void 0;
 const axios_1 = __importDefault(require("axios"));
 const hadith_model_1 = require("./hadith.model");
-const translationHelper_1 = require("../../../helpers/translationHelper");
 const EDITION_SOURCE_MAP = {
     bukhari: 'Sahih al-Bukhari',
     muslim: 'Sahih Muslim',
@@ -167,7 +166,7 @@ const syncFromGlobalApi = async (edition, fromHadith, toHadith, lang = 'en') => 
             else {
                 createdCount++;
             }
-            await translationHelper_1.TranslationHelper.sleep(150);
+            await new Promise(r => setTimeout(r, 150));
         }
         catch (error) {
             console.error(`Error syncing Hadith ${i} from global API:`, error);
@@ -332,52 +331,8 @@ const getOrSyncHadithsByLanguage = async (targetLang) => {
     if (count > 0) {
         return await hadith_model_1.Hadith.find({ lang: targetLang }).lean();
     }
-    const sourceHadiths = await hadith_model_1.Hadith.find({ lang: 'en' }).lean();
-    if (sourceHadiths.length === 0)
-        return [];
-    console.log(`[HadithService] Translating ${sourceHadiths.length} Hadiths to: ${targetLang}...`);
-    const results = [];
-    const BATCH_SIZE = 5;
-    for (let i = 0; i < sourceHadiths.length; i += BATCH_SIZE) {
-        const batch = sourceHadiths.slice(i, i + BATCH_SIZE);
-        const translatedBatch = [];
-        for (const hadith of batch) {
-            try {
-                const translatedChapter = await translationHelper_1.TranslationHelper.translateText(hadith.chapter, targetLang);
-                await translationHelper_1.TranslationHelper.sleep(200);
-                const translatedTranslation = await translationHelper_1.TranslationHelper.translateText(hadith.translation, targetLang);
-                await translationHelper_1.TranslationHelper.sleep(200);
-                const translatedCategory = await translationHelper_1.TranslationHelper.translateText(hadith.category, targetLang);
-                translatedBatch.push({
-                    hadithNo: hadith.hadithNo,
-                    source: hadith.source,
-                    chapter: translatedChapter,
-                    arabicText: hadith.arabicText,
-                    translation: translatedTranslation,
-                    authenticity: hadith.authenticity,
-                    category: translatedCategory,
-                    lang: targetLang,
-                    version: 1,
-                    isActive: hadith.isActive,
-                });
-            }
-            catch (err) {
-                console.error(`Translation failed for Hadith ${hadith.hadithNo}:`, err);
-                translatedBatch.push(null);
-            }
-            await translationHelper_1.TranslationHelper.sleep(300);
-        }
-        const validHadiths = translatedBatch.filter((h) => h !== null);
-        if (validHadiths.length > 0) {
-            await hadith_model_1.Hadith.insertMany(validHadiths);
-            results.push(...validHadiths);
-        }
-        console.log(`Translated ${i + validHadiths.length} of ${sourceHadiths.length} Hadiths`);
-        if (i + BATCH_SIZE < sourceHadiths.length) {
-            await translationHelper_1.TranslationHelper.sleep(1500);
-        }
-    }
-    return results;
+    // Fallback: Return English hadiths cleanly if target language is not yet generated via OpenAI Batch
+    return await hadith_model_1.Hadith.find({ lang: 'en' }).lean();
 };
 // ─── Tier 1 Top 10 Languages Bulk Sync ────────────────────────────────────────
 const syncTier1Languages = async (bookKey = 'bukhari', fromHadith = 1, toHadith = 100) => {

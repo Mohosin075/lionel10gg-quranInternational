@@ -1,7 +1,6 @@
 import axios from 'axios';
 import { Hadith } from './hadith.model';
 import { IHadith } from './hadith.interface';
-import { TranslationHelper } from '../../../helpers/translationHelper';
 
 const EDITION_SOURCE_MAP: Record<string, string> = {
   bukhari: 'Sahih al-Bukhari',
@@ -191,7 +190,7 @@ const syncFromGlobalApi = async (
         createdCount++;
       }
 
-      await TranslationHelper.sleep(150);
+      await new Promise(r => setTimeout(r, 150));
     } catch (error) {
       console.error(`Error syncing Hadith ${i} from global API:`, error);
     }
@@ -385,57 +384,8 @@ const getOrSyncHadithsByLanguage = async (targetLang: string) => {
     return await Hadith.find({ lang: targetLang }).lean();
   }
 
-  const sourceHadiths = await Hadith.find({ lang: 'en' }).lean();
-  if (sourceHadiths.length === 0) return [];
-
-  console.log(`[HadithService] Translating ${sourceHadiths.length} Hadiths to: ${targetLang}...`);
-
-  const results: IHadith[] = [];
-  const BATCH_SIZE = 5;
-
-  for (let i = 0; i < sourceHadiths.length; i += BATCH_SIZE) {
-    const batch = sourceHadiths.slice(i, i + BATCH_SIZE);
-    const translatedBatch: (IHadith | null)[] = [];
-
-    for (const hadith of batch) {
-      try {
-        const translatedChapter = await TranslationHelper.translateText(hadith.chapter, targetLang);
-        await TranslationHelper.sleep(200);
-        const translatedTranslation = await TranslationHelper.translateText(hadith.translation, targetLang);
-        await TranslationHelper.sleep(200);
-        const translatedCategory = await TranslationHelper.translateText(hadith.category, targetLang);
-
-        translatedBatch.push({
-          hadithNo: hadith.hadithNo,
-          source: hadith.source,
-          chapter: translatedChapter,
-          arabicText: hadith.arabicText,
-          translation: translatedTranslation,
-          authenticity: hadith.authenticity,
-          category: translatedCategory,
-          lang: targetLang,
-          version: 1,
-          isActive: hadith.isActive,
-        } as IHadith);
-      } catch (err) {
-        console.error(`Translation failed for Hadith ${hadith.hadithNo}:`, err);
-        translatedBatch.push(null);
-      }
-      await TranslationHelper.sleep(300);
-    }
-
-    const validHadiths = translatedBatch.filter((h) => h !== null) as IHadith[];
-    if (validHadiths.length > 0) {
-      await Hadith.insertMany(validHadiths);
-      results.push(...validHadiths);
-    }
-    console.log(`Translated ${i + validHadiths.length} of ${sourceHadiths.length} Hadiths`);
-    if (i + BATCH_SIZE < sourceHadiths.length) {
-      await TranslationHelper.sleep(1500);
-    }
-  }
-
-  return results;
+  // Fallback: Return English hadiths cleanly if target language is not yet generated via OpenAI Batch
+  return await Hadith.find({ lang: 'en' }).lean();
 };
 
 // ─── Tier 1 Top 10 Languages Bulk Sync ────────────────────────────────────────

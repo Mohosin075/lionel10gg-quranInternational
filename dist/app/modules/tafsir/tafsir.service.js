@@ -5,27 +5,33 @@ const tafsir_model_1 = require("./tafsir.model");
 const tafsir_worker_1 = require("./tafsir.worker");
 const getTafsir = async (surah, ayah, edition = 'arabic_moyassar', lang = 'ar') => {
     let result = await tafsir_model_1.Tafsir.findOne({ surah, ayah, edition, lang }).lean();
-    if (!result) {
+    if (!result && lang === 'ar') {
         try {
-            // Trigger ingestion for the whole surah
-            await (0, tafsir_worker_1.ingestSurahTafsir)(surah, edition, lang);
+            await (0, tafsir_worker_1.ingestSurahTafsir)(surah, edition, 'ar');
             result = await tafsir_model_1.Tafsir.findOne({ surah, ayah, edition, lang }).lean();
         }
         catch (err) {
             console.error(`[TafsirService] Ingestion failed for surah ${surah} (${edition}, ${lang}):`, err);
         }
     }
-    // Fallback: If requested language/edition was not found or failed, return Arabic base tafsir
+    // Fallback: If requested language was not found, return Arabic base tafsir
     if (!result) {
         result = await tafsir_model_1.Tafsir.findOne({ surah, ayah, edition: 'arabic_moyassar', lang: 'ar' }).lean();
+        if (!result) {
+            try {
+                await (0, tafsir_worker_1.ingestSurahTafsir)(surah, 'arabic_moyassar', 'ar');
+                result = await tafsir_model_1.Tafsir.findOne({ surah, ayah, edition: 'arabic_moyassar', lang: 'ar' }).lean();
+            }
+            catch (_) { }
+        }
     }
     return result;
 };
 const getSurahTafsir = async (surah, edition = 'arabic_moyassar', lang = 'ar') => {
     let results = await tafsir_model_1.Tafsir.find({ surah, edition, lang }).sort({ ayah: 1 }).lean();
-    if (results.length === 0) {
+    if (results.length === 0 && lang === 'ar') {
         try {
-            await (0, tafsir_worker_1.ingestSurahTafsir)(surah, edition, lang);
+            await (0, tafsir_worker_1.ingestSurahTafsir)(surah, edition, 'ar');
             results = await tafsir_model_1.Tafsir.find({ surah, edition, lang }).sort({ ayah: 1 }).lean();
         }
         catch (err) {
@@ -35,6 +41,13 @@ const getSurahTafsir = async (surah, edition = 'arabic_moyassar', lang = 'ar') =
     // Fallback: Return Arabic base tafsir if requested language returned empty
     if (results.length === 0) {
         results = await tafsir_model_1.Tafsir.find({ surah, edition: 'arabic_moyassar', lang: 'ar' }).sort({ ayah: 1 }).lean();
+        if (results.length === 0) {
+            try {
+                await (0, tafsir_worker_1.ingestSurahTafsir)(surah, 'arabic_moyassar', 'ar');
+                results = await tafsir_model_1.Tafsir.find({ surah, edition: 'arabic_moyassar', lang: 'ar' }).sort({ ayah: 1 }).lean();
+            }
+            catch (_) { }
+        }
     }
     return results;
 };
