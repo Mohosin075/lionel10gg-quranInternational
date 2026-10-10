@@ -41,16 +41,24 @@ export async function ingestSurahTranslations(surahNumber: number, translationKe
         throw new Error(`Failed to fetch translations for Surah ${surahNumber} from Quran.com`);
       }
 
-      batch = response.data.verses.map((verse) => ({
-        surah: surahNumber,
-        ayah: verse.verse_number, 
-        lang: targetLang!,
-        edition: translationKey,
-        arabicText: verse.text_uthmani,
-        text: verse.translations[0]?.text || '',
-        footnotes: undefined,
-        version: 1,
-      }));
+      batch = response.data.verses.map((verse) => {
+        const rawText = verse.translations[0]?.text || '';
+        const cleanText = rawText
+          .replace(/<sup[^>]*>.*?<\/sup>/gi, '')
+          .replace(/<[^>]+>/g, '')
+          .trim();
+
+        return {
+          surah: surahNumber,
+          ayah: verse.verse_number, 
+          lang: targetLang!,
+          edition: translationKey,
+          arabicText: verse.text_uthmani,
+          text: cleanText,
+          footnotes: undefined,
+          version: 1,
+        };
+      });
     } else {
       // Default to QuranEnc
       const fetchKey = (translationKey === 'quran-uthmani' || translationKey === 'ar') ? 'english_saheeh' : translationKey;

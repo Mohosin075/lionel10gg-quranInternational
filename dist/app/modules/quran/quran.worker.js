@@ -41,16 +41,21 @@ async function ingestSurahTranslations(surahNumber, translationKey, lang) {
             }
             batch = response.data.verses.map((verse) => {
                 var _a;
-                return ({
+                const rawText = ((_a = verse.translations[0]) === null || _a === void 0 ? void 0 : _a.text) || '';
+                const cleanText = rawText
+                    .replace(/<sup[^>]*>.*?<\/sup>/gi, '')
+                    .replace(/<[^>]+>/g, '')
+                    .trim();
+                return {
                     surah: surahNumber,
                     ayah: verse.verse_number,
                     lang: targetLang,
                     edition: translationKey,
                     arabicText: verse.text_uthmani,
-                    text: ((_a = verse.translations[0]) === null || _a === void 0 ? void 0 : _a.text) || '',
+                    text: cleanText,
                     footnotes: undefined,
                     version: 1,
-                });
+                };
             });
         }
         else {

@@ -63,15 +63,38 @@ const fetchLanguages = async (page = 1, limit = 200, language, localization, edi
             langMap.set(l.name.toLowerCase(), l.iso_code);
             isoToNameMap.set(l.iso_code, l.name);
         });
-        const encTranslations = (encResponse.data.translations || []).map((t) => ({
-            key: t.key,
-            name: t.title,
-            language: t.language_iso_code,
-            iso: t.language_iso_code,
-            full_language_name: isoToNameMap.get(t.language_iso_code) || t.language_iso_code,
-            author: t.description,
-            source: 'quranenc'
-        }));
+        const COMMON_ISO_NAMES = {
+            aa: 'Afar', ak: 'Akan', am: 'Amharic', as: 'Assamese', az: 'Azerbaijani',
+            be: 'Belarusian', bg: 'Bulgarian', bn: 'Bengali', bs: 'Bosnian', ca: 'Catalan',
+            cs: 'Czech', da: 'Danish', de: 'German', el: 'Greek', en: 'English',
+            eo: 'Esperanto', es: 'Spanish', et: 'Estonian', eu: 'Basque', fa: 'Persian',
+            fi: 'Finnish', fr: 'French', gu: 'Gujarati', ha: 'Hausa', he: 'Hebrew',
+            hi: 'Hindi', hr: 'Croatian', hu: 'Hungarian', hy: 'Armenian', id: 'Indonesian',
+            it: 'Italian', ja: 'Japanese', jv: 'Javanese', ka: 'Georgian', kk: 'Kazakh',
+            km: 'Khmer', kn: 'Kannada', ko: 'Korean', ku: 'Kurdish', ky: 'Kyrgyz',
+            la: 'Latin', lt: 'Lithuanian', lv: 'Latvian', mg: 'Malagasy', mk: 'Macedonian',
+            ml: 'Malayalam', mn: 'Mongolian', mr: 'Marathi', ms: 'Malay', my: 'Burmese',
+            ne: 'Nepali', nl: 'Dutch', no: 'Norwegian', or: 'Odia', pa: 'Punjabi',
+            pl: 'Polish', ps: 'Pashto', pt: 'Portuguese', ro: 'Romanian', ru: 'Russian',
+            rw: 'Kinyarwanda', sd: 'Sindhi', si: 'Sinhala', sk: 'Slovak', sl: 'Slovenian',
+            so: 'Somali', sq: 'Albanian', sr: 'Serbian', sv: 'Swedish', sw: 'Swahili',
+            ta: 'Tamil', te: 'Telugu', tg: 'Tajik', th: 'Thai', tk: 'Turkmen',
+            tl: 'Filipino', tr: 'Turkish', tt: 'Tatar', ug: 'Uyghur', uk: 'Ukrainian',
+            ur: 'Urdu', uz: 'Uzbek', vi: 'Vietnamese', yo: 'Yoruba', zh: 'Chinese', zu: 'Zulu'
+        };
+        const encTranslations = (encResponse.data.translations || []).map((t) => {
+            const iso = (t.language_iso_code || '').toLowerCase().trim();
+            const resolvedName = isoToNameMap.get(iso) || COMMON_ISO_NAMES[iso] || t.language_iso_code;
+            return {
+                key: t.key,
+                name: t.title,
+                language: t.language_iso_code,
+                iso: t.language_iso_code,
+                full_language_name: resolvedName,
+                author: t.description,
+                source: 'quranenc'
+            };
+        });
         const comTranslations = (comTransResponse.data.translations || []).map((t) => {
             const langName = t.language_name.toLowerCase();
             const iso = langMap.get(langName) || t.language_name;
@@ -147,9 +170,14 @@ const fetchSurahs = async (page = 1, limit = 10, language) => {
 const resolveTranslationKey = async (translationKey) => {
     if (!translationKey)
         return 'english_saheeh';
+    // 1. Direct exact key match takes absolute precedence
+    const exactDoc = await quran_model_1.Language.findOne({ key: translationKey }).lean();
+    if (exactDoc) {
+        return exactDoc.key;
+    }
+    // 2. Fallback to language name or ISO
     const langDoc = await quran_model_1.Language.findOne({
         $or: [
-            { key: translationKey },
             { language: translationKey.toLowerCase() },
             { iso: translationKey.toLowerCase() }
         ]
@@ -338,10 +366,21 @@ const getSyncData = async (translationKey, fromVersion = 0, page = 1, limit = 50
         version: { $gt: fromVersion },
     };
     let total = await quran_model_1.Translation.countDocuments(filter);
-    // First fill: empty edition → ingest all 114 surahs once, then dump
+    // First fill: empty edition → fast-ingest first 3 surahs so client request returns instantly,
+    // then continue syncing the rest in background without timing out the HTTP connection
     if (total === 0 && fromVersion === 0) {
         const langInfo = await quran_model_1.Language.findOne({ key: translationKey });
-        await (0, quran_worker_1.syncLanguage)(translationKey, langInfo === null || langInfo === void 0 ? void 0 : langInfo.language);
+        for (let s = 1; s <= 3; s++) {
+            try {
+                await (0, quran_worker_1.ingestSurahTranslations)(s, translationKey, langInfo === null || langInfo === void 0 ? void 0 : langInfo.language);
+            }
+            catch (e) {
+                console.error(`Initial sync surah ${s} error:`, e);
+            }
+        }
+        (0, quran_worker_1.syncLanguage)(translationKey, langInfo === null || langInfo === void 0 ? void 0 : langInfo.language).catch((err) => {
+            console.error(`Background full sync error for ${translationKey}:`, err);
+        });
         total = await quran_model_1.Translation.countDocuments(filter);
     }
     const data = await quran_model_1.Translation.find(filter)
