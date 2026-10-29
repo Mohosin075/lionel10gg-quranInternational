@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getContentSnapshot = exports.readContentRevision = exports.readScopedContentRevision = exports.snapshotRevision = exports.contentModels = void 0;
+const content_publication_1 = require("./content-publication");
 const crypto_1 = __importDefault(require("crypto"));
 const catchAsync_1 = __importDefault(require("../../../shared/catchAsync"));
 const ApiError_1 = __importDefault(require("../../../errors/ApiError"));
@@ -56,7 +57,7 @@ exports.getContentSnapshot = (0, catchAsync_1.default)(async (req, res) => {
     const revision = await readRevision();
     if (req.query.revision && req.query.revision !== revision)
         throw new ApiError_1.default(409, 'Content changed during download; retry the snapshot');
-    const filter = { lang, isActive: { $ne: false } };
+    const filter = (0, content_publication_1.publishedContentFilter)(req.params.module, lang);
     const total = await model.countDocuments(filter);
     if (req.query.metadata === 'true') {
         res.json({

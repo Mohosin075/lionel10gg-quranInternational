@@ -1,3 +1,4 @@
+import { publishedContentFilter } from './content-publication'
 import crypto from 'crypto'
 import { Model } from 'mongoose'
 import { Request, Response } from 'express'
@@ -63,7 +64,7 @@ export const getContentSnapshot = catchAsync(
         409,
         'Content changed during download; retry the snapshot',
       )
-    const filter = { lang, isActive: { $ne: false } }
+    const filter = publishedContentFilter(req.params.module, lang)
     const total = await model.countDocuments(filter)
     if (req.query.metadata === 'true') {
       res.json({

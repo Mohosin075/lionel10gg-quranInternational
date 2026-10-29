@@ -14,6 +14,7 @@ const getAllArticles = (0, catchAsync_1.default)(async (req, res) => {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
     const result = await knowledge_library_service_1.KnowledgeLibraryServices.getAllArticles(lang, category, page, limit, {
+        includeUnavailable: req.query.includeUnavailable === 'true',
         strictLang: req.query.strictLang === 'true',
         searchTerm: typeof req.query.searchTerm === 'string'
             ? req.query.searchTerm
@@ -110,6 +111,7 @@ const getAllBooks = (0, catchAsync_1.default)(async (req, res) => {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
     const result = await knowledge_library_service_1.KnowledgeLibraryServices.getAllBooks(lang, page, limit, {
+        includeUnavailable: req.query.includeUnavailable === 'true',
         strictLang: req.query.strictLang === 'true',
         searchTerm: typeof req.query.searchTerm === 'string'
             ? req.query.searchTerm
@@ -171,6 +173,7 @@ const getAllFatwas = (0, catchAsync_1.default)(async (req, res) => {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
     const result = await knowledge_library_service_1.KnowledgeLibraryServices.getAllFatwas(lang, page, limit, {
+        includeUnavailable: req.query.includeUnavailable === 'true',
         strictLang: req.query.strictLang === 'true',
         searchTerm: typeof req.query.searchTerm === 'string'
             ? req.query.searchTerm

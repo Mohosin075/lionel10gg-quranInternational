@@ -1,3 +1,4 @@
+import { publishedContentFilter } from '../offline-pack/content-publication'
 import { readContentRevision } from '../offline-pack/content-snapshot'
 import axios from 'axios';
 import { Dua } from './dua.model';
@@ -7,8 +8,11 @@ const getAllDuas = async (
   lang: string = 'en',
   category?: string,
   page: number = 1,
-  limit: number = 10
+  limit: number = 10,
+  includeUnavailable = false
 ) => {
+  page = Math.max(1, Math.floor(Number(page) || 1));
+  limit = Math.min(100, Math.max(1, Math.floor(Number(limit) || 10)));
   const skip = (page - 1) * limit;
 
   // Ensure data exists for the language
@@ -24,13 +28,13 @@ const getAllDuas = async (
     }
   }
 
-  const query: Record<string, unknown> = { lang, isActive: { $ne: false } };
+  const query: Record<string, unknown> = includeUnavailable ? { lang, isActive: { $ne: false } } : publishedContentFilter('dua', lang);
   if (category) {
     query.category = category;
   }
 
   const [data, total] = await Promise.all([
-    Dua.find(query).skip(skip).limit(limit).sort({ title: 1 }).lean(),
+    Dua.find(query).skip(skip).limit(limit).sort({ title: 1, _id: 1 }).lean(),
     Dua.countDocuments(query),
   ]);
 
@@ -68,7 +72,7 @@ const deleteDua = async (id: string) => {
 };
 
 const getCategories = async (lang: string = 'en') => {
-  const categories = await Dua.distinct('category', { lang });
+  const categories = await Dua.distinct('category', { lang, isActive: { $ne: false } });
   return categories.filter(Boolean);
 };
 

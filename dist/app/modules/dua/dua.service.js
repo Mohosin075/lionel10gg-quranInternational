@@ -4,10 +4,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DuaService = void 0;
+const content_publication_1 = require("../offline-pack/content-publication");
 const content_snapshot_1 = require("../offline-pack/content-snapshot");
 const axios_1 = __importDefault(require("axios"));
 const dua_model_1 = require("./dua.model");
-const getAllDuas = async (lang = 'en', category, page = 1, limit = 10) => {
+const getAllDuas = async (lang = 'en', category, page = 1, limit = 10, includeUnavailable = false) => {
+    page = Math.max(1, Math.floor(Number(page) || 1));
+    limit = Math.min(100, Math.max(1, Math.floor(Number(limit) || 10)));
     const skip = (page - 1) * limit;
     // Ensure data exists for the language
     if (lang === 'en') {
@@ -22,12 +25,12 @@ const getAllDuas = async (lang = 'en', category, page = 1, limit = 10) => {
             await getOrSyncDuasByLanguage(lang);
         }
     }
-    const query = { lang, isActive: { $ne: false } };
+    const query = includeUnavailable ? { lang, isActive: { $ne: false } } : (0, content_publication_1.publishedContentFilter)('dua', lang);
     if (category) {
         query.category = category;
     }
     const [data, total] = await Promise.all([
-        dua_model_1.Dua.find(query).skip(skip).limit(limit).sort({ title: 1 }).lean(),
+        dua_model_1.Dua.find(query).skip(skip).limit(limit).sort({ title: 1, _id: 1 }).lean(),
         dua_model_1.Dua.countDocuments(query),
     ]);
     return {
@@ -55,7 +58,7 @@ const deleteDua = async (id) => {
     return await dua_model_1.Dua.findByIdAndUpdate(id, { isActive: false }, { new: true });
 };
 const getCategories = async (lang = 'en') => {
-    const categories = await dua_model_1.Dua.distinct('category', { lang });
+    const categories = await dua_model_1.Dua.distinct('category', { lang, isActive: { $ne: false } });
     return categories.filter(Boolean);
 };
 const getVersion = async (lang = 'en') => {

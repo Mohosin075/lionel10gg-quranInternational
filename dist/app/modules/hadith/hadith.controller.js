@@ -14,7 +14,7 @@ const getAllHadiths = (0, catchAsync_1.default)(async (req, res) => {
     const source = req.query.source;
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
-    const result = await hadith_service_1.HadithServices.getAllHadiths(lang, category, source, page, limit);
+    const result = await hadith_service_1.HadithServices.getAllHadiths(lang, category, source, page, limit, req.query.includeUnavailable === 'true');
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_codes_1.StatusCodes.OK,
         success: true,

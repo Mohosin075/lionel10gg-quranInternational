@@ -1,14 +1,15 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TafsirService = void 0;
+const content_publication_1 = require("../offline-pack/content-publication");
 const tafsir_model_1 = require("./tafsir.model");
 const tafsir_worker_1 = require("./tafsir.worker");
 const getTafsir = async (surah, ayah, edition = 'arabic_moyassar', lang = 'ar') => {
-    let result = await tafsir_model_1.Tafsir.findOne({ surah, ayah, edition, lang }).lean();
+    let result = await tafsir_model_1.Tafsir.findOne({ surah, ayah, edition, ...(0, content_publication_1.publishedContentFilter)('tafsir', lang) }).lean();
     if (!result && lang === 'ar') {
         try {
             await (0, tafsir_worker_1.ingestSurahTafsir)(surah, edition, 'ar');
-            result = await tafsir_model_1.Tafsir.findOne({ surah, ayah, edition, lang }).lean();
+            result = await tafsir_model_1.Tafsir.findOne({ surah, ayah, edition, ...(0, content_publication_1.publishedContentFilter)('tafsir', lang) }).lean();
         }
         catch (err) {
             console.error(`[TafsirService] Ingestion failed for surah ${surah} (${edition}, ${lang}):`, err);
@@ -40,13 +41,13 @@ const getTafsir = async (surah, ayah, edition = 'arabic_moyassar', lang = 'ar') 
     return result;
 };
 const getSurahTafsir = async (surah, edition = 'arabic_moyassar', lang = 'ar') => {
-    let results = await tafsir_model_1.Tafsir.find({ surah, edition, lang })
+    let results = await tafsir_model_1.Tafsir.find({ surah, edition, ...(0, content_publication_1.publishedContentFilter)('tafsir', lang) })
         .sort({ ayah: 1 })
         .lean();
     if (results.length === 0 && lang === 'ar') {
         try {
             await (0, tafsir_worker_1.ingestSurahTafsir)(surah, edition, 'ar');
-            results = await tafsir_model_1.Tafsir.find({ surah, edition, lang })
+            results = await tafsir_model_1.Tafsir.find({ surah, edition, ...(0, content_publication_1.publishedContentFilter)('tafsir', lang) })
                 .sort({ ayah: 1 })
                 .lean();
         }

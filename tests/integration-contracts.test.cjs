@@ -156,3 +156,14 @@ test('premium benefit API resolves requested translations and labels their langu
 
 const {seedPremiumBenefits}=require('../src/app/modules/subscription/subscription.seed')
 test('startup preserves published premium benefits and translations',async()=>{mock.method(PremiumBenefit,'exists',async()=>({_id:planId}));mock.method(PremiumBenefit,'deleteMany',async()=>assert.fail('existing benefits deleted'));mock.method(PremiumBenefit,'insertMany',async()=>assert.fail('existing benefits overwritten'));await seedPremiumBenefits()})
+
+const {publishedContentFilter}=require('../src/app/modules/offline-pack/content-publication')
+test('publication rejects blank content and mislabeled Bengali bodies without hiding source records',()=>{const en=publishedContentFilter('hadith','en');assert.equal(en.translation.test(''),false);assert.equal(en.translation.test('Readable'),true);const bn=publishedContentFilter('book','bn');assert.equal(bn.content.test('German body'),false);assert.equal(bn.content.test(String.fromCharCode(0x985)),true);assert.equal(bn.lang,'bn');assert.equal(bn.isActive.$ne,false)})
+
+const {TafsirService}=require('../src/app/modules/tafsir/tafsir.service')
+const {Tafsir}=require('../src/app/modules/tafsir/tafsir.model')
+test('direct Bengali Tafsir reads apply the same publication rules as snapshots',async()=>{let filter;mock.method(Tafsir,'findOne',value=>{filter=value;return{lean:async()=>null}});assert.equal(await TafsirService.getTafsir(1,1,'fixture','bn'),null);assert.equal(filter.text.test('German body'),false);assert.equal(filter.text.test(String.fromCharCode(0x985)),true)})
+
+const {KnowledgeLibraryController}=require('../src/app/modules/knowledge-library/knowledge-library.controller')
+const {KnowledgeLibraryServices}=require('../src/app/modules/knowledge-library/knowledge-library.service')
+test('dashboard book requests retain source-record visibility through the controller',async()=>{let options;mock.method(KnowledgeLibraryServices,'getAllBooks',async(lang,page,limit,opts)=>{options=opts;return{meta:{},data:[]}});const res={status(){return this},json(){}};await KnowledgeLibraryController.getAllBooks({query:{lang:'bn',includeUnavailable:'true'}},res,error=>{throw error});assert.equal(options.includeUnavailable,true)})

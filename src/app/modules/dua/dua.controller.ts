@@ -10,7 +10,7 @@ const getAllDuas = catchAsync(async (req: Request, res: Response) => {
   const page = Number(req.query.page) || 1;
   const limit = Number(req.query.limit) || 10;
 
-  const result = await DuaService.getAllDuas(lang, category, page, limit);
+  const result = await DuaService.getAllDuas(lang, category, page, limit, req.query.includeUnavailable === 'true');
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,

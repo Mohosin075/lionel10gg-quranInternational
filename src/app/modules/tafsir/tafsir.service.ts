@@ -1,3 +1,4 @@
+import { publishedContentFilter } from '../offline-pack/content-publication'
 import { Tafsir } from './tafsir.model'
 import { ingestSurahTafsir } from './tafsir.worker'
 
@@ -7,12 +8,12 @@ const getTafsir = async (
   edition: string = 'arabic_moyassar',
   lang: string = 'ar',
 ) => {
-  let result = await Tafsir.findOne({ surah, ayah, edition, lang }).lean()
+  let result = await Tafsir.findOne({ surah, ayah, edition, ...publishedContentFilter('tafsir', lang) }).lean()
 
   if (!result && lang === 'ar') {
     try {
       await ingestSurahTafsir(surah, edition, 'ar')
-      result = await Tafsir.findOne({ surah, ayah, edition, lang }).lean()
+      result = await Tafsir.findOne({ surah, ayah, edition, ...publishedContentFilter('tafsir', lang) }).lean()
     } catch (err) {
       console.error(
         `[TafsirService] Ingestion failed for surah ${surah} (${edition}, ${lang}):`,
@@ -52,14 +53,14 @@ const getSurahTafsir = async (
   edition: string = 'arabic_moyassar',
   lang: string = 'ar',
 ) => {
-  let results = await Tafsir.find({ surah, edition, lang })
+  let results = await Tafsir.find({ surah, edition, ...publishedContentFilter('tafsir', lang) })
     .sort({ ayah: 1 })
     .lean()
 
   if (results.length === 0 && lang === 'ar') {
     try {
       await ingestSurahTafsir(surah, edition, 'ar')
-      results = await Tafsir.find({ surah, edition, lang })
+      results = await Tafsir.find({ surah, edition, ...publishedContentFilter('tafsir', lang) })
         .sort({ ayah: 1 })
         .lean()
     } catch (err) {

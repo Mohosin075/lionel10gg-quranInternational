@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.HadithServices = exports.LANG_CODE_MAP = void 0;
+const content_publication_1 = require("../offline-pack/content-publication");
 const content_snapshot_1 = require("../offline-pack/content-snapshot");
 const axios_1 = __importDefault(require("axios"));
 const hadith_model_1 = require("./hadith.model");
@@ -253,8 +254,7 @@ const getCollections = async (lang = 'en') => {
     const result = await Promise.all(ALL_HADITH_COLLECTIONS.map(async (col) => {
         const count = await hadith_model_1.Hadith.countDocuments({
             source: col.name,
-            lang,
-            isActive: true,
+            ...(0, content_publication_1.publishedContentFilter)('hadith', lang),
         });
         return {
             key: col.key,
@@ -266,7 +266,9 @@ const getCollections = async (lang = 'en') => {
     }));
     return result;
 };
-const getAllHadiths = async (lang = 'en', category, source, page = 1, limit = 10) => {
+const getAllHadiths = async (lang = 'en', category, source, page = 1, limit = 10, includeUnavailable = false) => {
+    page = Math.max(1, Math.floor(Number(page) || 1));
+    limit = Math.min(100, Math.max(1, Math.floor(Number(limit) || 10)));
     const skip = (page - 1) * limit;
     // Auto-populate DB in the background — don't block the HTTP response
     const totalEnglish = await hadith_model_1.Hadith.countDocuments({ lang: 'en' });
@@ -288,13 +290,13 @@ const getAllHadiths = async (lang = 'en', category, source, page = 1, limit = 10
             })();
         }
     }
-    const query = { lang, isActive: true };
+    const query = includeUnavailable ? { lang, isActive: true } : (0, content_publication_1.publishedContentFilter)('hadith', lang);
     if (category)
         query.category = category;
     if (source)
         query.source = source;
     const [data, total] = await Promise.all([
-        hadith_model_1.Hadith.find(query).skip(skip).limit(limit).sort({ hadithNo: 1 }).lean(),
+        hadith_model_1.Hadith.find(query).skip(skip).limit(limit).sort({ hadithNo: 1, _id: 1 }).lean(),
         hadith_model_1.Hadith.countDocuments(query),
     ]);
     return {

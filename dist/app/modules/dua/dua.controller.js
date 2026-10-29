@@ -13,7 +13,7 @@ const getAllDuas = (0, catchAsync_1.default)(async (req, res) => {
     const category = req.query.category;
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
-    const result = await dua_service_1.DuaService.getAllDuas(lang, category, page, limit);
+    const result = await dua_service_1.DuaService.getAllDuas(lang, category, page, limit, req.query.includeUnavailable === 'true');
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_codes_1.StatusCodes.OK,
         success: true,

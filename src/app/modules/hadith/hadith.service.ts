@@ -1,3 +1,4 @@
+import { publishedContentFilter } from '../offline-pack/content-publication'
 import { readContentRevision } from '../offline-pack/content-snapshot'
 import axios from 'axios'
 interface HadithGrade {
@@ -321,8 +322,7 @@ const getCollections = async (lang: string = 'en') => {
     ALL_HADITH_COLLECTIONS.map(async col => {
       const count = await Hadith.countDocuments({
         source: col.name,
-        lang,
-        isActive: true,
+        ...publishedContentFilter('hadith', lang),
       })
       return {
         key: col.key,
@@ -342,7 +342,10 @@ const getAllHadiths = async (
   source?: string,
   page: number = 1,
   limit: number = 10,
+  includeUnavailable = false,
 ) => {
+  page = Math.max(1, Math.floor(Number(page) || 1))
+  limit = Math.min(100, Math.max(1, Math.floor(Number(limit) || 10)))
   const skip = (page - 1) * limit
 
   // Auto-populate DB in the background — don't block the HTTP response
@@ -371,12 +374,12 @@ const getAllHadiths = async (
     }
   }
 
-  const query: Record<string, unknown> = { lang, isActive: true }
+  const query: Record<string, unknown> = includeUnavailable ? { lang, isActive: true } : publishedContentFilter('hadith', lang)
   if (category) query.category = category
   if (source) query.source = source
 
   const [data, total] = await Promise.all([
-    Hadith.find(query).skip(skip).limit(limit).sort({ hadithNo: 1 }).lean(),
+    Hadith.find(query).skip(skip).limit(limit).sort({ hadithNo: 1, _id: 1 }).lean(),
     Hadith.countDocuments(query),
   ])
 

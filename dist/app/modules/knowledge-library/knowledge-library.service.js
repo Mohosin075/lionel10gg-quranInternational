@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.KnowledgeLibraryServices = void 0;
+const content_publication_1 = require("../offline-pack/content-publication");
 const content_snapshot_1 = require("../offline-pack/content-snapshot");
 const mongoose_1 = __importDefault(require("mongoose"));
 const knowledge_library_model_1 = require("./knowledge-library.model");
@@ -46,27 +47,8 @@ const getAllArticles = async (lang = 'de', category, page = 1, limit = 10, optio
     limit = Math.min(100, Math.max(1, Math.floor(Number(limit) || 20)));
     page = Math.max(1, Math.floor(Number(page) || 1));
     const skip = (page - 1) * limit;
-    // 1. Language check: if articles exist in requested lang use it, else fallback to any active
-    let langFilter = {};
-    const hasRequestedLang = await knowledge_library_model_1.KnowledgeArticle.countDocuments({
-        lang,
-        isActive: true,
-    });
-    if (hasRequestedLang > 0) {
-        langFilter = { lang };
-    }
-    else {
-        const hasGerman = await knowledge_library_model_1.KnowledgeArticle.countDocuments({
-            lang: 'de',
-            isActive: true,
-        });
-        if (hasGerman > 0) {
-            langFilter = { lang: 'de' };
-        }
-    }
-    if (options.strictLang)
-        langFilter = { lang };
-    const baseQuery = { ...langFilter, isActive: true };
+    const langFilter = { lang };
+    const baseQuery = options.includeUnavailable ? { ...langFilter, isActive: true } : (0, content_publication_1.publishedContentFilter)('knowledge', lang);
     if ((_a = options.searchTerm) === null || _a === void 0 ? void 0 : _a.trim()) {
         const expression = new RegExp(escapeSearch(options.searchTerm.trim()), 'i');
         baseQuery.$and = [
@@ -95,7 +77,7 @@ const getAllArticles = async (lang = 'de', category, page = 1, limit = 10, optio
     }
     let total = await knowledge_library_model_1.KnowledgeArticle.countDocuments(baseQuery);
     let data = await knowledge_library_model_1.KnowledgeArticle.find(baseQuery)
-        .sort({ createdAt: -1 })
+        .sort({ createdAt: -1, _id: -1 })
         .skip(skip)
         .limit(limit)
         .lean();
@@ -108,7 +90,7 @@ const getAllArticles = async (lang = 'de', category, page = 1, limit = 10, optio
         const fallbackQuery = { ...langFilter, isActive: true };
         total = await knowledge_library_model_1.KnowledgeArticle.countDocuments(fallbackQuery);
         data = await knowledge_library_model_1.KnowledgeArticle.find(fallbackQuery)
-            .sort({ createdAt: -1 })
+            .sort({ createdAt: -1, _id: -1 })
             .skip(skip)
             .limit(limit)
             .lean();
@@ -124,7 +106,7 @@ const getAllArticles = async (lang = 'de', category, page = 1, limit = 10, optio
     };
 };
 const getArticleById = async (id) => {
-    return await knowledge_library_model_1.KnowledgeArticle.findById(id).lean();
+    return await knowledge_library_model_1.KnowledgeArticle.findOne({ _id: id, isActive: true }).lean();
 };
 const createArticle = async (payload) => {
     return await knowledge_library_model_1.KnowledgeArticle.create(payload);
@@ -161,7 +143,7 @@ const getSyncData = async (lang = 'de', fromVersion = 0, page = 1, limit = 500) 
     const baseQuery = { lang, isActive: true };
     const total = await knowledge_library_model_1.KnowledgeArticle.countDocuments(baseQuery);
     const data = await knowledge_library_model_1.KnowledgeArticle.find(baseQuery)
-        .sort({ createdAt: -1 })
+        .sort({ createdAt: -1, _id: -1 })
         .skip(skip)
         .limit(safeLimit)
         .lean();
@@ -196,23 +178,8 @@ const getAllBooks = async (lang = 'de', page = 1, limit = 50, options = {}) => {
     limit = Math.min(100, Math.max(1, Math.floor(Number(limit) || 20)));
     page = Math.max(1, Math.floor(Number(page) || 1));
     const skip = (page - 1) * limit;
-    let langFilter = {};
-    const hasLang = await knowledge_book_model_1.KnowledgeBook.countDocuments({ lang, isActive: true });
-    if (hasLang > 0) {
-        langFilter = { lang };
-    }
-    else {
-        const hasGerman = await knowledge_book_model_1.KnowledgeBook.countDocuments({
-            lang: 'de',
-            isActive: true,
-        });
-        if (hasGerman > 0) {
-            langFilter = { lang: 'de' };
-        }
-    }
-    if (options.strictLang)
-        langFilter = { lang };
-    const baseQuery = { ...langFilter, isActive: true };
+    const langFilter = { lang };
+    const baseQuery = options.includeUnavailable ? { ...langFilter, isActive: true } : (0, content_publication_1.publishedContentFilter)('book', lang);
     if ((_a = options.searchTerm) === null || _a === void 0 ? void 0 : _a.trim()) {
         const expression = new RegExp(escapeSearch(options.searchTerm.trim()), 'i');
         baseQuery.$and = [
@@ -228,10 +195,12 @@ const getAllBooks = async (lang = 'de', page = 1, limit = 50, options = {}) => {
     const total = await knowledge_book_model_1.KnowledgeBook.countDocuments(baseQuery);
     const data = await knowledge_book_model_1.KnowledgeBook.find(baseQuery)
         .select('-content')
-        .sort({ createdAt: -1 })
+        .sort({ createdAt: -1, _id: -1 })
         .skip(skip)
         .limit(limit)
         .lean();
+    const withheld = options.includeUnavailable ? await knowledge_book_model_1.KnowledgeBook.find({ $and: [baseQuery, { $nor: [(0, content_publication_1.publishedContentFilter)('book', lang)] }] }).select('_id').lean() : [];
+    const unavailableIds = new Set(withheld.map(row => String(row._id)));
     return {
         meta: {
             page,
@@ -239,7 +208,7 @@ const getAllBooks = async (lang = 'de', page = 1, limit = 50, options = {}) => {
             total,
             totalPages: Math.max(1, Math.ceil(total / limit)),
         },
-        data,
+        data: data.map(row => ({ ...row, isContentAvailable: !unavailableIds.has(String(row._id)) })),
     };
 };
 const getBookById = async (id, lang) => {
@@ -249,13 +218,12 @@ const getBookById = async (id, lang) => {
                 { bookId: id },
                 ...(mongoose_1.default.Types.ObjectId.isValid(id) ? [{ _id: id }] : []),
             ],
-            lang,
-            isActive: true,
+            ...(0, content_publication_1.publishedContentFilter)('book', lang),
         }).lean();
         return localized;
     }
     if (mongoose_1.default.Types.ObjectId.isValid(id)) {
-        const book = await knowledge_book_model_1.KnowledgeBook.findById(id).lean();
+        const book = await knowledge_book_model_1.KnowledgeBook.findOne({ _id: id, isActive: true }).lean();
         if (book)
             return book;
     }
@@ -280,23 +248,8 @@ const getAllFatwas = async (lang = 'de', page = 1, limit = 50, options = {}) => 
     limit = Math.min(100, Math.max(1, Math.floor(Number(limit) || 20)));
     page = Math.max(1, Math.floor(Number(page) || 1));
     const skip = (page - 1) * limit;
-    let langFilter = {};
-    const hasLang = await knowledge_fatwa_model_1.KnowledgeFatwa.countDocuments({ lang, isActive: true });
-    if (hasLang > 0) {
-        langFilter = { lang };
-    }
-    else {
-        const hasGerman = await knowledge_fatwa_model_1.KnowledgeFatwa.countDocuments({
-            lang: 'de',
-            isActive: true,
-        });
-        if (hasGerman > 0) {
-            langFilter = { lang: 'de' };
-        }
-    }
-    if (options.strictLang)
-        langFilter = { lang };
-    const baseQuery = { ...langFilter, isActive: true };
+    const langFilter = { lang };
+    const baseQuery = options.includeUnavailable ? { ...langFilter, isActive: true } : (0, content_publication_1.publishedContentFilter)('fatwa', lang);
     if ((_a = options.searchTerm) === null || _a === void 0 ? void 0 : _a.trim()) {
         const expression = new RegExp(escapeSearch(options.searchTerm.trim()), 'i');
         baseQuery.$and = [
@@ -311,7 +264,7 @@ const getAllFatwas = async (lang = 'de', page = 1, limit = 50, options = {}) => 
     }
     const total = await knowledge_fatwa_model_1.KnowledgeFatwa.countDocuments(baseQuery);
     const data = await knowledge_fatwa_model_1.KnowledgeFatwa.find(baseQuery)
-        .sort({ createdAt: -1 })
+        .sort({ createdAt: -1, _id: -1 })
         .skip(skip)
         .limit(limit)
         .lean();
@@ -326,7 +279,7 @@ const getAllFatwas = async (lang = 'de', page = 1, limit = 50, options = {}) => 
     };
 };
 const getFatwaById = async (id) => {
-    return await knowledge_fatwa_model_1.KnowledgeFatwa.findById(id).lean();
+    return await knowledge_fatwa_model_1.KnowledgeFatwa.findOne({ _id: id, isActive: true }).lean();
 };
 const createFatwa = async (payload) => {
     return await knowledge_fatwa_model_1.KnowledgeFatwa.create(payload);

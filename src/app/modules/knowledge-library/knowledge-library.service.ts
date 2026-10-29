@@ -1,3 +1,4 @@
+import { publishedContentFilter } from '../offline-pack/content-publication'
 import { readContentRevision } from '../offline-pack/content-snapshot'
 import mongoose from 'mongoose'
 import { KnowledgeArticle } from './knowledge-library.model'
@@ -10,6 +11,7 @@ import {
 } from './knowledge-library.interface'
 
 interface ContentListOptions {
+  includeUnavailable?: boolean
   strictLang?: boolean
   searchTerm?: string
   source?: string
@@ -61,26 +63,8 @@ const getAllArticles = async (
   page = Math.max(1, Math.floor(Number(page) || 1))
   const skip = (page - 1) * limit
 
-  // 1. Language check: if articles exist in requested lang use it, else fallback to any active
-  let langFilter: Record<string, unknown> = {}
-  const hasRequestedLang = await KnowledgeArticle.countDocuments({
-    lang,
-    isActive: true,
-  })
-  if (hasRequestedLang > 0) {
-    langFilter = { lang }
-  } else {
-    const hasGerman = await KnowledgeArticle.countDocuments({
-      lang: 'de',
-      isActive: true,
-    })
-    if (hasGerman > 0) {
-      langFilter = { lang: 'de' }
-    }
-  }
-
-  if (options.strictLang) langFilter = { lang }
-  const baseQuery: Record<string, unknown> = { ...langFilter, isActive: true }
+  const langFilter = { lang }
+  const baseQuery: Record<string, unknown> = options.includeUnavailable ? { ...langFilter, isActive: true } : publishedContentFilter('knowledge', lang)
   if (options.searchTerm?.trim()) {
     const expression = new RegExp(escapeSearch(options.searchTerm.trim()), 'i')
     baseQuery.$and = [
@@ -111,7 +95,7 @@ const getAllArticles = async (
 
   let total = await KnowledgeArticle.countDocuments(baseQuery)
   let data = await KnowledgeArticle.find(baseQuery)
-    .sort({ createdAt: -1 })
+    .sort({ createdAt: -1, _id: -1 })
     .skip(skip)
     .limit(limit)
     .lean()
@@ -127,7 +111,7 @@ const getAllArticles = async (
     const fallbackQuery = { ...langFilter, isActive: true }
     total = await KnowledgeArticle.countDocuments(fallbackQuery)
     data = await KnowledgeArticle.find(fallbackQuery)
-      .sort({ createdAt: -1 })
+      .sort({ createdAt: -1, _id: -1 })
       .skip(skip)
       .limit(limit)
       .lean()
@@ -145,7 +129,7 @@ const getAllArticles = async (
 }
 
 const getArticleById = async (id: string) => {
-  return await KnowledgeArticle.findById(id).lean()
+  return await KnowledgeArticle.findOne({ _id: id, isActive: true }).lean()
 }
 
 const createArticle = async (payload: Partial<IKnowledgeArticle>) => {
@@ -212,7 +196,7 @@ const getSyncData = async (
   const baseQuery = { lang, isActive: true }
   const total = await KnowledgeArticle.countDocuments(baseQuery)
   const data = await KnowledgeArticle.find(baseQuery)
-    .sort({ createdAt: -1 })
+    .sort({ createdAt: -1, _id: -1 })
     .skip(skip)
     .limit(safeLimit)
     .lean()
@@ -260,22 +244,8 @@ const getAllBooks = async (
   page = Math.max(1, Math.floor(Number(page) || 1))
   const skip = (page - 1) * limit
 
-  let langFilter: Record<string, unknown> = {}
-  const hasLang = await KnowledgeBook.countDocuments({ lang, isActive: true })
-  if (hasLang > 0) {
-    langFilter = { lang }
-  } else {
-    const hasGerman = await KnowledgeBook.countDocuments({
-      lang: 'de',
-      isActive: true,
-    })
-    if (hasGerman > 0) {
-      langFilter = { lang: 'de' }
-    }
-  }
-
-  if (options.strictLang) langFilter = { lang }
-  const baseQuery: Record<string, unknown> = { ...langFilter, isActive: true }
+  const langFilter = { lang }
+  const baseQuery: Record<string, unknown> = options.includeUnavailable ? { ...langFilter, isActive: true } : publishedContentFilter('book', lang)
   if (options.searchTerm?.trim()) {
     const expression = new RegExp(escapeSearch(options.searchTerm.trim()), 'i')
     baseQuery.$and = [
@@ -291,11 +261,13 @@ const getAllBooks = async (
   const total = await KnowledgeBook.countDocuments(baseQuery)
   const data = await KnowledgeBook.find(baseQuery)
     .select('-content')
-    .sort({ createdAt: -1 })
+    .sort({ createdAt: -1, _id: -1 })
     .skip(skip)
     .limit(limit)
     .lean()
 
+  const withheld = options.includeUnavailable ? await KnowledgeBook.find({ $and: [baseQuery, { $nor: [publishedContentFilter('book', lang)] }] }).select('_id').lean() : []
+  const unavailableIds = new Set(withheld.map(row => String(row._id)))
   return {
     meta: {
       page,
@@ -303,7 +275,7 @@ const getAllBooks = async (
       total,
       totalPages: Math.max(1, Math.ceil(total / limit)),
     },
-    data,
+    data: data.map(row => ({ ...row, isContentAvailable: !unavailableIds.has(String(row._id)) })),
   }
 }
 
@@ -314,14 +286,13 @@ const getBookById = async (id: string, lang?: string) => {
         { bookId: id },
         ...(mongoose.Types.ObjectId.isValid(id) ? [{ _id: id }] : []),
       ],
-      lang,
-      isActive: true,
+      ...publishedContentFilter('book', lang),
     }).lean()
     return localized
   }
 
   if (mongoose.Types.ObjectId.isValid(id)) {
-    const book = await KnowledgeBook.findById(id).lean()
+    const book = await KnowledgeBook.findOne({ _id: id, isActive: true }).lean()
     if (book) return book
   }
   return await KnowledgeBook.findOne({ bookId: id, isActive: true }).lean()
@@ -362,22 +333,8 @@ const getAllFatwas = async (
   page = Math.max(1, Math.floor(Number(page) || 1))
   const skip = (page - 1) * limit
 
-  let langFilter: Record<string, unknown> = {}
-  const hasLang = await KnowledgeFatwa.countDocuments({ lang, isActive: true })
-  if (hasLang > 0) {
-    langFilter = { lang }
-  } else {
-    const hasGerman = await KnowledgeFatwa.countDocuments({
-      lang: 'de',
-      isActive: true,
-    })
-    if (hasGerman > 0) {
-      langFilter = { lang: 'de' }
-    }
-  }
-
-  if (options.strictLang) langFilter = { lang }
-  const baseQuery: Record<string, unknown> = { ...langFilter, isActive: true }
+  const langFilter = { lang }
+  const baseQuery: Record<string, unknown> = options.includeUnavailable ? { ...langFilter, isActive: true } : publishedContentFilter('fatwa', lang)
   if (options.searchTerm?.trim()) {
     const expression = new RegExp(escapeSearch(options.searchTerm.trim()), 'i')
     baseQuery.$and = [
@@ -392,7 +349,7 @@ const getAllFatwas = async (
   }
   const total = await KnowledgeFatwa.countDocuments(baseQuery)
   const data = await KnowledgeFatwa.find(baseQuery)
-    .sort({ createdAt: -1 })
+    .sort({ createdAt: -1, _id: -1 })
     .skip(skip)
     .limit(limit)
     .lean()
@@ -409,7 +366,7 @@ const getAllFatwas = async (
 }
 
 const getFatwaById = async (id: string) => {
-  return await KnowledgeFatwa.findById(id).lean()
+  return await KnowledgeFatwa.findOne({ _id: id, isActive: true }).lean()
 }
 
 const createFatwa = async (payload: Partial<IKnowledgeFatwa>) => {

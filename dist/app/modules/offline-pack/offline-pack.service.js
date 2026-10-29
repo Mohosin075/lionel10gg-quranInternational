@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.OfflinePackService = exports.computeSha256 = void 0;
+const content_publication_1 = require("./content-publication");
 const crypto_1 = __importDefault(require("crypto"));
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
@@ -35,19 +36,19 @@ const S3_PACK_PREFIX = 'offline-packs';
 const getModuleData = async (module, lang) => {
     switch (module) {
         case 'hadith':
-            return await hadith_model_1.Hadith.find({ lang, isActive: true }).lean();
+            return await hadith_model_1.Hadith.find((0, content_publication_1.publishedContentFilter)('hadith', lang)).lean();
         case 'dua':
-            return await dua_model_1.Dua.find({ lang, isActive: { $ne: false } }).lean();
+            return await dua_model_1.Dua.find((0, content_publication_1.publishedContentFilter)('dua', lang)).lean();
         case 'knowledge':
-            return await knowledge_library_model_1.KnowledgeArticle.find({ lang, isActive: true }).lean();
+            return await knowledge_library_model_1.KnowledgeArticle.find((0, content_publication_1.publishedContentFilter)('knowledge', lang)).lean();
         case 'quran':
             return await quran_model_1.Translation.find({ lang }).sort({ surah: 1, ayah: 1 }).lean();
         case 'tafsir':
-            return await tafsir_model_1.Tafsir.find({ lang }).sort({ surah: 1, ayah: 1 }).lean();
+            return await tafsir_model_1.Tafsir.find((0, content_publication_1.publishedContentFilter)('tafsir', lang)).sort({ surah: 1, ayah: 1 }).lean();
         case 'book':
-            return await knowledge_book_model_1.KnowledgeBook.find({ lang, isActive: true }).lean();
+            return await knowledge_book_model_1.KnowledgeBook.find((0, content_publication_1.publishedContentFilter)('book', lang)).lean();
         case 'fatwa':
-            return await knowledge_fatwa_model_1.KnowledgeFatwa.find({ lang, isActive: true }).lean();
+            return await knowledge_fatwa_model_1.KnowledgeFatwa.find((0, content_publication_1.publishedContentFilter)('fatwa', lang)).lean();
         default:
             throw new Error(`Unsupported module: ${module}`);
     }

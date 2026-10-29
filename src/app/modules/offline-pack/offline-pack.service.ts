@@ -1,3 +1,4 @@
+import { publishedContentFilter } from './content-publication'
 import crypto from 'crypto'
 import fs from 'fs'
 import path from 'path'
@@ -52,19 +53,19 @@ const getModuleData = async (
 ): Promise<object[]> => {
   switch (module) {
     case 'hadith':
-      return await Hadith.find({ lang, isActive: true }).lean()
+      return await Hadith.find(publishedContentFilter('hadith', lang)).lean()
     case 'dua':
-      return await Dua.find({ lang, isActive: { $ne: false } }).lean()
+      return await Dua.find(publishedContentFilter('dua', lang)).lean()
     case 'knowledge':
-      return await KnowledgeArticle.find({ lang, isActive: true }).lean()
+      return await KnowledgeArticle.find(publishedContentFilter('knowledge', lang)).lean()
     case 'quran':
       return await Translation.find({ lang }).sort({ surah: 1, ayah: 1 }).lean()
     case 'tafsir':
-      return await Tafsir.find({ lang }).sort({ surah: 1, ayah: 1 }).lean()
+      return await Tafsir.find(publishedContentFilter('tafsir', lang)).sort({ surah: 1, ayah: 1 }).lean()
     case 'book':
-      return await KnowledgeBook.find({ lang, isActive: true }).lean()
+      return await KnowledgeBook.find(publishedContentFilter('book', lang)).lean()
     case 'fatwa':
-      return await KnowledgeFatwa.find({ lang, isActive: true }).lean()
+      return await KnowledgeFatwa.find(publishedContentFilter('fatwa', lang)).lean()
     default:
       throw new Error(`Unsupported module: ${module}`)
   }
