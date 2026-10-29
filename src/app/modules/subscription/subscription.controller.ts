@@ -55,7 +55,7 @@ const getUserSubscription = catchAsync(async (req: Request, res: Response) => {
   const user = req.user as JwtPayload
   const userId = user.authId!.toString()
 
-  const subscription = await subscriptionService.getUserSubscription(userId)
+  const subscription = await subscriptionService.getEntitlement(userId)
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,
@@ -63,7 +63,7 @@ const getUserSubscription = catchAsync(async (req: Request, res: Response) => {
     message: subscription
       ? 'Subscription retrieved successfully'
       : 'No active subscription found',
-    data: subscription || {},
+    data: subscription || null,
   })
 })
 

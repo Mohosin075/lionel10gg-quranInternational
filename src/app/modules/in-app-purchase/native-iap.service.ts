@@ -9,6 +9,8 @@ import { StatusCodes } from 'http-status-codes'
 appleReceiptVerify.config({
   secret: config.iap.apple_shared_secret as string,
   environment: ['production', 'sandbox'], // Check both environments
+  excludeOldTransactions: true,
+  extended: true,
 })
 
 // Initialize Google Play API
@@ -35,7 +37,8 @@ export const nativeIapService = {
           productId: string
           transactionId: string
           purchaseDate: number
-        }) => p.productId === expectedProductId,
+          cancellationDate?: number
+        }) => p.productId === expectedProductId && !p.cancellationDate,
       )
 
       if (!purchasedProduct) {
@@ -50,6 +53,7 @@ export const nativeIapService = {
         transactionId: purchasedProduct.transactionId,
         productId: purchasedProduct.productId,
         purchaseDate: new Date(purchasedProduct.purchaseDate),
+        expiryDate: purchasedProduct.expirationDate ? new Date(purchasedProduct.expirationDate) : undefined,
       }
     } catch (error: unknown) {
       console.error('Apple receipt verification failed:', error)
@@ -73,17 +77,16 @@ export const nativeIapService = {
 
       await auth.authorize()
 
-      const response = await playDeveloperApi.purchases.products.get({
+      const response = await playDeveloperApi.purchases.subscriptionsv2.get({
         auth,
         packageName: config.iap.google_play_package_name,
-        productId: productId,
         token: purchaseToken,
       })
 
       const purchase = response.data
 
-      // Purchase state: 0 = Purchased, 1 = Canceled, 2 = Pending
-      if (purchase.purchaseState !== 0) {
+      const item = purchase.lineItems?.find(item => item.productId === productId);
+      if (!item || !['SUBSCRIPTION_STATE_ACTIVE', 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD', 'SUBSCRIPTION_STATE_CANCELED'].includes(purchase.subscriptionState || '') || !item.expiryTime || new Date(item.expiryTime).getTime() <= Date.now()) {
         throw new ApiError(
           StatusCodes.BAD_REQUEST,
           'Purchase is not in a valid state',
@@ -92,11 +95,10 @@ export const nativeIapService = {
 
       return {
         isValid: true,
-        transactionId: purchase.orderId,
+        transactionId: purchase.latestOrderId,
         productId: productId,
-        purchaseDate: purchase.purchaseTimeMillis
-          ? new Date(parseInt(purchase.purchaseTimeMillis))
-          : new Date(),
+        purchaseDate: purchase.startTime ? new Date(purchase.startTime) : new Date(),
+        expiryDate: new Date(item.expiryTime),
       }
     } catch (error: unknown) {
       console.error('Google Play verification failed:', error)

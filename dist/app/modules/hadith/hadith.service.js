@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.HadithServices = exports.LANG_CODE_MAP = void 0;
+const content_snapshot_1 = require("../offline-pack/content-snapshot");
 const axios_1 = __importDefault(require("axios"));
 const hadith_model_1 = require("./hadith.model");
 const EDITION_SOURCE_MAP = {
@@ -316,15 +317,13 @@ const deleteHadith = async (id) => {
     return await hadith_model_1.Hadith.findByIdAndUpdate(id, { isActive: false }, { new: true });
 };
 const getVersion = async (lang = 'en') => {
-    const latest = await hadith_model_1.Hadith.findOne({ lang })
-        .sort({ version: -1 })
-        .select('version');
-    return (latest === null || latest === void 0 ? void 0 : latest.version) || 1;
+    const rows = await hadith_model_1.Hadith.find({ lang }).select('_id updatedAt version isActive').sort({ _id: 1 }).lean();
+    return parseInt((0, content_snapshot_1.snapshotRevision)(rows).slice(0, 12), 16);
 };
 const checkSyncMetadata = async (lang = 'en', clientVersion) => {
     const serverVersion = await getVersion(lang);
     return {
-        updateAvailable: serverVersion > clientVersion,
+        updateAvailable: serverVersion !== clientVersion,
         serverVersion,
         clientVersion,
         lang,
@@ -359,13 +358,13 @@ const getSyncData = async (lang = 'en', fromVersion = 0, page = 1, limit = 500) 
             meta: { page: 1, limit, total: 0, totalPages: 1 },
         };
     }
+    void fromVersion;
     const safeLimit = clampSyncLimit(limit);
     const safePage = Math.max(Number(page) || 1, 1);
     const skip = (safePage - 1) * safeLimit;
     const filter = {
         lang,
         isActive: { $ne: false },
-        version: { $gt: fromVersion },
     };
     const total = await hadith_model_1.Hadith.countDocuments(filter);
     const data = await hadith_model_1.Hadith.find(filter)

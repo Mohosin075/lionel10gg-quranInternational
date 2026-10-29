@@ -11,7 +11,15 @@ const auth_1 = __importDefault(require("../../middleware/auth"));
 const user_1 = require("../../../enum/user");
 const user_validation_1 = require("./user.validation");
 const processReqBody_1 = require("../../middleware/processReqBody");
+const reading_sync_1 = require("./reading-sync");
+const device_registration_1 = require("../notification/device-registration");
 const router = express_1.default.Router();
+router.route('/devices')
+    .post((0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER, user_1.USER_ROLES.SUPER_ADMIN), device_registration_1.registerDevice)
+    .delete((0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER, user_1.USER_ROLES.SUPER_ADMIN), device_registration_1.unregisterDevice);
+router.route('/reading-sync')
+    .post((0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER, user_1.USER_ROLES.SUPER_ADMIN), reading_sync_1.pushReadingEvents)
+    .get((0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER, user_1.USER_ROLES.SUPER_ADMIN), reading_sync_1.pullReadingState);
 router.get('/profile', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER, user_1.USER_ROLES.SUPER_ADMIN), user_controller_1.UserController.getProfile);
 router.post('/interest', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER, user_1.USER_ROLES.SUPER_ADMIN), (0, validateRequest_1.default)(user_validation_1.addUserInterestSchema), user_controller_1.UserController.addUserInterest);
 router.patch('/profile', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER, user_1.USER_ROLES.SUPER_ADMIN), (0, processReqBody_1.fileAndBodyProcessorUsingDiskStorage)(), (0, validateRequest_1.default)(user_validation_1.updateUserSchema), user_controller_1.UserController.updateProfile);

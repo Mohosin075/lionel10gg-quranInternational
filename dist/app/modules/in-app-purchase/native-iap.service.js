@@ -14,6 +14,8 @@ const http_status_codes_1 = require("http-status-codes");
 node_apple_receipt_verify_1.default.config({
     secret: config_1.default.iap.apple_shared_secret,
     environment: ['production', 'sandbox'], // Check both environments
+    excludeOldTransactions: true,
+    extended: true,
 });
 // Initialize Google Play API
 const auth = new googleapis_1.google.auth.JWT({
@@ -32,7 +34,7 @@ exports.nativeIapService = {
                 receipt: receiptData,
             });
             // Find the specific product in the validated receipt
-            const purchasedProduct = products.find((p) => p.productId === expectedProductId);
+            const purchasedProduct = products.find((p) => p.productId === expectedProductId && !p.cancellationDate);
             if (!purchasedProduct) {
                 throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Product not found in Apple receipt');
             }
@@ -41,6 +43,7 @@ exports.nativeIapService = {
                 transactionId: purchasedProduct.transactionId,
                 productId: purchasedProduct.productId,
                 purchaseDate: new Date(purchasedProduct.purchaseDate),
+                expiryDate: purchasedProduct.expirationDate ? new Date(purchasedProduct.expirationDate) : undefined,
             };
         }
         catch (error) {
@@ -54,29 +57,28 @@ exports.nativeIapService = {
      * @param productId The ID of the in-app product
      */
     async verifyGoogleReceipt(purchaseToken, productId) {
+        var _a;
         try {
             if (!config_1.default.iap.google_play_package_name) {
                 throw new Error('Google Play Package Name not configured');
             }
             await auth.authorize();
-            const response = await playDeveloperApi.purchases.products.get({
+            const response = await playDeveloperApi.purchases.subscriptionsv2.get({
                 auth,
                 packageName: config_1.default.iap.google_play_package_name,
-                productId: productId,
                 token: purchaseToken,
             });
             const purchase = response.data;
-            // Purchase state: 0 = Purchased, 1 = Canceled, 2 = Pending
-            if (purchase.purchaseState !== 0) {
+            const item = (_a = purchase.lineItems) === null || _a === void 0 ? void 0 : _a.find(item => item.productId === productId);
+            if (!item || !['SUBSCRIPTION_STATE_ACTIVE', 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD', 'SUBSCRIPTION_STATE_CANCELED'].includes(purchase.subscriptionState || '') || !item.expiryTime || new Date(item.expiryTime).getTime() <= Date.now()) {
                 throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Purchase is not in a valid state');
             }
             return {
                 isValid: true,
-                transactionId: purchase.orderId,
+                transactionId: purchase.latestOrderId,
                 productId: productId,
-                purchaseDate: purchase.purchaseTimeMillis
-                    ? new Date(parseInt(purchase.purchaseTimeMillis))
-                    : new Date(),
+                purchaseDate: purchase.startTime ? new Date(purchase.startTime) : new Date(),
+                expiryDate: new Date(item.expiryTime),
             };
         }
         catch (error) {

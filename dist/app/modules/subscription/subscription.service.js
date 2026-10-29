@@ -44,10 +44,30 @@ const mongoose_1 = require("mongoose");
 const ApiError_1 = __importDefault(require("../../../errors/ApiError"));
 const user_model_1 = require("../user/user.model");
 const subscription_model_1 = require("./subscription.model");
+const in_app_purchase_model_1 = require("../in-app-purchase/in-app-purchase.model");
+const app_config_model_1 = require("../app-config/app-config.model");
 const subscription_plan_model_1 = require("./subscription-plan.model");
 const stripe_service_1 = require("./stripe.service");
 const email_notification_service_1 = require("./email-notification.service");
 class SubscriptionService {
+    async assertPurchasesAvailable() {
+        var _a, _b;
+        const config = await app_config_model_1.AppConfig.findOne().lean();
+        if (((_a = config === null || config === void 0 ? void 0 : config.maintenanceMode) === null || _a === void 0 ? void 0 : _a.isEnabled) || ((_b = config === null || config === void 0 ? void 0 : config.featureFlags) === null || _b === void 0 ? void 0 : _b.premiumEnabled) === false) {
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.SERVICE_UNAVAILABLE, 'Purchases are temporarily unavailable');
+        }
+    }
+    async getEntitlement(userId) {
+        const stripe = await subscription_model_1.Subscription.findActiveByUserId(userId);
+        const native = await in_app_purchase_model_1.InAppPurchase.findOne({ userId, status: 'active', expiryDate: { $gt: new Date() } }).sort({ expiryDate: -1 }).populate('planId');
+        if (!native || (stripe && (!stripe.currentPeriodEnd || stripe.currentPeriodEnd >= native.expiryDate)))
+            return stripe;
+        return {
+            _id: native._id, userId: native.userId, status: 'active',
+            currentPeriodStart: native.purchaseDate, currentPeriodEnd: native.expiryDate,
+            planId: native.planId, source: native.platform,
+        };
+    }
     async getAvailablePlans(includeInactive = false) {
         try {
             const query = includeInactive ? {} : { isActive: true };
@@ -78,6 +98,7 @@ class SubscriptionService {
         }
     }
     async createSubscription(userId, request) {
+        await this.assertPurchasesAvailable();
         try {
             const user = await user_model_1.User.findById(userId).select('+email');
             if (!user) {
@@ -311,11 +332,9 @@ class SubscriptionService {
         }
     }
     async getSubscriptionStatus(userId) {
+        var _a;
         try {
-            const subscription = await subscription_model_1.Subscription.findOne({
-                userId: new mongoose_1.Types.ObjectId(userId),
-                status: { $in: ['active'] },
-            }).populate('planId');
+            const subscription = await this.getEntitlement(userId);
             if (!subscription) {
                 return {
                     isActive: false,
@@ -327,7 +346,7 @@ class SubscriptionService {
             }
             const now = new Date();
             const endDate = subscription.currentPeriodEnd;
-            const daysUntilExpiry = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+            const daysUntilExpiry = Math.ceil((((_a = endDate === null || endDate === void 0 ? void 0 : endDate.getTime()) !== null && _a !== void 0 ? _a : now.getTime()) - now.getTime()) / (1000 * 60 * 60 * 24));
             let currentPlan;
             if (subscription.planId &&
                 typeof subscription.planId === 'object' &&
@@ -340,8 +359,8 @@ class SubscriptionService {
                 currentPlan = await this.getPlanById(subscription.planId.toString());
             }
             return {
-                isActive: ['active'].includes(subscription.status),
-                isTrialing: false,
+                isActive: ['active', 'trialing'].includes(subscription.status),
+                isTrialing: subscription.status === 'trialing',
                 isPastDue: subscription.status === 'past_due',
                 isCanceled: subscription.status === 'canceled',
                 daysUntilExpiry: Math.max(0, daysUntilExpiry),
@@ -354,6 +373,7 @@ class SubscriptionService {
         }
     }
     async createCheckoutSession(userId, planId, successUrl, cancelUrl) {
+        await this.assertPurchasesAvailable();
         try {
             const user = await user_model_1.User.findById(userId).select('+email');
             if (!user) {
@@ -361,6 +381,8 @@ class SubscriptionService {
             }
             const plan = await this.getPlanById(planId);
             let stripeCustomerId;
+            if (!plan.isActive)
+                throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'This plan is no longer available');
             const existingCustomer = await subscription_model_1.Subscription.findOne({ userId }).select('stripeCustomerId');
             if (existingCustomer === null || existingCustomer === void 0 ? void 0 : existingCustomer.stripeCustomerId) {
                 stripeCustomerId = existingCustomer.stripeCustomerId;
@@ -482,7 +504,7 @@ class SubscriptionService {
             }
             const activeSubscriptions = await subscription_model_1.Subscription.countDocuments({
                 planId: new mongoose_1.Types.ObjectId(planId),
-                status: { $in: ['active'] },
+                status: { $in: ['active', 'trialing'] },
             });
             if (activeSubscriptions > 0) {
                 throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Cannot delete a plan with active subscriptions');
@@ -540,7 +562,7 @@ class SubscriptionService {
             const mrrData = await subscription_model_1.Subscription.aggregate([
                 {
                     $match: {
-                        status: { $in: ['active'] },
+                        status: { $in: ['active', 'trialing'] },
                         ...matchStage,
                     },
                 },

@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DuaService = void 0;
+const content_snapshot_1 = require("../offline-pack/content-snapshot");
 const axios_1 = __importDefault(require("axios"));
 const dua_model_1 = require("./dua.model");
 const getAllDuas = async (lang = 'en', category, page = 1, limit = 10) => {
@@ -21,7 +22,7 @@ const getAllDuas = async (lang = 'en', category, page = 1, limit = 10) => {
             await getOrSyncDuasByLanguage(lang);
         }
     }
-    const query = { lang };
+    const query = { lang, isActive: { $ne: false } };
     if (category) {
         query.category = category;
     }
@@ -51,20 +52,20 @@ const updateDua = async (id, payload) => {
     return await dua_model_1.Dua.findByIdAndUpdate(id, { ...payload, version: newVersion }, { new: true });
 };
 const deleteDua = async (id) => {
-    return await dua_model_1.Dua.findByIdAndDelete(id);
+    return await dua_model_1.Dua.findByIdAndUpdate(id, { isActive: false }, { new: true });
 };
 const getCategories = async (lang = 'en') => {
     const categories = await dua_model_1.Dua.distinct('category', { lang });
     return categories.filter(Boolean);
 };
 const getVersion = async (lang = 'en') => {
-    const latest = await dua_model_1.Dua.findOne({ lang }).sort({ version: -1 }).select('version');
-    return (latest === null || latest === void 0 ? void 0 : latest.version) || 1;
+    const rows = await dua_model_1.Dua.find({ lang }).select('_id updatedAt version isActive').sort({ _id: 1 }).lean();
+    return parseInt((0, content_snapshot_1.snapshotRevision)(rows).slice(0, 12), 16);
 };
 const checkSyncMetadata = async (lang = 'en', clientVersion) => {
     const serverVersion = await getVersion(lang);
     return {
-        updateAvailable: serverVersion > clientVersion,
+        updateAvailable: serverVersion !== clientVersion,
         serverVersion,
         clientVersion,
         lang,
@@ -85,10 +86,11 @@ const getSyncData = async (lang = 'en', fromVersion = 0, page = 1, limit = 500) 
             await getOrSyncDuasByLanguage(lang);
         }
     }
+    void fromVersion;
     const safeLimit = clampSyncLimit(limit);
     const safePage = Math.max(Number(page) || 1, 1);
     const skip = (safePage - 1) * safeLimit;
-    const filter = { lang, version: { $gt: fromVersion } };
+    const filter = { lang, isActive: { $ne: false } };
     const total = await dua_model_1.Dua.countDocuments(filter);
     const data = await dua_model_1.Dua.find(filter)
         .sort({ category: 1, title: 1 })

@@ -41,7 +41,16 @@ const updateAppConfig = async (payload) => {
         config = await app_config_model_1.AppConfig.create(payload);
         return config.toObject();
     }
-    const updated = await app_config_model_1.AppConfig.findByIdAndUpdate(config._id, { $set: payload }, { new: true, upsert: true }).lean();
+    const changes = {};
+    for (const [key, value] of Object.entries(payload)) {
+        if (key === 'banners')
+            changes[key] = value;
+        else if (value && typeof value === 'object') {
+            for (const [field, setting] of Object.entries(value))
+                changes[`${key}.${field}`] = setting;
+        }
+    }
+    const updated = await app_config_model_1.AppConfig.findByIdAndUpdate(config._id, { $set: changes }, { new: true, upsert: true }).lean();
     return updated;
 };
 exports.AppConfigService = {

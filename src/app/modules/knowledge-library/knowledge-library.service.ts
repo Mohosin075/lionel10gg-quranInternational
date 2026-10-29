@@ -1,3 +1,4 @@
+import { readContentRevision } from '../offline-pack/content-snapshot'
 import mongoose from 'mongoose'
 import { KnowledgeArticle } from './knowledge-library.model'
 import { KnowledgeBook } from './knowledge-book.model'
@@ -173,11 +174,7 @@ const deleteArticle = async (id: string) => {
 }
 
 const getVersion = async (lang: string = 'de') => {
-  void lang
-  const latest = await KnowledgeArticle.findOne({ isActive: true })
-    .sort({ version: -1 })
-    .select('version')
-  return latest?.version || 1
+  return parseInt((await readContentRevision(KnowledgeArticle, lang)).slice(0, 12), 16)
 }
 
 const checkSyncMetadata = async (
@@ -186,7 +183,7 @@ const checkSyncMetadata = async (
 ) => {
   const serverVersion = await getVersion(lang)
   return {
-    updateAvailable: serverVersion > clientVersion,
+    updateAvailable: serverVersion !== clientVersion,
     serverVersion,
     clientVersion,
     lang,
@@ -204,26 +201,12 @@ const getSyncData = async (
   page: number = 1,
   limit: number = 500,
 ) => {
+  void fromVersion
   const safeLimit = clampSyncLimit(limit)
   const safePage = Math.max(Number(page) || 1, 1)
   const skip = (safePage - 1) * safeLimit
 
-  // If requested lang has articles use it, else fallback to all active
-  let langQuery: Record<string, unknown> = {}
-  const hasLang = await KnowledgeArticle.countDocuments({
-    lang,
-    isActive: true,
-    version: { $gt: fromVersion },
-  })
-  if (hasLang > 0) {
-    langQuery = { lang }
-  }
-
-  const baseQuery = {
-    ...langQuery,
-    isActive: true,
-    version: { $gt: fromVersion },
-  }
+  const baseQuery = { lang, isActive: true }
   const total = await KnowledgeArticle.countDocuments(baseQuery)
   const data = await KnowledgeArticle.find(baseQuery)
     .sort({ createdAt: -1 })

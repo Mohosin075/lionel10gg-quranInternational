@@ -14,6 +14,7 @@ const DuaSchema = new Schema<IDua>(
     reference: { type: String },
     lang: { type: String, required: true, default: 'en' },
     version: { type: Number, required: true, default: 1 },
+    isActive: { type: Boolean, default: true },
   },
   { timestamps: true }
 );

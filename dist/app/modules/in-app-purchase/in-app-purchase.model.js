@@ -60,7 +60,6 @@ const inAppPurchaseSchema = new mongoose_1.Schema({
 });
 // Indexes for efficient queries
 inAppPurchaseSchema.index({ userId: 1 });
-inAppPurchaseSchema.index({ transactionId: 1 });
 inAppPurchaseSchema.index({ status: 1 });
 // Compound indexes
 inAppPurchaseSchema.index({ userId: 1, status: 1 });

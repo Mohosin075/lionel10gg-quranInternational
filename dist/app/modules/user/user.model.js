@@ -42,6 +42,7 @@ const UserSchema = new mongoose_1.Schema({
     },
     subscribe: { type: Boolean, default: false },
     totalHasanat: { type: Number, default: 0 },
+    hasanatEventIds: { type: [String], default: [], select: false },
     password: { type: String, minlength: 8, select: false },
     role: {
         type: String,

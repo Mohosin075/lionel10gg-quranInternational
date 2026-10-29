@@ -7,6 +7,12 @@ import { SubscriptionBenefitValidations } from './subscription-benefit.validatio
 import { USER_ROLES } from '../../../enum/user'
 
 const router = express.Router()
+// Owned return URLs for mobile WebView checkout. A return never grants access;
+// the app verifies the session/entitlement with authenticated endpoints.
+router.get('/checkout-return/:result', (req, res) => {
+  if (!['success', 'cancel'].includes(req.params.result)) { res.sendStatus(404); return }
+  res.type('text/plain').send(req.params.result === 'success' ? 'Return to Quran International to verify your purchase.' : 'Checkout cancelled. You can return to Quran International.')
+})
 
 // Public routes (no authentication required)
 router.get(

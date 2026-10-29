@@ -10,4 +10,5 @@ export interface IDua {
   reference?: string;
   lang: string;
   version: number;
+  isActive?: boolean;
 }

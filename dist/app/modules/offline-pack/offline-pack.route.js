@@ -9,7 +9,9 @@ const offline_pack_controller_1 = require("./offline-pack.controller");
 const batch_translate_controller_1 = require("./batch-translate.controller");
 const auth_1 = __importDefault(require("../../middleware/auth"));
 const user_1 = require("../../../enum/user");
+const content_snapshot_1 = require("./content-snapshot");
 const router = express_1.default.Router();
+router.get('/snapshot/:module', content_snapshot_1.getContentSnapshot);
 // ── Public endpoints (mobile app calls these) ─────────────────────────────────
 // Check if a newer pack is available for download
 // GET /api/v1/offline-pack/check-sync?module=hadith&lang=de&version=1

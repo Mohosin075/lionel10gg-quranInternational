@@ -59,6 +59,8 @@ const inAppPurchasePackageSchema = new mongoose_1.Schema({
         type: Number,
         default: 1,
     },
+    appleProductId: { type: String },
+    googleProductId: { type: String },
 }, {
     timestamps: true,
 });

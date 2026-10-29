@@ -1,3 +1,4 @@
+import { readContentRevision } from '../offline-pack/content-snapshot'
 import axios from 'axios';
 import { Dua } from './dua.model';
 import { IDua } from './dua.interface';
@@ -23,7 +24,7 @@ const getAllDuas = async (
     }
   }
 
-  const query: Record<string, unknown> = { lang };
+  const query: Record<string, unknown> = { lang, isActive: { $ne: false } };
   if (category) {
     query.category = category;
   }
@@ -63,7 +64,7 @@ const updateDua = async (id: string, payload: Partial<IDua>) => {
 };
 
 const deleteDua = async (id: string) => {
-  return await Dua.findByIdAndDelete(id);
+  return await Dua.findByIdAndUpdate(id, { isActive: false }, { new: true });
 };
 
 const getCategories = async (lang: string = 'en') => {
@@ -72,14 +73,13 @@ const getCategories = async (lang: string = 'en') => {
 };
 
 const getVersion = async (lang: string = 'en') => {
-  const latest = await Dua.findOne({ lang }).sort({ version: -1 }).select('version');
-  return latest?.version || 1;
-};
+  return parseInt((await readContentRevision(Dua, lang)).slice(0, 12), 16)
+}
 
 const checkSyncMetadata = async (lang: string = 'en', clientVersion: number) => {
   const serverVersion = await getVersion(lang);
   return {
-    updateAvailable: serverVersion > clientVersion,
+    updateAvailable: serverVersion !== clientVersion,
     serverVersion,
     clientVersion,
     lang,
@@ -107,10 +107,11 @@ const getSyncData = async (
     }
   }
 
+  void fromVersion
   const safeLimit = clampSyncLimit(limit)
   const safePage = Math.max(Number(page) || 1, 1)
   const skip = (safePage - 1) * safeLimit
-  const filter = { lang, version: { $gt: fromVersion } }
+  const filter = { lang, isActive: { $ne: false } }
   const total = await Dua.countDocuments(filter)
   const data = await Dua.find(filter)
     .sort({ category: 1, title: 1 })

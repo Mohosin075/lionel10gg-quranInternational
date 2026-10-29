@@ -5,8 +5,16 @@ import auth from '../../middleware/auth'
 import { USER_ROLES } from '../../../enum/user'
 import { addUserInterestSchema, updateUserSchema } from './user.validation'
 import { fileAndBodyProcessorUsingDiskStorage } from '../../middleware/processReqBody'
+import { pushReadingEvents, pullReadingState } from './reading-sync'
+import { registerDevice, unregisterDevice } from '../notification/device-registration'
 
 const router = express.Router()
+router.route('/devices')
+  .post(auth(USER_ROLES.ADMIN, USER_ROLES.USER, USER_ROLES.SUPER_ADMIN), registerDevice)
+  .delete(auth(USER_ROLES.ADMIN, USER_ROLES.USER, USER_ROLES.SUPER_ADMIN), unregisterDevice)
+router.route('/reading-sync')
+  .post(auth(USER_ROLES.ADMIN, USER_ROLES.USER, USER_ROLES.SUPER_ADMIN), pushReadingEvents)
+  .get(auth(USER_ROLES.ADMIN, USER_ROLES.USER, USER_ROLES.SUPER_ADMIN), pullReadingState)
 
 router.get(
   '/profile',

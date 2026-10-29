@@ -1,3 +1,4 @@
+import { readContentRevision } from '../offline-pack/content-snapshot'
 import axios from 'axios'
 interface HadithGrade {
   name?: string
@@ -408,10 +409,7 @@ const deleteHadith = async (id: string) => {
 }
 
 const getVersion = async (lang: string = 'en') => {
-  const latest = await Hadith.findOne({ lang })
-    .sort({ version: -1 })
-    .select('version')
-  return latest?.version || 1
+  return parseInt((await readContentRevision(Hadith, lang)).slice(0, 12), 16)
 }
 
 const checkSyncMetadata = async (
@@ -420,7 +418,7 @@ const checkSyncMetadata = async (
 ) => {
   const serverVersion = await getVersion(lang)
   return {
-    updateAvailable: serverVersion > clientVersion,
+    updateAvailable: serverVersion !== clientVersion,
     serverVersion,
     clientVersion,
     lang,
@@ -467,13 +465,14 @@ const getSyncData = async (
     }
   }
 
+  void fromVersion
   const safeLimit = clampSyncLimit(limit)
   const safePage = Math.max(Number(page) || 1, 1)
   const skip = (safePage - 1) * safeLimit
   const filter = {
     lang,
     isActive: { $ne: false },
-    version: { $gt: fromVersion },
+
   }
   const total = await Hadith.countDocuments(filter)
   const data = await Hadith.find(filter)

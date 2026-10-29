@@ -12,6 +12,15 @@ const subscription_validation_1 = require("./subscription.validation");
 const subscription_benefit_validation_1 = require("./subscription-benefit.validation");
 const user_1 = require("../../../enum/user");
 const router = express_1.default.Router();
+// Owned return URLs for mobile WebView checkout. A return never grants access;
+// the app verifies the session/entitlement with authenticated endpoints.
+router.get('/checkout-return/:result', (req, res) => {
+    if (!['success', 'cancel'].includes(req.params.result)) {
+        res.sendStatus(404);
+        return;
+    }
+    res.type('text/plain').send(req.params.result === 'success' ? 'Return to Quran International to verify your purchase.' : 'Checkout cancelled. You can return to Quran International.');
+});
 // Public routes (no authentication required)
 router.get('/plans', (0, validateRequest_1.default)(subscription_validation_1.subscriptionValidation.getPlansQuery), subscription_controller_1.SubscriptionController.getAvailablePlans); //✅tested
 router.get('/plans/:planId', (0, validateRequest_1.default)(subscription_validation_1.subscriptionValidation.planParams), subscription_controller_1.SubscriptionController.getPlanById); //✅tested

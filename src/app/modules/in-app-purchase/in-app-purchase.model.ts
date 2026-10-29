@@ -63,7 +63,6 @@ const inAppPurchaseSchema = new Schema<IInAppPurchase, InAppPurchaseModel>(
 
 // Indexes for efficient queries
 inAppPurchaseSchema.index({ userId: 1 })
-inAppPurchaseSchema.index({ transactionId: 1 })
 inAppPurchaseSchema.index({ status: 1 })
 
 // Compound indexes

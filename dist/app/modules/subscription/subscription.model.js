@@ -129,7 +129,8 @@ subscriptionSchema.index({ userId: 1, status: 1 });
 subscriptionSchema.statics.findActiveByUserId = function (userId) {
     return this.findOne({
         userId,
-        status: { $in: ['active'] },
+        status: { $in: ['active', 'trialing'] },
+        $or: [{ currentPeriodEnd: { $gt: new Date() } }, { currentPeriodEnd: null }],
     }).populate('planId');
 };
 subscriptionSchema.statics.findByStripeId = function (stripeSubscriptionId) {

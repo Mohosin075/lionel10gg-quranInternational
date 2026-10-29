@@ -3,8 +3,10 @@ import { OfflinePackController } from './offline-pack.controller';
 import { BatchController } from './batch-translate.controller';
 import auth from '../../middleware/auth';
 import { USER_ROLES } from '../../../enum/user';
+import { getContentSnapshot } from './content-snapshot';
 
 const router = express.Router();
+router.get('/snapshot/:module', getContentSnapshot);
 
 // ── Public endpoints (mobile app calls these) ─────────────────────────────────
 // Check if a newer pack is available for download

@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.KnowledgeLibraryServices = void 0;
+const content_snapshot_1 = require("../offline-pack/content-snapshot");
 const mongoose_1 = __importDefault(require("mongoose"));
 const knowledge_library_model_1 = require("./knowledge-library.model");
 const knowledge_book_model_1 = require("./knowledge-book.model");
@@ -137,16 +138,13 @@ const deleteArticle = async (id) => {
     return await knowledge_library_model_1.KnowledgeArticle.findByIdAndUpdate(id, { isActive: false }, { new: true });
 };
 const getVersion = async (lang = 'de') => {
-    void lang;
-    const latest = await knowledge_library_model_1.KnowledgeArticle.findOne({ isActive: true })
-        .sort({ version: -1 })
-        .select('version');
-    return (latest === null || latest === void 0 ? void 0 : latest.version) || 1;
+    const rows = await knowledge_library_model_1.KnowledgeArticle.find({ lang }).select('_id updatedAt version isActive').sort({ _id: 1 }).lean();
+    return parseInt((0, content_snapshot_1.snapshotRevision)(rows).slice(0, 12), 16);
 };
 const checkSyncMetadata = async (lang = 'de', clientVersion) => {
     const serverVersion = await getVersion(lang);
     return {
-        updateAvailable: serverVersion > clientVersion,
+        updateAvailable: serverVersion !== clientVersion,
         serverVersion,
         clientVersion,
         lang,
@@ -157,24 +155,11 @@ const clampSyncLimit = (limit) => {
     return Math.min(Math.max(n, 1), 1000);
 };
 const getSyncData = async (lang = 'de', fromVersion = 0, page = 1, limit = 500) => {
+    void fromVersion;
     const safeLimit = clampSyncLimit(limit);
     const safePage = Math.max(Number(page) || 1, 1);
     const skip = (safePage - 1) * safeLimit;
-    // If requested lang has articles use it, else fallback to all active
-    let langQuery = {};
-    const hasLang = await knowledge_library_model_1.KnowledgeArticle.countDocuments({
-        lang,
-        isActive: true,
-        version: { $gt: fromVersion },
-    });
-    if (hasLang > 0) {
-        langQuery = { lang };
-    }
-    const baseQuery = {
-        ...langQuery,
-        isActive: true,
-        version: { $gt: fromVersion },
-    };
+    const baseQuery = { lang, isActive: true };
     const total = await knowledge_library_model_1.KnowledgeArticle.countDocuments(baseQuery);
     const data = await knowledge_library_model_1.KnowledgeArticle.find(baseQuery)
         .sort({ createdAt: -1 })

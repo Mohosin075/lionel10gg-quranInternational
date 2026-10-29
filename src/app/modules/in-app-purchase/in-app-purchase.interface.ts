@@ -15,6 +15,8 @@ export interface IInAppPurchasePlan {
   isActive: boolean
   stripePriceId: string
   stripeProductId: string
+  appleProductId?: string
+  googleProductId?: string
   priority: number
   createdAt?: Date
   updatedAt?: Date

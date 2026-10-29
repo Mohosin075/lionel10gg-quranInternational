@@ -1,3 +1,7 @@
+import { sendPushToUsers } from '../../../helpers/pushnotificationHelper';
+import ApiError from '../../../errors/ApiError';
+import { z } from 'zod';
+import { Types } from 'mongoose';
 import { Request, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import catchAsync from '../../../shared/catchAsync';
@@ -55,13 +59,15 @@ const deleteNotification = catchAsync(async (req: Request, res: Response) => {
 });
 
 const sendAdminNotification = catchAsync(async (req: Request, res: Response) => {
-  const { title, message, userId } = req.body;
+  const { title, message, userId } = z.object({title:z.string().trim().min(1).max(200),message:z.string().trim().min(1).max(4000),userId:z.string().regex(/^[a-fA-F0-9]{24}$/).optional()}).parse(req.body);
+  const recipients = await User.find({status:'active', ...(userId ? {_id:userId} : {})}).select('_id');
+  if (userId && recipients.length === 0) throw new ApiError(404, 'Active user not found');
   let result;
   if (userId) {
-    result = await NotificationServices.createNotification({ userId, title, message });
+    result = await NotificationServices.createNotification({ userId: new Types.ObjectId(userId), title, message });
   } else {
     // Broadcast to all users
-    const users = await User.find({ status: 'active' }).select('_id');
+    const users = recipients;
     const notifications = users.map(user => ({
       userId: user._id,
       title,
@@ -75,11 +81,12 @@ const sendAdminNotification = catchAsync(async (req: Request, res: Response) => 
       });
     }
   }
+  const push = await sendPushToUsers(recipients.map(user => user._id.toString()), title, message);
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
-    message: 'Notification sent successfully',
-    data: result,
+    message: 'Notification stored; push dispatch status is included',
+    data: { recorded: Array.isArray(result) ? result.length : 1, push },
   });
 });
 

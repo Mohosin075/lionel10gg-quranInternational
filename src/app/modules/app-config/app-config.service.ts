@@ -42,9 +42,16 @@ const updateAppConfig = async (payload: Partial<IAppConfig>): Promise<IAppConfig
     return config.toObject() as IAppConfig;
   }
 
+  const changes: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (key === 'banners') changes[key] = value;
+    else if (value && typeof value === 'object') {
+      for (const [field, setting] of Object.entries(value)) changes[`${key}.${field}`] = setting;
+    }
+  }
   const updated = await AppConfig.findByIdAndUpdate(
     config._id,
-    { $set: payload },
+    { $set: changes },
     { new: true, upsert: true },
   ).lean();
 

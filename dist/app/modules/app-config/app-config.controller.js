@@ -8,6 +8,7 @@ const http_status_codes_1 = require("http-status-codes");
 const catchAsync_1 = __importDefault(require("../../../shared/catchAsync"));
 const sendResponse_1 = __importDefault(require("../../../shared/sendResponse"));
 const app_config_service_1 = require("./app-config.service");
+const app_config_validation_1 = require("./app-config.validation");
 const getAppConfig = (0, catchAsync_1.default)(async (req, res) => {
     const result = await app_config_service_1.AppConfigService.getAppConfig();
     (0, sendResponse_1.default)(res, {
@@ -18,7 +19,7 @@ const getAppConfig = (0, catchAsync_1.default)(async (req, res) => {
     });
 });
 const updateAppConfig = (0, catchAsync_1.default)(async (req, res) => {
-    const result = await app_config_service_1.AppConfigService.updateAppConfig(req.body);
+    const result = await app_config_service_1.AppConfigService.updateAppConfig(app_config_validation_1.appConfigSchema.parse(req.body));
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_codes_1.StatusCodes.OK,
         success: true,

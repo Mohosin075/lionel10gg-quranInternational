@@ -54,17 +54,17 @@ const getModuleData = async (
     case 'hadith':
       return await Hadith.find({ lang, isActive: true }).lean()
     case 'dua':
-      return await Dua.find({ lang }).lean()
+      return await Dua.find({ lang, isActive: { $ne: false } }).lean()
     case 'knowledge':
-      return await KnowledgeArticle.find({ lang }).lean()
+      return await KnowledgeArticle.find({ lang, isActive: true }).lean()
     case 'quran':
       return await Translation.find({ lang }).sort({ surah: 1, ayah: 1 }).lean()
     case 'tafsir':
       return await Tafsir.find({ lang }).sort({ surah: 1, ayah: 1 }).lean()
     case 'book':
-      return await KnowledgeBook.find({ lang }).lean()
+      return await KnowledgeBook.find({ lang, isActive: true }).lean()
     case 'fatwa':
-      return await KnowledgeFatwa.find({ lang }).lean()
+      return await KnowledgeFatwa.find({ lang, isActive: true }).lean()
     default:
       throw new Error(`Unsupported module: ${module}`)
   }

@@ -5,6 +5,8 @@ import { Types } from 'mongoose'
 import ApiError from '../../../errors/ApiError'
 import { User } from '../user/user.model'
 import { Subscription } from './subscription.model'
+import { InAppPurchase } from '../in-app-purchase/in-app-purchase.model'
+import { AppConfig } from '../app-config/app-config.model'
 import { SubscriptionPlan, PremiumBenefit } from './subscription-plan.model'
 import { stripeService } from './stripe.service'
 import { emailNotificationService } from './email-notification.service'
@@ -19,6 +21,22 @@ import {
 } from './subscription.interface'
 
 class SubscriptionService {
+  private async assertPurchasesAvailable() {
+    const config = await AppConfig.findOne().lean()
+    if (config?.maintenanceMode?.isEnabled || config?.featureFlags?.premiumEnabled === false) {
+      throw new ApiError(StatusCodes.SERVICE_UNAVAILABLE, 'Purchases are temporarily unavailable')
+    }
+  }
+  async getEntitlement(userId: string) {
+    const stripe = await Subscription.findActiveByUserId(userId)
+    const native = await InAppPurchase.findOne({ userId, status: 'active', expiryDate: { $gt: new Date() } }).sort({ expiryDate: -1 }).populate('planId')
+    if (!native || (stripe && (!stripe.currentPeriodEnd || stripe.currentPeriodEnd >= native.expiryDate!))) return stripe
+    return {
+      _id: native._id, userId: native.userId, status: 'active',
+      currentPeriodStart: native.purchaseDate, currentPeriodEnd: native.expiryDate,
+      planId: native.planId, source: native.platform,
+    }
+  }
   async getAvailablePlans(includeInactive = false): Promise<ISubscriptionPlan[]> {
     try {
       const query: any = includeInactive ? {} : { isActive: true }
@@ -58,6 +76,7 @@ class SubscriptionService {
     userId: string,
     request: CreateSubscriptionRequest,
   ): Promise<SubscriptionResponse> {
+    await this.assertPurchasesAvailable()
     try {
       const user = await User.findById(userId).select('+email')
       if (!user) {
@@ -421,10 +440,7 @@ class SubscriptionService {
 
   async getSubscriptionStatus(userId: string): Promise<SubscriptionStatus> {
     try {
-      const subscription = await Subscription.findOne({
-        userId: new Types.ObjectId(userId),
-        status: { $in: ['active'] },
-      }).populate('planId')
+      const subscription = await this.getEntitlement(userId)
 
       if (!subscription) {
         return {
@@ -439,7 +455,7 @@ class SubscriptionService {
       const now = new Date()
       const endDate = subscription.currentPeriodEnd
       const daysUntilExpiry = Math.ceil(
-        (endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+        ((endDate?.getTime() ?? now.getTime()) - now.getTime()) / (1000 * 60 * 60 * 24),
       )
 
       let currentPlan: ISubscriptionPlan | undefined
@@ -456,8 +472,8 @@ class SubscriptionService {
       }
 
       return {
-        isActive: ['active'].includes(subscription.status),
-        isTrialing: false,
+        isActive: ['active', 'trialing'].includes(subscription.status),
+        isTrialing: subscription.status === 'trialing',
         isPastDue: subscription.status === 'past_due',
         isCanceled: subscription.status === 'canceled',
         daysUntilExpiry: Math.max(0, daysUntilExpiry),
@@ -478,6 +494,7 @@ class SubscriptionService {
     successUrl: string,
     cancelUrl: string,
   ): Promise<{ sessionId: string; url: string }> {
+    await this.assertPurchasesAvailable()
     try {
       const user = await User.findById(userId).select('+email')
       if (!user) {
@@ -487,6 +504,7 @@ class SubscriptionService {
       const plan = await this.getPlanById(planId)
 
       let stripeCustomerId: string
+      if (!plan.isActive) throw new ApiError(StatusCodes.BAD_REQUEST, 'This plan is no longer available')
       const existingCustomer = await Subscription.findOne({ userId }).select(
         'stripeCustomerId',
       )
@@ -646,7 +664,7 @@ class SubscriptionService {
 
       const activeSubscriptions = await Subscription.countDocuments({
         planId: new Types.ObjectId(planId),
-        status: { $in: ['active'] },
+        status: { $in: ['active', 'trialing'] },
       })
 
       if (activeSubscriptions > 0) {
@@ -724,7 +742,7 @@ class SubscriptionService {
       const mrrData = await Subscription.aggregate([
         {
           $match: {
-            status: { $in: ['active'] },
+            status: { $in: ['active', 'trialing'] },
             ...matchStage,
           },
         },

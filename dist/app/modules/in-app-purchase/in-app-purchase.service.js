@@ -32,6 +32,10 @@ class InAppPurchaseService {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Package not found');
         }
         let verificationResult;
+        const expectedProductId = data.platform === 'ios' ? plan.appleProductId : plan.googleProductId;
+        if (!plan.isActive || !expectedProductId || data.productId !== expectedProductId) {
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'This store product is not configured for the selected plan');
+        }
         if (data.platform === 'ios') {
             verificationResult = await native_iap_service_1.nativeIapService.verifyAppleReceipt(data.receiptData, data.productId);
         }
@@ -41,20 +45,19 @@ class InAppPurchaseService {
         else {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Invalid platform');
         }
-        if (!verificationResult.isValid) {
+        if (!verificationResult.isValid || !verificationResult.transactionId || verificationResult.productId !== expectedProductId) {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Invalid receipt');
         }
         // Check if this transaction has already been processed
         const existingPurchase = await in_app_purchase_model_1.InAppPurchase.findOne({
             transactionId: verificationResult.transactionId,
         });
-        const intervalCount = plan.intervalCount || 1;
-        const expiryDate = new Date(verificationResult.purchaseDate);
-        if (plan.interval === 'year') {
-            expiryDate.setFullYear(expiryDate.getFullYear() + intervalCount);
+        const expiryDate = verificationResult.expiryDate;
+        if (!expiryDate || !Number.isFinite(expiryDate.getTime()) || expiryDate.getTime() <= Date.now()) {
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'The store subscription has expired or has no verified expiry');
         }
-        else {
-            expiryDate.setMonth(expiryDate.getMonth() + intervalCount);
+        if (existingPurchase && (existingPurchase.userId.toString() !== userId || existingPurchase.planId.toString() !== plan._id.toString() || existingPurchase.platform !== data.platform)) {
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.CONFLICT, 'This purchase is already associated with another account or plan');
         }
         const activatePremium = async () => {
             await user_model_1.User.findByIdAndUpdate(userId, {
@@ -64,19 +67,31 @@ class InAppPurchaseService {
             });
         };
         if (existingPurchase) {
+            existingPurchase.expiryDate = expiryDate;
+            existingPurchase.status = 'active';
+            await existingPurchase.save();
             await activatePremium();
             return existingPurchase;
         }
-        const purchase = await in_app_purchase_model_1.InAppPurchase.create({
-            userId: new mongoose_1.Types.ObjectId(userId),
-            planId: plan._id,
-            platform: data.platform,
-            transactionId: verificationResult.transactionId,
-            receiptData: data.receiptData,
-            status: 'active',
-            purchaseDate: verificationResult.purchaseDate,
-            expiryDate,
-        });
+        let purchase;
+        try {
+            purchase = await in_app_purchase_model_1.InAppPurchase.create({
+                userId: new mongoose_1.Types.ObjectId(userId),
+                planId: plan._id,
+                platform: data.platform,
+                transactionId: verificationResult.transactionId,
+                receiptData: data.receiptData,
+                status: 'active',
+                purchaseDate: verificationResult.purchaseDate,
+                expiryDate,
+            });
+        }
+        catch (error) {
+            if (error.code === 11000) {
+                throw new ApiError_1.default(http_status_codes_1.StatusCodes.CONFLICT, 'Purchase has already been processed; restore it from its original account');
+            }
+            throw error;
+        }
         await activatePremium();
         return purchase;
     }

@@ -4,6 +4,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NotificationController = void 0;
+const pushnotificationHelper_1 = require("../../../helpers/pushnotificationHelper");
+const ApiError_1 = __importDefault(require("../../../errors/ApiError"));
+const zod_1 = require("zod");
+const mongoose_1 = require("mongoose");
 const http_status_codes_1 = require("http-status-codes");
 const catchAsync_1 = __importDefault(require("../../../shared/catchAsync"));
 const sendResponse_1 = __importDefault(require("../../../shared/sendResponse"));
@@ -54,14 +58,17 @@ const deleteNotification = (0, catchAsync_1.default)(async (req, res) => {
     });
 });
 const sendAdminNotification = (0, catchAsync_1.default)(async (req, res) => {
-    const { title, message, userId } = req.body;
+    const { title, message, userId } = zod_1.z.object({ title: zod_1.z.string().trim().min(1).max(200), message: zod_1.z.string().trim().min(1).max(4000), userId: zod_1.z.string().regex(/^[a-fA-F0-9]{24}$/).optional() }).parse(req.body);
+    const recipients = await user_model_1.User.find({ status: 'active', ...(userId ? { _id: userId } : {}) }).select('_id');
+    if (userId && recipients.length === 0)
+        throw new ApiError_1.default(404, 'Active user not found');
     let result;
     if (userId) {
-        result = await notification_service_1.NotificationServices.createNotification({ userId, title, message });
+        result = await notification_service_1.NotificationServices.createNotification({ userId: new mongoose_1.Types.ObjectId(userId), title, message });
     }
     else {
         // Broadcast to all users
-        const users = await user_model_1.User.find({ status: 'active' }).select('_id');
+        const users = recipients;
         const notifications = users.map(user => ({
             userId: user._id,
             title,
@@ -75,11 +82,12 @@ const sendAdminNotification = (0, catchAsync_1.default)(async (req, res) => {
             });
         }
     }
+    const push = await (0, pushnotificationHelper_1.sendPushToUsers)(recipients.map(user => user._id.toString()), title, message);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_codes_1.StatusCodes.OK,
         success: true,
-        message: 'Notification sent successfully',
-        data: result,
+        message: 'Notification stored; push dispatch status is included',
+        data: { recorded: Array.isArray(result) ? result.length : 1, push },
     });
 });
 exports.NotificationController = {

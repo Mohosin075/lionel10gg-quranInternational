@@ -32,6 +32,10 @@ class InAppPurchaseService {
     }
 
     let verificationResult;
+    const expectedProductId = data.platform === 'ios' ? plan.appleProductId : plan.googleProductId;
+    if (!plan.isActive || !expectedProductId || data.productId !== expectedProductId) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'This store product is not configured for the selected plan');
+    }
     
     if (data.platform === 'ios') {
       verificationResult = await nativeIapService.verifyAppleReceipt(
@@ -47,7 +51,7 @@ class InAppPurchaseService {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid platform');
     }
 
-    if (!verificationResult.isValid) {
+    if (!verificationResult.isValid || !verificationResult.transactionId || verificationResult.productId !== expectedProductId) {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid receipt');
     }
 
@@ -56,12 +60,12 @@ class InAppPurchaseService {
       transactionId: verificationResult.transactionId,
     });
 
-    const intervalCount = plan.intervalCount || 1
-    const expiryDate = new Date(verificationResult.purchaseDate)
-    if (plan.interval === 'year') {
-      expiryDate.setFullYear(expiryDate.getFullYear() + intervalCount)
-    } else {
-      expiryDate.setMonth(expiryDate.getMonth() + intervalCount)
+    const expiryDate = verificationResult.expiryDate;
+    if (!expiryDate || !Number.isFinite(expiryDate.getTime()) || expiryDate.getTime() <= Date.now()) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'The store subscription has expired or has no verified expiry');
+    }
+    if (existingPurchase && (existingPurchase.userId.toString() !== userId || existingPurchase.planId.toString() !== plan._id!.toString() || existingPurchase.platform !== data.platform)) {
+      throw new ApiError(StatusCodes.CONFLICT, 'This purchase is already associated with another account or plan');
     }
 
     const activatePremium = async () => {
@@ -73,11 +77,15 @@ class InAppPurchaseService {
     }
 
     if (existingPurchase) {
+      existingPurchase.expiryDate = expiryDate;
+      existingPurchase.status = 'active';
+      await existingPurchase.save();
       await activatePremium()
       return existingPurchase
     }
 
-    const purchase = await InAppPurchase.create({
+    let purchase;
+    try { purchase = await InAppPurchase.create({
       userId: new Types.ObjectId(userId),
       planId: plan._id,
       platform: data.platform,
@@ -86,7 +94,12 @@ class InAppPurchaseService {
       status: 'active',
       purchaseDate: verificationResult.purchaseDate,
       expiryDate,
-    })
+    }) } catch (error) {
+      if ((error as {code?: number}).code === 11000) {
+        throw new ApiError(StatusCodes.CONFLICT, 'Purchase has already been processed; restore it from its original account');
+      }
+      throw error;
+    }
 
     await activatePremium()
 

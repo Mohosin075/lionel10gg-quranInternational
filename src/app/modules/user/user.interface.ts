@@ -70,6 +70,7 @@ export interface IUser {
   favorites?: Types.ObjectId[]
 
   totalHasanat: number
+  hasanatEventIds?: string[]
   
   stripeCustomerId?: string
   subscriptionStatus?: string

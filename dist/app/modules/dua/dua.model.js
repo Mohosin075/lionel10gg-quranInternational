@@ -14,6 +14,7 @@ const DuaSchema = new mongoose_1.Schema({
     reference: { type: String },
     lang: { type: String, required: true, default: 'en' },
     version: { type: Number, required: true, default: 1 },
+    isActive: { type: Boolean, default: true },
 }, { timestamps: true });
 DuaSchema.index({ lang: 1, category: 1 });
 DuaSchema.index({ externalId: 1, lang: 1 }, { unique: true, sparse: true });
