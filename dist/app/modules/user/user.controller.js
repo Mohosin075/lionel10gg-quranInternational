@@ -16,7 +16,7 @@ const user_1 = require("../../../enum/user");
 const updateProfile = (0, catchAsync_1.default)(async (req, res) => {
     const { images, ...userData } = req.body;
     if (images) {
-        userData.profile = Array.isArray(images) ? images[0] : images;
+        userData.profile = (Array.isArray(images) ? images[0] : images).replace(/^\/uploads\/images\//, '/images/');
     }
     const result = await user_service_1.UserServices.updateProfile(req.user, userData);
     (0, sendResponse_1.default)(res, {

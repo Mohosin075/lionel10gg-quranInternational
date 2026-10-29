@@ -16,23 +16,39 @@ const getTafsir = async (surah, ayah, edition = 'arabic_moyassar', lang = 'ar') 
     }
     // Fallback: If requested language was not found, return Arabic base tafsir
     if (!result) {
-        result = await tafsir_model_1.Tafsir.findOne({ surah, ayah, edition: 'arabic_moyassar', lang: 'ar' }).lean();
+        result = await tafsir_model_1.Tafsir.findOne({
+            surah,
+            ayah,
+            edition: 'arabic_moyassar',
+            lang: 'ar',
+        }).lean();
         if (!result) {
             try {
                 await (0, tafsir_worker_1.ingestSurahTafsir)(surah, 'arabic_moyassar', 'ar');
-                result = await tafsir_model_1.Tafsir.findOne({ surah, ayah, edition: 'arabic_moyassar', lang: 'ar' }).lean();
+                result = await tafsir_model_1.Tafsir.findOne({
+                    surah,
+                    ayah,
+                    edition: 'arabic_moyassar',
+                    lang: 'ar',
+                }).lean();
             }
-            catch (_) { }
+            catch (_a) {
+                // Optional upstream data is unavailable; continue with the fallback.
+            }
         }
     }
     return result;
 };
 const getSurahTafsir = async (surah, edition = 'arabic_moyassar', lang = 'ar') => {
-    let results = await tafsir_model_1.Tafsir.find({ surah, edition, lang }).sort({ ayah: 1 }).lean();
+    let results = await tafsir_model_1.Tafsir.find({ surah, edition, lang })
+        .sort({ ayah: 1 })
+        .lean();
     if (results.length === 0 && lang === 'ar') {
         try {
             await (0, tafsir_worker_1.ingestSurahTafsir)(surah, edition, 'ar');
-            results = await tafsir_model_1.Tafsir.find({ surah, edition, lang }).sort({ ayah: 1 }).lean();
+            results = await tafsir_model_1.Tafsir.find({ surah, edition, lang })
+                .sort({ ayah: 1 })
+                .lean();
         }
         catch (err) {
             console.error(`[TafsirService] Surah ingestion failed for surah ${surah} (${edition}, ${lang}):`, err);
@@ -40,19 +56,35 @@ const getSurahTafsir = async (surah, edition = 'arabic_moyassar', lang = 'ar') =
     }
     // Fallback: Return Arabic base tafsir if requested language returned empty
     if (results.length === 0) {
-        results = await tafsir_model_1.Tafsir.find({ surah, edition: 'arabic_moyassar', lang: 'ar' }).sort({ ayah: 1 }).lean();
+        results = await tafsir_model_1.Tafsir.find({
+            surah,
+            edition: 'arabic_moyassar',
+            lang: 'ar',
+        })
+            .sort({ ayah: 1 })
+            .lean();
         if (results.length === 0) {
             try {
                 await (0, tafsir_worker_1.ingestSurahTafsir)(surah, 'arabic_moyassar', 'ar');
-                results = await tafsir_model_1.Tafsir.find({ surah, edition: 'arabic_moyassar', lang: 'ar' }).sort({ ayah: 1 }).lean();
+                results = await tafsir_model_1.Tafsir.find({
+                    surah,
+                    edition: 'arabic_moyassar',
+                    lang: 'ar',
+                })
+                    .sort({ ayah: 1 })
+                    .lean();
             }
-            catch (_) { }
+            catch (_a) {
+                // Optional upstream data is unavailable; continue with the fallback.
+            }
         }
     }
     return results;
 };
 const getTranslationVersion = async (edition) => {
-    const latest = await tafsir_model_1.Tafsir.findOne({ edition }).sort({ version: -1 }).select('version');
+    const latest = await tafsir_model_1.Tafsir.findOne({ edition })
+        .sort({ version: -1 })
+        .select('version');
     return (latest === null || latest === void 0 ? void 0 : latest.version) || 1;
 };
 const checkSyncMetadata = async (edition, clientVersion) => {
@@ -60,7 +92,7 @@ const checkSyncMetadata = async (edition, clientVersion) => {
     return {
         updateAvailable: serverVersion > clientVersion,
         serverVersion,
-        clientVersion
+        clientVersion,
     };
 };
 const clampSyncLimit = (limit) => {

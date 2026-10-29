@@ -5,7 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.nativeIapService = void 0;
 const googleapis_1 = require("googleapis");
-// @ts-ignore
+// @ts-expect-error This receipt library does not ship TypeScript declarations.
 const node_apple_receipt_verify_1 = __importDefault(require("node-apple-receipt-verify"));
 const config_1 = __importDefault(require("../../../config"));
 const ApiError_1 = __importDefault(require("../../../errors/ApiError"));
@@ -45,7 +45,7 @@ exports.nativeIapService = {
         }
         catch (error) {
             console.error('Apple receipt verification failed:', error);
-            throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, `Apple Receipt Verification Failed: ${error.message}`);
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, `Apple Receipt Verification Failed: ${error instanceof Error ? error.message : String(error)}`);
         }
     },
     /**
@@ -74,12 +74,14 @@ exports.nativeIapService = {
                 isValid: true,
                 transactionId: purchase.orderId,
                 productId: productId,
-                purchaseDate: purchase.purchaseTimeMillis ? new Date(parseInt(purchase.purchaseTimeMillis)) : new Date(),
+                purchaseDate: purchase.purchaseTimeMillis
+                    ? new Date(parseInt(purchase.purchaseTimeMillis))
+                    : new Date(),
             };
         }
         catch (error) {
             console.error('Google Play verification failed:', error);
-            throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, `Google Play Verification Failed: ${error.message}`);
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, `Google Play Verification Failed: ${error instanceof Error ? error.message : String(error)}`);
         }
-    }
+    },
 };

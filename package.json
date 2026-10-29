@@ -11,7 +11,7 @@
   "type": "commonjs",
   "main": "src/server.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/copy-static.cjs",
     "start": "ts-node-dev --respawn --transpile-only src/server.ts",
     "start:prod": "node dist/server.js",
     "lint:check": "eslint .",
@@ -20,7 +20,7 @@
     "prettier:fix": "prettier --write .",
     "lint-prettier": "npm run lint:check && npm run prettier:check",
     "lint-and-format": "npm run lint:fix && npm run prettier:fix",
-    "test": "npx ts-node --transpile-only src/utils/crypto.test.ts",
+    "test": "node -r ts-node/register/transpile-only src/utils/crypto.test.ts && node --test tests/*.test.cjs",
     "prepare": "husky",
     "seed:demo-subscription": "npx ts-node demo-subscription-seed.ts",
     "seed:islamhouse": "npx ts-node seed-islamhouse-articles.ts",
@@ -67,7 +67,8 @@
     "winston": "^3.17.0",
     "winston-daily-rotate-file": "^5.0.0",
     "word-extractor": "^1.0.4",
-    "zod": "^3.24.1"
+    "zod": "^3.24.1",
+    "cors": "^2.8.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

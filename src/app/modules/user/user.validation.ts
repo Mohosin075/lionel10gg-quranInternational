@@ -27,6 +27,9 @@ export const updateUserSchema = z.object({
     .object({
       name: z.string().optional(),
       profile: z.string().optional(),
+      images: z
+        .union([z.string(), z.array(z.string()).min(1).max(5)])
+        .optional(),
       phone: z.string().optional(),
       description: z.string().optional(),
       specialties: z.array(z.string()).optional(),

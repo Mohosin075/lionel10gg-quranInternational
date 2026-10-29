@@ -1,71 +1,118 @@
-import { Tafsir } from './tafsir.model';
-import { ingestSurahTafsir } from './tafsir.worker';
+import { Tafsir } from './tafsir.model'
+import { ingestSurahTafsir } from './tafsir.worker'
 
-const getTafsir = async (surah: number, ayah: number, edition: string = 'arabic_moyassar', lang: string = 'ar') => {
-  let result = await Tafsir.findOne({ surah, ayah, edition, lang }).lean();
+const getTafsir = async (
+  surah: number,
+  ayah: number,
+  edition: string = 'arabic_moyassar',
+  lang: string = 'ar',
+) => {
+  let result = await Tafsir.findOne({ surah, ayah, edition, lang }).lean()
 
   if (!result && lang === 'ar') {
     try {
-      await ingestSurahTafsir(surah, edition, 'ar');
-      result = await Tafsir.findOne({ surah, ayah, edition, lang }).lean();
+      await ingestSurahTafsir(surah, edition, 'ar')
+      result = await Tafsir.findOne({ surah, ayah, edition, lang }).lean()
     } catch (err) {
-      console.error(`[TafsirService] Ingestion failed for surah ${surah} (${edition}, ${lang}):`, err);
+      console.error(
+        `[TafsirService] Ingestion failed for surah ${surah} (${edition}, ${lang}):`,
+        err,
+      )
     }
   }
 
   // Fallback: If requested language was not found, return Arabic base tafsir
   if (!result) {
-    result = await Tafsir.findOne({ surah, ayah, edition: 'arabic_moyassar', lang: 'ar' }).lean();
+    result = await Tafsir.findOne({
+      surah,
+      ayah,
+      edition: 'arabic_moyassar',
+      lang: 'ar',
+    }).lean()
     if (!result) {
       try {
-        await ingestSurahTafsir(surah, 'arabic_moyassar', 'ar');
-        result = await Tafsir.findOne({ surah, ayah, edition: 'arabic_moyassar', lang: 'ar' }).lean();
-      } catch (_) {}
+        await ingestSurahTafsir(surah, 'arabic_moyassar', 'ar')
+        result = await Tafsir.findOne({
+          surah,
+          ayah,
+          edition: 'arabic_moyassar',
+          lang: 'ar',
+        }).lean()
+      } catch {
+        // Optional upstream data is unavailable; continue with the fallback.
+      }
     }
   }
 
-  return result;
-};
+  return result
+}
 
-const getSurahTafsir = async (surah: number, edition: string = 'arabic_moyassar', lang: string = 'ar') => {
-  let results = await Tafsir.find({ surah, edition, lang }).sort({ ayah: 1 }).lean();
+const getSurahTafsir = async (
+  surah: number,
+  edition: string = 'arabic_moyassar',
+  lang: string = 'ar',
+) => {
+  let results = await Tafsir.find({ surah, edition, lang })
+    .sort({ ayah: 1 })
+    .lean()
 
   if (results.length === 0 && lang === 'ar') {
     try {
-      await ingestSurahTafsir(surah, edition, 'ar');
-      results = await Tafsir.find({ surah, edition, lang }).sort({ ayah: 1 }).lean();
+      await ingestSurahTafsir(surah, edition, 'ar')
+      results = await Tafsir.find({ surah, edition, lang })
+        .sort({ ayah: 1 })
+        .lean()
     } catch (err) {
-      console.error(`[TafsirService] Surah ingestion failed for surah ${surah} (${edition}, ${lang}):`, err);
+      console.error(
+        `[TafsirService] Surah ingestion failed for surah ${surah} (${edition}, ${lang}):`,
+        err,
+      )
     }
   }
 
   // Fallback: Return Arabic base tafsir if requested language returned empty
   if (results.length === 0) {
-    results = await Tafsir.find({ surah, edition: 'arabic_moyassar', lang: 'ar' }).sort({ ayah: 1 }).lean();
+    results = await Tafsir.find({
+      surah,
+      edition: 'arabic_moyassar',
+      lang: 'ar',
+    })
+      .sort({ ayah: 1 })
+      .lean()
     if (results.length === 0) {
       try {
-        await ingestSurahTafsir(surah, 'arabic_moyassar', 'ar');
-        results = await Tafsir.find({ surah, edition: 'arabic_moyassar', lang: 'ar' }).sort({ ayah: 1 }).lean();
-      } catch (_) {}
+        await ingestSurahTafsir(surah, 'arabic_moyassar', 'ar')
+        results = await Tafsir.find({
+          surah,
+          edition: 'arabic_moyassar',
+          lang: 'ar',
+        })
+          .sort({ ayah: 1 })
+          .lean()
+      } catch {
+        // Optional upstream data is unavailable; continue with the fallback.
+      }
     }
   }
 
-  return results;
-};
+  return results
+}
 
 const getTranslationVersion = async (edition: string) => {
-  const latest = await Tafsir.findOne({ edition }).sort({ version: -1 }).select('version');
-  return latest?.version || 1;
-};
+  const latest = await Tafsir.findOne({ edition })
+    .sort({ version: -1 })
+    .select('version')
+  return latest?.version || 1
+}
 
 const checkSyncMetadata = async (edition: string, clientVersion: number) => {
-  const serverVersion = await getTranslationVersion(edition);
+  const serverVersion = await getTranslationVersion(edition)
   return {
     updateAvailable: serverVersion > clientVersion,
     serverVersion,
-    clientVersion
-  };
-};
+    clientVersion,
+  }
+}
 
 const clampSyncLimit = (limit: number) => {
   const n = Number(limit) || 500
@@ -86,7 +133,9 @@ const getSyncData = async (
   // Kickstart empty collection so dump is not permanently empty
   const existing = await Tafsir.countDocuments({ edition: safeEdition })
   if (existing === 0) {
-    console.log(`[TafsirService] Empty dump — ingesting Surah 1 for ${safeEdition}...`)
+    console.log(
+      `[TafsirService] Empty dump — ingesting Surah 1 for ${safeEdition}...`,
+    )
     await ingestSurahTafsir(1, safeEdition, 'ar')
   }
 
@@ -114,4 +163,4 @@ export const TafsirService = {
   getTranslationVersion,
   checkSyncMetadata,
   getSyncData,
-};
+}

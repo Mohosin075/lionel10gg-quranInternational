@@ -12,10 +12,7 @@ import cryptoToken, {
   generateOtp,
   hashOtp,
 } from '../../../../utils/crypto'
-import {
-  SocialProvider,
-  verifySocialIdToken,
-} from '../socialAuth.helper'
+import { SocialProvider, verifySocialIdToken } from '../socialAuth.helper'
 import bcrypt from 'bcrypt'
 import crypto from 'crypto'
 import { ILoginData } from '../../../../interfaces/auth'
@@ -63,7 +60,15 @@ const createUser = async (payload: IUser) => {
   emailHelper.sendEmail(createAccount)
 
   const user = await User.create({
-    ...payload,
+    email: payload.email,
+    name: payload.name,
+    phone: payload.phone,
+    interest: payload.interest,
+    address: payload.address,
+    role: USER_ROLES.USER,
+    verified: false,
+    subscribe: false,
+    status: USER_STATUS.ACTIVE,
     password: payload.password,
     authentication,
   })
@@ -87,22 +92,16 @@ const customLogin = async (payload: ILoginData): Promise<IAuthResponse> => {
 
   const isUserExist = await User.findOne({
     ...query,
-    status: { $in: [USER_STATUS.ACTIVE] },
+    status: { $in: [USER_STATUS.ACTIVE, USER_STATUS.INACTIVE] },
   })
     .select('+password +authentication')
     .lean()
   if (!isUserExist) {
-    throw new ApiError(
-      StatusCodes.UNAUTHORIZED,
-      'Invalid email or password',
-    )
+    throw new ApiError(StatusCodes.UNAUTHORIZED, 'Invalid email or password')
   }
 
   if (!isUserExist.password) {
-    throw new ApiError(
-      StatusCodes.UNAUTHORIZED,
-      'Invalid email or password',
-    )
+    throw new ApiError(StatusCodes.UNAUTHORIZED, 'Invalid email or password')
   }
 
   const result = await AuthCommonServices.handleLoginLogic(payload, isUserExist)
@@ -120,27 +119,18 @@ const adminLogin = async (payload: ILoginData): Promise<IAuthResponse> => {
     .select('+password +authentication')
     .lean()
   if (!isUserExist) {
-    throw new ApiError(
-      StatusCodes.UNAUTHORIZED,
-      'Invalid email or password',
-    )
+    throw new ApiError(StatusCodes.UNAUTHORIZED, 'Invalid email or password')
   }
 
   if (
     isUserExist.role !== USER_ROLES.ADMIN &&
     isUserExist.role !== USER_ROLES.SUPER_ADMIN
   ) {
-    throw new ApiError(
-      StatusCodes.UNAUTHORIZED,
-      'Invalid email or password',
-    )
+    throw new ApiError(StatusCodes.UNAUTHORIZED, 'Invalid email or password')
   }
 
   if (isUserExist.status !== USER_STATUS.ACTIVE) {
-    throw new ApiError(
-      StatusCodes.UNAUTHORIZED,
-      'Invalid email or password',
-    )
+    throw new ApiError(StatusCodes.UNAUTHORIZED, 'Invalid email or password')
   }
 
   const isPasswordMatch = await AuthHelper.isPasswordMatched(
@@ -148,10 +138,7 @@ const adminLogin = async (payload: ILoginData): Promise<IAuthResponse> => {
     isUserExist.password as string,
   )
   if (!isPasswordMatch) {
-    throw new ApiError(
-      StatusCodes.UNAUTHORIZED,
-      'Invalid email or password',
-    )
+    throw new ApiError(StatusCodes.UNAUTHORIZED, 'Invalid email or password')
   }
 
   //tokens
@@ -160,6 +147,8 @@ const adminLogin = async (payload: ILoginData): Promise<IAuthResponse> => {
     isUserExist.role,
     isUserExist.name!,
     isUserExist.email!,
+    payload.deviceToken,
+    payload.rememberMe,
   )
 
   return authResponse(
@@ -423,7 +412,8 @@ const getRefreshToken = async (token: string) => {
     if (
       decodedToken.iat &&
       dbUser.authentication?.passwordChangedAt &&
-      decodedToken.iat * 1000 < dbUser.authentication.passwordChangedAt.getTime()
+      decodedToken.iat * 1000 <
+        dbUser.authentication.passwordChangedAt.getTime()
     ) {
       throw new ApiError(
         StatusCodes.UNAUTHORIZED,
@@ -464,11 +454,7 @@ const socialLogin = async (
     status: { $in: [USER_STATUS.ACTIVE, USER_STATUS.INACTIVE] },
   })
 
-  if (
-    !isUserExist &&
-    identity.email &&
-    identity.emailVerified
-  ) {
+  if (!isUserExist && identity.email && identity.emailVerified) {
     isUserExist = await User.findOne({
       email: identity.email,
       status: { $in: [USER_STATUS.ACTIVE, USER_STATUS.INACTIVE] },

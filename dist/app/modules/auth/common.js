@@ -15,7 +15,30 @@ const emailHelper_1 = require("../../../helpers/emailHelper");
 // import { emailQueue } from '../../../helpers/bull-mq-producer'
 const handleLoginLogic = async (payload, isUserExist) => {
     const { authentication, verified, status, password } = isUserExist;
-    const { restrictionLeftAt, wrongLoginAttempts } = authentication;
+    const { restrictionLeftAt } = authentication;
+    if (status === user_1.USER_STATUS.DELETED) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'No account found with this email');
+    }
+    if (status === user_1.USER_STATUS.INACTIVE) {
+        if (!restrictionLeftAt) {
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, 'Account is not active');
+        }
+        if (new Date() < restrictionLeftAt) {
+            const remainingMinutes = Math.ceil((restrictionLeftAt.getTime() - Date.now()) / 60000);
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.TOO_MANY_REQUESTS, `You are restricted to login for ${remainingMinutes} minutes`);
+        }
+        isUserExist.status = user_1.USER_STATUS.ACTIVE;
+        isUserExist.authentication.restrictionLeftAt = null;
+        isUserExist.authentication.wrongLoginAttempts = 0;
+        // Handle restriction expiration
+        await user_model_1.User.findByIdAndUpdate(isUserExist._id, {
+            $set: {
+                'authentication.restrictionLeftAt': null,
+                'authentication.wrongLoginAttempts': 0,
+                status: user_1.USER_STATUS.ACTIVE,
+            },
+        });
+    }
     if (!verified) {
         //send otp to user
         const otp = (0, crypto_1.generateOtp)();
@@ -41,26 +64,10 @@ const handleLoginLogic = async (payload, isUserExist) => {
         // emailQueue.add('emails', otpTemplate)
         return (0, exports.authResponse)(http_status_codes_1.StatusCodes.PROXY_AUTHENTICATION_REQUIRED, `An OTP has been sent to your ${payload.email}. Please verify.`);
     }
-    if (status === user_1.USER_STATUS.DELETED) {
-        throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'No account found with this email');
-    }
-    if (status === user_1.USER_STATUS.INACTIVE) {
-        if (restrictionLeftAt && new Date() < restrictionLeftAt) {
-            const remainingMinutes = Math.ceil((restrictionLeftAt.getTime() - Date.now()) / 60000);
-            throw new ApiError_1.default(http_status_codes_1.StatusCodes.TOO_MANY_REQUESTS, `You are restricted to login for ${remainingMinutes} minutes`);
-        }
-        // Handle restriction expiration
-        await user_model_1.User.findByIdAndUpdate(isUserExist._id, {
-            $set: {
-                'authentication.restrictionLeftAt': null,
-                'authentication.wrongLoginAttempts': 0,
-                status: user_1.USER_STATUS.ACTIVE,
-            },
-        });
-    }
     const isPasswordMatched = await user_model_1.User.isPasswordMatched(payload.password, password);
     if (!isPasswordMatched) {
-        isUserExist.authentication.wrongLoginAttempts = wrongLoginAttempts + 1;
+        isUserExist.authentication.wrongLoginAttempts =
+            (isUserExist.authentication.wrongLoginAttempts || 0) + 1;
         if (isUserExist.authentication.wrongLoginAttempts >= 5) {
             isUserExist.status = user_1.USER_STATUS.INACTIVE;
             isUserExist.authentication.restrictionLeftAt = new Date(Date.now() + 10 * 60 * 1000); // restriction for 10 minutes

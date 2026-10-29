@@ -8,8 +8,18 @@ const mongoose_1 = __importDefault(require("mongoose"));
 const knowledge_library_model_1 = require("./knowledge-library.model");
 const knowledge_book_model_1 = require("./knowledge-book.model");
 const knowledge_fatwa_model_1 = require("./knowledge-fatwa.model");
+const escapeSearch = (value) => value
+    .split('')
+    .map(char => '.^$*+?()[]{}|\\'.includes(char) ? String.fromCharCode(92) + char : char)
+    .join('');
 const CATEGORY_MAP = {
-    'probleme der heutigen zeit': ['Belief', 'Ethics', 'Fiqh', 'Dawah', 'Worship'],
+    'probleme der heutigen zeit': [
+        'Belief',
+        'Ethics',
+        'Fiqh',
+        'Dawah',
+        'Worship',
+    ],
     'problems of today': ['Belief', 'Ethics', 'Fiqh', 'Dawah', 'Worship'],
     'charakter & reinigung der seele': ['Ethics', 'Belief', 'Charakter'],
     'character & soul': ['Ethics', 'Belief', 'Charakter'],
@@ -30,26 +40,53 @@ const CATEGORY_MAP = {
     'quran, dua & verbindung zu allah': ['Quran', 'Worship', 'Hadith'],
     'quran, dua & connection to allah': ['Quran', 'Worship', 'Hadith'],
 };
-const getAllArticles = async (lang = 'de', category, page = 1, limit = 10) => {
+const getAllArticles = async (lang = 'de', category, page = 1, limit = 10, options = {}) => {
+    var _a;
+    limit = Math.min(100, Math.max(1, Math.floor(Number(limit) || 20)));
+    page = Math.max(1, Math.floor(Number(page) || 1));
     const skip = (page - 1) * limit;
     // 1. Language check: if articles exist in requested lang use it, else fallback to any active
     let langFilter = {};
-    const hasRequestedLang = await knowledge_library_model_1.KnowledgeArticle.countDocuments({ lang, isActive: true });
+    const hasRequestedLang = await knowledge_library_model_1.KnowledgeArticle.countDocuments({
+        lang,
+        isActive: true,
+    });
     if (hasRequestedLang > 0) {
         langFilter = { lang };
     }
     else {
-        const hasGerman = await knowledge_library_model_1.KnowledgeArticle.countDocuments({ lang: 'de', isActive: true });
+        const hasGerman = await knowledge_library_model_1.KnowledgeArticle.countDocuments({
+            lang: 'de',
+            isActive: true,
+        });
         if (hasGerman > 0) {
             langFilter = { lang: 'de' };
         }
     }
+    if (options.strictLang)
+        langFilter = { lang };
     const baseQuery = { ...langFilter, isActive: true };
+    if ((_a = options.searchTerm) === null || _a === void 0 ? void 0 : _a.trim()) {
+        const expression = new RegExp(escapeSearch(options.searchTerm.trim()), 'i');
+        baseQuery.$and = [
+            {
+                $or: [
+                    { title: expression },
+                    { content: expression },
+                    { slug: expression },
+                ],
+            },
+        ];
+    }
+    if (options.source)
+        baseQuery.source = options.source;
     if (category && category.trim().length > 0) {
         const normalized = category.trim().toLowerCase();
         const mappedTopics = CATEGORY_MAP[normalized] || [];
-        const categoryRegex = new RegExp(category.trim(), 'i');
-        const orConditions = [{ category: { $regex: categoryRegex } }];
+        const categoryRegex = new RegExp(escapeSearch(category.trim()), 'i');
+        const orConditions = [
+            { category: { $regex: categoryRegex } },
+        ];
         if (mappedTopics.length > 0) {
             orConditions.push({ category: { $in: mappedTopics } });
         }
@@ -62,7 +99,11 @@ const getAllArticles = async (lang = 'de', category, page = 1, limit = 10) => {
         .limit(limit)
         .lean();
     // If specific category filter produced 0, fallback to returning all active articles so user never gets stuck
-    if (total === 0 && category) {
+    if (total === 0 &&
+        category &&
+        !options.strictLang &&
+        !options.searchTerm &&
+        !options.source) {
         const fallbackQuery = { ...langFilter, isActive: true };
         total = await knowledge_library_model_1.KnowledgeArticle.countDocuments(fallbackQuery);
         data = await knowledge_library_model_1.KnowledgeArticle.find(fallbackQuery)
@@ -96,6 +137,7 @@ const deleteArticle = async (id) => {
     return await knowledge_library_model_1.KnowledgeArticle.findByIdAndUpdate(id, { isActive: false }, { new: true });
 };
 const getVersion = async (lang = 'de') => {
+    void lang;
     const latest = await knowledge_library_model_1.KnowledgeArticle.findOne({ isActive: true })
         .sort({ version: -1 })
         .select('version');
@@ -120,11 +162,19 @@ const getSyncData = async (lang = 'de', fromVersion = 0, page = 1, limit = 500) 
     const skip = (safePage - 1) * safeLimit;
     // If requested lang has articles use it, else fallback to all active
     let langQuery = {};
-    const hasLang = await knowledge_library_model_1.KnowledgeArticle.countDocuments({ lang, isActive: true, version: { $gt: fromVersion } });
+    const hasLang = await knowledge_library_model_1.KnowledgeArticle.countDocuments({
+        lang,
+        isActive: true,
+        version: { $gt: fromVersion },
+    });
     if (hasLang > 0) {
         langQuery = { lang };
     }
-    const baseQuery = { ...langQuery, isActive: true, version: { $gt: fromVersion } };
+    const baseQuery = {
+        ...langQuery,
+        isActive: true,
+        version: { $gt: fromVersion },
+    };
     const total = await knowledge_library_model_1.KnowledgeArticle.countDocuments(baseQuery);
     const data = await knowledge_library_model_1.KnowledgeArticle.find(baseQuery)
         .sort({ createdAt: -1 })
@@ -143,17 +193,24 @@ const getSyncData = async (lang = 'de', fromVersion = 0, page = 1, limit = 500) 
 };
 // Fetch articles in target language, fallback to base German articles if not yet translated
 const getOrSyncArticlesByLanguage = async (targetLang, articlesList) => {
-    const existingArticles = await knowledge_library_model_1.KnowledgeArticle.find({ lang: targetLang, isActive: true }).lean();
+    const existingArticles = await knowledge_library_model_1.KnowledgeArticle.find({
+        lang: targetLang,
+        isActive: true,
+    }).lean();
     if (existingArticles.length > 0) {
         return existingArticles;
     }
-    const baseArticles = articlesList || await knowledge_library_model_1.KnowledgeArticle.find({ lang: 'de', isActive: true }).lean();
+    const baseArticles = articlesList ||
+        (await knowledge_library_model_1.KnowledgeArticle.find({ lang: 'de', isActive: true }).lean());
     return baseArticles;
 };
 // ==========================================
 // BOOKS SERVICES
 // ==========================================
-const getAllBooks = async (lang = 'de', page = 1, limit = 50) => {
+const getAllBooks = async (lang = 'de', page = 1, limit = 50, options = {}) => {
+    var _a;
+    limit = Math.min(100, Math.max(1, Math.floor(Number(limit) || 20)));
+    page = Math.max(1, Math.floor(Number(page) || 1));
     const skip = (page - 1) * limit;
     let langFilter = {};
     const hasLang = await knowledge_book_model_1.KnowledgeBook.countDocuments({ lang, isActive: true });
@@ -161,12 +218,29 @@ const getAllBooks = async (lang = 'de', page = 1, limit = 50) => {
         langFilter = { lang };
     }
     else {
-        const hasGerman = await knowledge_book_model_1.KnowledgeBook.countDocuments({ lang: 'de', isActive: true });
+        const hasGerman = await knowledge_book_model_1.KnowledgeBook.countDocuments({
+            lang: 'de',
+            isActive: true,
+        });
         if (hasGerman > 0) {
             langFilter = { lang: 'de' };
         }
     }
+    if (options.strictLang)
+        langFilter = { lang };
     const baseQuery = { ...langFilter, isActive: true };
+    if ((_a = options.searchTerm) === null || _a === void 0 ? void 0 : _a.trim()) {
+        const expression = new RegExp(escapeSearch(options.searchTerm.trim()), 'i');
+        baseQuery.$and = [
+            {
+                $or: [
+                    { title: expression },
+                    { author: expression },
+                    { content: expression },
+                ],
+            },
+        ];
+    }
     const total = await knowledge_book_model_1.KnowledgeBook.countDocuments(baseQuery);
     const data = await knowledge_book_model_1.KnowledgeBook.find(baseQuery)
         .select('-content')
@@ -215,16 +289,13 @@ const updateBook = async (id, payload) => {
 const deleteBook = async (id) => {
     return await knowledge_book_model_1.KnowledgeBook.findByIdAndUpdate(id, { isActive: false }, { new: true });
 };
-const getOrSyncBooksByLanguage = async (targetLang, booksList) => {
-    const baseBooks = booksList || await knowledge_book_model_1.KnowledgeBook.find({ lang: 'de', isActive: true }).lean();
-    if (baseBooks.length === 0)
-        return;
-    // Books for targetLang are managed via OpenAI Batch from Dashboard
-};
 // ==========================================
 // FATWAS SERVICES
 // ==========================================
-const getAllFatwas = async (lang = 'de', page = 1, limit = 50) => {
+const getAllFatwas = async (lang = 'de', page = 1, limit = 50, options = {}) => {
+    var _a;
+    limit = Math.min(100, Math.max(1, Math.floor(Number(limit) || 20)));
+    page = Math.max(1, Math.floor(Number(page) || 1));
     const skip = (page - 1) * limit;
     let langFilter = {};
     const hasLang = await knowledge_fatwa_model_1.KnowledgeFatwa.countDocuments({ lang, isActive: true });
@@ -232,12 +303,29 @@ const getAllFatwas = async (lang = 'de', page = 1, limit = 50) => {
         langFilter = { lang };
     }
     else {
-        const hasGerman = await knowledge_fatwa_model_1.KnowledgeFatwa.countDocuments({ lang: 'de', isActive: true });
+        const hasGerman = await knowledge_fatwa_model_1.KnowledgeFatwa.countDocuments({
+            lang: 'de',
+            isActive: true,
+        });
         if (hasGerman > 0) {
             langFilter = { lang: 'de' };
         }
     }
+    if (options.strictLang)
+        langFilter = { lang };
     const baseQuery = { ...langFilter, isActive: true };
+    if ((_a = options.searchTerm) === null || _a === void 0 ? void 0 : _a.trim()) {
+        const expression = new RegExp(escapeSearch(options.searchTerm.trim()), 'i');
+        baseQuery.$and = [
+            {
+                $or: [
+                    { question: expression },
+                    { answer: expression },
+                    { scholar: expression },
+                ],
+            },
+        ];
+    }
     const total = await knowledge_fatwa_model_1.KnowledgeFatwa.countDocuments(baseQuery);
     const data = await knowledge_fatwa_model_1.KnowledgeFatwa.find(baseQuery)
         .sort({ createdAt: -1 })
@@ -267,12 +355,6 @@ const updateFatwa = async (id, payload) => {
 };
 const deleteFatwa = async (id) => {
     return await knowledge_fatwa_model_1.KnowledgeFatwa.findByIdAndUpdate(id, { isActive: false }, { new: true });
-};
-const getOrSyncFatwasByLanguage = async (targetLang, fatwasList) => {
-    const baseFatwas = fatwasList || await knowledge_fatwa_model_1.KnowledgeFatwa.find({ lang: 'de', isActive: true }).lean();
-    if (baseFatwas.length === 0)
-        return;
-    // Fatwas for targetLang are managed via OpenAI Batch from Dashboard
 };
 exports.KnowledgeLibraryServices = {
     getAllArticles,

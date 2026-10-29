@@ -1,6 +1,17 @@
-import axios from 'axios';
-import { Hadith } from './hadith.model';
-import { IHadith } from './hadith.interface';
+import axios from 'axios'
+interface HadithGrade {
+  name?: string
+  grade?: string
+}
+interface UpstreamHadith {
+  hadithnumber?: number
+  text: string
+  reference?: { book?: number }
+  grades?: HadithGrade[]
+}
+
+import { Hadith } from './hadith.model'
+import { IHadith } from './hadith.interface'
 
 const EDITION_SOURCE_MAP: Record<string, string> = {
   bukhari: 'Sahih al-Bukhari',
@@ -11,7 +22,7 @@ const EDITION_SOURCE_MAP: Record<string, string> = {
   ibnmajah: 'Sunan Ibn Majah',
   malik: 'Muwatta Malik',
   nawawi: 'Forty Hadith Nawawi',
-};
+}
 
 export const LANG_CODE_MAP: Record<string, string> = {
   en: 'eng',
@@ -24,12 +35,12 @@ export const LANG_CODE_MAP: Record<string, string> = {
   ru: 'rus',
   ta: 'tam',
   ar: 'ara',
-};
+}
 
 const getSourceName = (edition: string): string => {
-  const bookKey = edition.toLowerCase().split('-')[1] || 'hadith';
-  return EDITION_SOURCE_MAP[bookKey] || 'Official Hadith';
-};
+  const bookKey = edition.toLowerCase().split('-')[1] || 'hadith'
+  return EDITION_SOURCE_MAP[bookKey] || 'Official Hadith'
+}
 
 const syncFromGlobalApi = async (
   edition: string,
@@ -37,133 +48,167 @@ const syncFromGlobalApi = async (
   toHadith: number,
   lang: string = 'en',
 ) => {
-  let createdCount = 0;
-  let updatedCount = 0;
+  let createdCount = 0
+  let updatedCount = 0
 
-  const sourceName = getSourceName(edition);
-  const editionParts = edition.split('-');
-  const hadithBookKey = editionParts[1] || 'hadith';
-  const arabEdition = `ara-${hadithBookKey}`;
+  const sourceName = getSourceName(edition)
+  const editionParts = edition.split('-')
+  const hadithBookKey = editionParts[1] || 'hadith'
+  const arabEdition = `ara-${hadithBookKey}`
 
   // Fast Bulk Fetch Approach (Single HTTP Call per edition)
   try {
-    const engUrl = `https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/editions/${edition}.min.json`;
-    const engRes = await axios.get(engUrl);
+    const engUrl = `https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/editions/${edition}.min.json`
+    const engRes = await axios.get(engUrl)
 
-    if (engRes.data && Array.isArray(engRes.data.hadiths) && engRes.data.hadiths.length > 0) {
-      let araHadithsMap: Record<number, string> = {};
+    if (
+      engRes.data &&
+      Array.isArray(engRes.data.hadiths) &&
+      engRes.data.hadiths.length > 0
+    ) {
+      const araHadithsMap: Record<number, string> = {}
       try {
-        const araUrl = `https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/editions/${arabEdition}.min.json`;
-        const araRes = await axios.get(araUrl);
+        const araUrl = `https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/editions/${arabEdition}.min.json`
+        const araRes = await axios.get(araUrl)
         if (araRes.data && Array.isArray(araRes.data.hadiths)) {
-          araRes.data.hadiths.forEach((h: any, idx: number) => {
-            const num = h.hadithnumber || (idx + 1);
-            araHadithsMap[num] = h.text;
-          });
+          araRes.data.hadiths.forEach((h: UpstreamHadith, idx: number) => {
+            const num = h.hadithnumber || idx + 1
+            araHadithsMap[num] = h.text
+          })
         }
       } catch (err) {
-        console.error(`Failed to fetch Arabic edition JSON for ${arabEdition}:`, err);
+        console.error(
+          `Failed to fetch Arabic edition JSON for ${arabEdition}:`,
+          err,
+        )
       }
 
-      const sections = engRes.data.metadata?.sections || engRes.data.metadata?.section || {};
-      const allHadiths = engRes.data.hadiths;
+      const sections =
+        engRes.data.metadata?.sections || engRes.data.metadata?.section || {}
+      const allHadiths = engRes.data.hadiths
 
-      const targetHadiths = allHadiths.filter((h: any, idx: number) => {
-        const num = h.hadithnumber || (idx + 1);
-        return num >= fromHadith && num <= toHadith;
-      });
+      const targetHadiths = allHadiths.filter(
+        (h: UpstreamHadith, idx: number) => {
+          const num = h.hadithnumber || idx + 1
+          return num >= fromHadith && num <= toHadith
+        },
+      )
 
       if (targetHadiths.length > 0) {
-        const bulkOps = targetHadiths.map((engHadith: any, idx: number) => {
-          const hadithNum = engHadith.hadithnumber || (fromHadith + idx);
-          const hadithNo = `${hadithBookKey}_${hadithNum}`;
-          const arabicText = araHadithsMap[hadithNum] || 'Arabic text unavailable online';
+        const bulkOps = targetHadiths.map(
+          (engHadith: UpstreamHadith, idx: number) => {
+            const hadithNum = engHadith.hadithnumber || fromHadith + idx
+            const hadithNo = `${hadithBookKey}_${hadithNum}`
+            const arabicText =
+              araHadithsMap[hadithNum] || 'Arabic text unavailable online'
 
-          const bookNum = String(engHadith.reference?.book ?? 0);
-          let chapterName = sections[bookNum];
-          if (!chapterName || chapterName.trim() === '') {
-            chapterName = bookNum === '0' ? 'General' : `Book ${bookNum}`;
-          }
-
-          let authenticity = 'Sahih';
-          if (Array.isArray(engHadith.grades) && engHadith.grades.length > 0) {
-            const mainGrade = engHadith.grades.find((g: any) => g.name?.toLowerCase().includes('albani')) || engHadith.grades[0];
-            if (mainGrade && mainGrade.grade) {
-              authenticity = mainGrade.grade;
+            const bookNum = String(engHadith.reference?.book ?? 0)
+            let chapterName = sections[bookNum]
+            if (!chapterName || chapterName.trim() === '') {
+              chapterName = bookNum === '0' ? 'General' : `Book ${bookNum}`
             }
-          }
 
-          const hadithData: Partial<IHadith> = {
-            hadithNo,
-            source: sourceName,
-            chapter: chapterName,
-            arabicText,
-            translation: engHadith.text,
-            authenticity,
-            category: chapterName,
-            lang,
-            version: 1,
-            isActive: true,
-          };
+            let authenticity = 'Sahih'
+            if (
+              Array.isArray(engHadith.grades) &&
+              engHadith.grades.length > 0
+            ) {
+              const mainGrade =
+                engHadith.grades.find((g: HadithGrade) =>
+                  g.name?.toLowerCase().includes('albani'),
+                ) || engHadith.grades[0]
+              if (mainGrade && mainGrade.grade) {
+                authenticity = mainGrade.grade
+              }
+            }
 
-          return {
-            updateOne: {
-              filter: { hadithNo, source: sourceName, lang },
-              update: { $set: hadithData },
-              upsert: true,
-            },
-          };
-        });
+            const hadithData: Partial<IHadith> = {
+              hadithNo,
+              source: sourceName,
+              chapter: chapterName,
+              arabicText,
+              translation: engHadith.text,
+              authenticity,
+              category: chapterName,
+              lang,
+              version: 1,
+              isActive: true,
+            }
 
-        const bulkRes = await Hadith.bulkWrite(bulkOps);
-        createdCount = bulkRes.upsertedCount || 0;
-        updatedCount = bulkRes.modifiedCount || 0;
+            return {
+              updateOne: {
+                filter: { hadithNo, source: sourceName, lang },
+                update: { $set: hadithData },
+                upsert: true,
+              },
+            }
+          },
+        )
 
-        return { createdCount, updatedCount };
+        const bulkRes = await Hadith.bulkWrite(bulkOps)
+        createdCount = bulkRes.upsertedCount || 0
+        updatedCount = bulkRes.modifiedCount || 0
+
+        return { createdCount, updatedCount }
       }
     }
   } catch (fastErr) {
-    console.warn(`Fast bulk fetch failed for ${edition}, falling back to item-by-item:`, fastErr);
+    console.warn(
+      `Fast bulk fetch failed for ${edition}, falling back to item-by-item:`,
+      fastErr,
+    )
   }
 
   // Fallback: item-by-item fetching
   for (let i = fromHadith; i <= toHadith; i++) {
     try {
-      const engUrl = `https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/editions/${edition}/${i}.json`;
-      const engRes = await axios.get(engUrl);
+      const engUrl = `https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/editions/${edition}/${i}.json`
+      const engRes = await axios.get(engUrl)
 
-      if (!engRes.data || !engRes.data.hadiths || engRes.data.hadiths.length === 0) {
-        continue;
+      if (
+        !engRes.data ||
+        !engRes.data.hadiths ||
+        engRes.data.hadiths.length === 0
+      ) {
+        continue
       }
 
-      const engHadith = engRes.data.hadiths[0];
-      const sections = engRes.data.metadata?.sections || engRes.data.metadata?.section || {};
-      const bookNum = String(engHadith.reference?.book ?? 0);
-      let chapterName = sections[bookNum];
+      const engHadith = engRes.data.hadiths[0]
+      const sections =
+        engRes.data.metadata?.sections || engRes.data.metadata?.section || {}
+      const bookNum = String(engHadith.reference?.book ?? 0)
+      let chapterName = sections[bookNum]
       if (!chapterName || chapterName.trim() === '') {
-        chapterName = bookNum === '0' ? 'General' : `Book ${bookNum}`;
+        chapterName = bookNum === '0' ? 'General' : `Book ${bookNum}`
       }
 
-      let authenticity = 'Sahih';
+      let authenticity = 'Sahih'
       if (Array.isArray(engHadith.grades) && engHadith.grades.length > 0) {
-        const mainGrade = engHadith.grades.find((g: any) => g.name?.toLowerCase().includes('albani')) || engHadith.grades[0];
+        const mainGrade =
+          engHadith.grades.find((g: HadithGrade) =>
+            g.name?.toLowerCase().includes('albani'),
+          ) || engHadith.grades[0]
         if (mainGrade && mainGrade.grade) {
-          authenticity = mainGrade.grade;
+          authenticity = mainGrade.grade
         }
       }
 
-      let arabicText = 'Arabic text unavailable online';
+      let arabicText = 'Arabic text unavailable online'
       try {
-        const araUrl = `https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/editions/${arabEdition}/${i}.json`;
-        const araRes = await axios.get(araUrl);
-        if (araRes.data && araRes.data.hadiths && araRes.data.hadiths.length > 0) {
-          arabicText = araRes.data.hadiths[0].text;
+        const araUrl = `https://raw.githubusercontent.com/fawazahmed0/hadith-api/1/editions/${arabEdition}/${i}.json`
+        const araRes = await axios.get(araUrl)
+        if (
+          araRes.data &&
+          araRes.data.hadiths &&
+          araRes.data.hadiths.length > 0
+        ) {
+          arabicText = araRes.data.hadiths[0].text
         }
       } catch (err) {
-        console.error(`Failed to fetch Arabic text for Hadith ${i}:`, err);
+        console.error(`Failed to fetch Arabic text for Hadith ${i}:`, err)
       }
 
-      const hadithNo = `${hadithBookKey}_${i}`;
+      const hadithNo = `${hadithBookKey}_${i}`
 
       const hadithData: Partial<IHadith> = {
         hadithNo,
@@ -176,73 +221,119 @@ const syncFromGlobalApi = async (
         lang,
         version: 1,
         isActive: true,
-      };
+      }
 
       const result = await Hadith.findOneAndUpdate(
         { hadithNo, source: sourceName, lang },
         { $set: hadithData },
-        { upsert: true, new: false }
-      );
+        { upsert: true, new: false },
+      )
 
       if (result) {
-        updatedCount++;
+        updatedCount++
       } else {
-        createdCount++;
+        createdCount++
       }
 
-      await new Promise(r => setTimeout(r, 150));
+      await new Promise(r => setTimeout(r, 150))
     } catch (error) {
-      console.error(`Error syncing Hadith ${i} from global API:`, error);
+      console.error(`Error syncing Hadith ${i} from global API:`, error)
     }
   }
 
-  return { createdCount, updatedCount };
-};
+  return { createdCount, updatedCount }
+}
 
 // Total ~10,042 hadiths distributed across all 8 collections
 // so every section of the app has content from day one.
 const ALL_HADITH_COLLECTIONS = [
-  { key: 'bukhari',  edition: 'eng-bukhari',  name: 'Sahih al-Bukhari',    range: { from: 1, to: 3000 } },
-  { key: 'muslim',   edition: 'eng-muslim',   name: 'Sahih Muslim',        range: { from: 1, to: 1500 } },
-  { key: 'abudawud', edition: 'eng-abudawud', name: 'Sunan Abi Dawud',     range: { from: 1, to: 1500 } },
-  { key: 'tirmidhi', edition: 'eng-tirmidhi', name: 'Jami at-Tirmidhi',    range: { from: 1, to: 1000 } },
-  { key: 'nasai',    edition: 'eng-nasai',    name: 'Sunan an-Nasai',      range: { from: 1, to: 1000 } },
-  { key: 'ibnmajah', edition: 'eng-ibnmajah', name: 'Sunan Ibn Majah',    range: { from: 1, to: 1000 } },
-  { key: 'malik',    edition: 'eng-malik',    name: 'Muwatta Malik',       range: { from: 1, to: 500  } },
-  { key: 'nawawi',   edition: 'eng-nawawi',   name: 'Forty Hadith Nawawi', range: { from: 1, to: 42   } },
-];
+  {
+    key: 'bukhari',
+    edition: 'eng-bukhari',
+    name: 'Sahih al-Bukhari',
+    range: { from: 1, to: 3000 },
+  },
+  {
+    key: 'muslim',
+    edition: 'eng-muslim',
+    name: 'Sahih Muslim',
+    range: { from: 1, to: 1500 },
+  },
+  {
+    key: 'abudawud',
+    edition: 'eng-abudawud',
+    name: 'Sunan Abi Dawud',
+    range: { from: 1, to: 1500 },
+  },
+  {
+    key: 'tirmidhi',
+    edition: 'eng-tirmidhi',
+    name: 'Jami at-Tirmidhi',
+    range: { from: 1, to: 1000 },
+  },
+  {
+    key: 'nasai',
+    edition: 'eng-nasai',
+    name: 'Sunan an-Nasai',
+    range: { from: 1, to: 1000 },
+  },
+  {
+    key: 'ibnmajah',
+    edition: 'eng-ibnmajah',
+    name: 'Sunan Ibn Majah',
+    range: { from: 1, to: 1000 },
+  },
+  {
+    key: 'malik',
+    edition: 'eng-malik',
+    name: 'Muwatta Malik',
+    range: { from: 1, to: 500 },
+  },
+  {
+    key: 'nawawi',
+    edition: 'eng-nawawi',
+    name: 'Forty Hadith Nawawi',
+    range: { from: 1, to: 42 },
+  },
+]
 
 const seedAllHadithCollections = async () => {
-  console.log('[HadithService] Triggering background seed for all 8 Hadith collections...');
+  console.log(
+    '[HadithService] Triggering background seed for all 8 Hadith collections...',
+  )
   for (const item of ALL_HADITH_COLLECTIONS) {
     try {
-      await syncFromGlobalApi(item.edition, item.range.from, item.range.to);
+      await syncFromGlobalApi(item.edition, item.range.from, item.range.to)
     } catch (err) {
-      console.error(`[HadithService] Failed to seed ${item.edition}:`, err);
+      console.error(`[HadithService] Failed to seed ${item.edition}:`, err)
     }
   }
-};
+}
 
 const getCollections = async (lang: string = 'en') => {
-  const totalEnglish = await Hadith.countDocuments({ lang: 'en' });
+  const totalEnglish = await Hadith.countDocuments({ lang: 'en' })
   if (totalEnglish === 0) {
-    void seedAllHadithCollections();
+    void seedAllHadithCollections()
   }
 
   const result = await Promise.all(
-    ALL_HADITH_COLLECTIONS.map(async (col) => {
-      const count = await Hadith.countDocuments({ source: col.name, lang, isActive: true });
+    ALL_HADITH_COLLECTIONS.map(async col => {
+      const count = await Hadith.countDocuments({
+        source: col.name,
+        lang,
+        isActive: true,
+      })
       return {
         key: col.key,
         edition: col.edition,
         name: col.name,
         count,
         isAvailable: true,
-      };
-    })
-  );
-  return result;
-};
+      }
+    }),
+  )
+  return result
+}
 
 const getAllHadiths = async (
   lang: string = 'en',
@@ -251,78 +342,90 @@ const getAllHadiths = async (
   page: number = 1,
   limit: number = 10,
 ) => {
-  const skip = (page - 1) * limit;
+  const skip = (page - 1) * limit
 
   // Auto-populate DB in the background — don't block the HTTP response
-  const totalEnglish = await Hadith.countDocuments({ lang: 'en' });
+  const totalEnglish = await Hadith.countDocuments({ lang: 'en' })
   if (totalEnglish === 0) {
-    console.log('[HadithService] Triggering background seed for all Hadith collections...');
-    void seedAllHadithCollections();
+    console.log(
+      '[HadithService] Triggering background seed for all Hadith collections...',
+    )
+    void seedAllHadithCollections()
   }
 
   if (lang !== 'en') {
-    const count = await Hadith.countDocuments({ lang });
+    const count = await Hadith.countDocuments({ lang })
     if (count === 0) {
       // Background translation — can take a very long time
       void (async () => {
-        try { await getOrSyncHadithsByLanguage(lang); } catch (err) {
-          console.error(`[HadithService] Background lang sync failed (${lang}):`, err);
+        try {
+          await getOrSyncHadithsByLanguage(lang)
+        } catch (err) {
+          console.error(
+            `[HadithService] Background lang sync failed (${lang}):`,
+            err,
+          )
         }
-      })();
+      })()
     }
   }
 
-  const query: Record<string, unknown> = { lang, isActive: true };
-  if (category) query.category = category;
-  if (source) query.source = source;
+  const query: Record<string, unknown> = { lang, isActive: true }
+  if (category) query.category = category
+  if (source) query.source = source
 
   const [data, total] = await Promise.all([
     Hadith.find(query).skip(skip).limit(limit).sort({ hadithNo: 1 }).lean(),
     Hadith.countDocuments(query),
-  ]);
+  ])
 
   return {
     meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
     data,
-  };
-};
+  }
+}
 
 const getHadithById = async (id: string) => {
-  return await Hadith.findById(id).lean();
-};
+  return await Hadith.findById(id).lean()
+}
 
 const createHadith = async (payload: Partial<IHadith>) => {
-  return await Hadith.create(payload);
-};
+  return await Hadith.create(payload)
+}
 
 const updateHadith = async (id: string, payload: Partial<IHadith>) => {
-  const current = await Hadith.findById(id);
-  const newVersion = current ? (current.version || 1) + 1 : 1;
+  const current = await Hadith.findById(id)
+  const newVersion = current ? (current.version || 1) + 1 : 1
   return await Hadith.findByIdAndUpdate(
     id,
     { ...payload, version: newVersion },
     { new: true },
-  );
-};
+  )
+}
 
 const deleteHadith = async (id: string) => {
-  return await Hadith.findByIdAndUpdate(id, { isActive: false }, { new: true });
-};
+  return await Hadith.findByIdAndUpdate(id, { isActive: false }, { new: true })
+}
 
 const getVersion = async (lang: string = 'en') => {
-  const latest = await Hadith.findOne({ lang }).sort({ version: -1 }).select('version');
-  return latest?.version || 1;
-};
+  const latest = await Hadith.findOne({ lang })
+    .sort({ version: -1 })
+    .select('version')
+  return latest?.version || 1
+}
 
-const checkSyncMetadata = async (lang: string = 'en', clientVersion: number) => {
-  const serverVersion = await getVersion(lang);
+const checkSyncMetadata = async (
+  lang: string = 'en',
+  clientVersion: number,
+) => {
+  const serverVersion = await getVersion(lang)
   return {
     updateAvailable: serverVersion > clientVersion,
     serverVersion,
     clientVersion,
     lang,
-  };
-};
+  }
+}
 
 const clampSyncLimit = (limit: number) => {
   const n = Number(limit) || 500
@@ -340,13 +443,20 @@ const getSyncData = async (
   if (existing === 0) {
     const totalEnglish = await Hadith.countDocuments({ lang: 'en' })
     if (totalEnglish === 0) {
-      console.log('[HadithService] download-sync empty — seeding all collections in background...')
+      console.log(
+        '[HadithService] download-sync empty — seeding all collections in background...',
+      )
       void seedAllHadithCollections()
     }
     if (lang !== 'en') {
       void (async () => {
-        try { await getOrSyncHadithsByLanguage(lang) } catch (err) {
-          console.error(`[HadithService] Background lang sync error (${lang}):`, err)
+        try {
+          await getOrSyncHadithsByLanguage(lang)
+        } catch (err) {
+          console.error(
+            `[HadithService] Background lang sync error (${lang}):`,
+            err,
+          )
         }
       })()
     }
@@ -360,7 +470,11 @@ const getSyncData = async (
   const safeLimit = clampSyncLimit(limit)
   const safePage = Math.max(Number(page) || 1, 1)
   const skip = (safePage - 1) * safeLimit
-  const filter = { lang, isActive: { $ne: false }, version: { $gt: fromVersion } }
+  const filter = {
+    lang,
+    isActive: { $ne: false },
+    version: { $gt: fromVersion },
+  }
   const total = await Hadith.countDocuments(filter)
   const data = await Hadith.find(filter)
     .sort({ hadithNo: 1 })
@@ -379,14 +493,14 @@ const getSyncData = async (
 }
 
 const getOrSyncHadithsByLanguage = async (targetLang: string) => {
-  const count = await Hadith.countDocuments({ lang: targetLang });
+  const count = await Hadith.countDocuments({ lang: targetLang })
   if (count > 0) {
-    return await Hadith.find({ lang: targetLang }).lean();
+    return await Hadith.find({ lang: targetLang }).lean()
   }
 
   // Fallback: Return English hadiths cleanly if target language is not yet generated via OpenAI Batch
-  return await Hadith.find({ lang: 'en' }).lean();
-};
+  return await Hadith.find({ lang: 'en' }).lean()
+}
 
 // ─── Tier 1 Top 10 Languages Bulk Sync ────────────────────────────────────────
 const syncTier1Languages = async (
@@ -394,21 +508,39 @@ const syncTier1Languages = async (
   fromHadith = 1,
   toHadith = 100,
 ) => {
-  const results: Record<string, { createdCount: number; updatedCount: number; error?: string }> = {};
-  const tier1Langs = ['en', 'bn', 'ur', 'id', 'fr', 'tr', 'es', 'ru', 'ta', 'ar'];
+  const results: Record<
+    string,
+    { createdCount: number; updatedCount: number; error?: string }
+  > = {}
+  const tier1Langs = [
+    'en',
+    'bn',
+    'ur',
+    'id',
+    'fr',
+    'tr',
+    'es',
+    'ru',
+    'ta',
+    'ar',
+  ]
 
   for (const lang of tier1Langs) {
-    const prefix = LANG_CODE_MAP[lang] || lang;
-    const edition = `${prefix}-${bookKey}`;
+    const prefix = LANG_CODE_MAP[lang] || lang
+    const edition = `${prefix}-${bookKey}`
     try {
-      const res = await syncFromGlobalApi(edition, fromHadith, toHadith, lang);
-      results[lang] = res;
-    } catch (err: any) {
-      results[lang] = { createdCount: 0, updatedCount: 0, error: err.message };
+      const res = await syncFromGlobalApi(edition, fromHadith, toHadith, lang)
+      results[lang] = res
+    } catch (err: unknown) {
+      results[lang] = {
+        createdCount: 0,
+        updatedCount: 0,
+        error: err instanceof Error ? err.message : String(err),
+      }
     }
   }
-  return results;
-};
+  return results
+}
 
 export const HadithServices = {
   getCollections,
@@ -423,4 +555,4 @@ export const HadithServices = {
   getOrSyncHadithsByLanguage,
   syncFromGlobalApi,
   syncTier1Languages,
-};
+}

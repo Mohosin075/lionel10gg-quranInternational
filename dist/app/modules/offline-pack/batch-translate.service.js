@@ -18,6 +18,20 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BatchTranslateService = void 0;
 const axios_1 = __importDefault(require("axios"));
+const getApiError = (error) => {
+    var _a, _b, _c, _d, _e;
+    if (axios_1.default.isAxiosError(error))
+        return {
+            message: ((_c = (_b = (_a = error.response) === null || _a === void 0 ? void 0 : _a.data) === null || _b === void 0 ? void 0 : _b.error) === null || _c === void 0 ? void 0 : _c.message) || error.message,
+            status: ((_d = error.response) === null || _d === void 0 ? void 0 : _d.status) || 500,
+            data: (_e = error.response) === null || _e === void 0 ? void 0 : _e.data,
+        };
+    return {
+        message: error instanceof Error ? error.message : String(error),
+        status: 500,
+        data: undefined,
+    };
+};
 const form_data_1 = __importDefault(require("form-data"));
 const hadith_model_1 = require("../hadith/hadith.model");
 const dua_model_1 = require("../dua/dua.model");
@@ -39,7 +53,7 @@ Keep any structural keys like TITLE:, CONTENT:, AYAH:, TAFSIR:, TRANSLATION:, QU
 Return ONLY the translated formatted text, nothing else.`;
 // ─── Fetch source documents ────────────────────────────────────────────────────
 const getSourceDocs = async (module) => {
-    let docs = [];
+    let docs;
     switch (module) {
         case 'hadith':
             docs = await hadith_model_1.Hadith.find({ lang: 'en', isActive: true })
@@ -86,9 +100,7 @@ const getSourceDocs = async (module) => {
                 .select('_id surah ayah text edition')
                 .lean();
             if (docs.length === 0) {
-                docs = await tafsir_model_1.Tafsir.find()
-                    .select('_id surah ayah text edition')
-                    .lean();
+                docs = await tafsir_model_1.Tafsir.find().select('_id surah ayah text edition').lean();
             }
             break;
         case 'book':
@@ -135,7 +147,10 @@ const buildBatchJsonl = (docs, module, targetLang) => {
             textToTranslate = `TAFSIR: ${doc.text}`;
         }
         else if (module === 'book') {
-            const contentSnippet = (doc.content || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').slice(0, 1500);
+            const contentSnippet = (doc.content || '')
+                .replace(/<[^>]*>/g, ' ')
+                .replace(/\s+/g, ' ')
+                .slice(0, 1500);
             textToTranslate = `TITLE: ${doc.title}\nCONTENT: ${contentSnippet}`;
         }
         else if (module === 'fatwa') {
@@ -165,7 +180,6 @@ const buildBatchJsonl = (docs, module, targetLang) => {
 };
 // ─── Upload JSONL file to OpenAI ──────────────────────────────────────────────
 const uploadBatchFile = async (jsonlContent) => {
-    var _a, _b, _c, _d;
     const formData = new form_data_1.default();
     formData.append('purpose', 'batch');
     formData.append('file', Buffer.from(jsonlContent, 'utf8'), {
@@ -179,13 +193,14 @@ const uploadBatchFile = async (jsonlContent) => {
         return res.data.id; // file_id
     }
     catch (err) {
-        const openAiMsg = ((_c = (_b = (_a = err === null || err === void 0 ? void 0 : err.response) === null || _a === void 0 ? void 0 : _a.data) === null || _b === void 0 ? void 0 : _b.error) === null || _c === void 0 ? void 0 : _c.message) || (err === null || err === void 0 ? void 0 : err.message);
-        throw new Error(`OpenAI API Error (${((_d = err === null || err === void 0 ? void 0 : err.response) === null || _d === void 0 ? void 0 : _d.status) || 500}): ${openAiMsg}`);
+        const openAiMsg = getApiError(err).message;
+        const wrapped = new Error(`OpenAI API Error (${getApiError(err).status}): ${openAiMsg}`);
+        Object.defineProperty(wrapped, 'cause', { value: err });
+        throw wrapped;
     }
 };
 // ─── Create OpenAI Batch Job ──────────────────────────────────────────────────
 const createBatchJob = async (module, targetLang) => {
-    var _a, _b, _c, _d;
     if (!process.env.OPENAI_API_KEY) {
         throw new Error('OPENAI_API_KEY not set in environment variables.');
     }
@@ -217,8 +232,10 @@ const createBatchJob = async (module, targetLang) => {
         }, { headers: authHeader() });
     }
     catch (err) {
-        const openAiMsg = ((_c = (_b = (_a = err === null || err === void 0 ? void 0 : err.response) === null || _a === void 0 ? void 0 : _a.data) === null || _b === void 0 ? void 0 : _b.error) === null || _c === void 0 ? void 0 : _c.message) || (err === null || err === void 0 ? void 0 : err.message);
-        throw new Error(`OpenAI Batch Creation Failed (${((_d = err === null || err === void 0 ? void 0 : err.response) === null || _d === void 0 ? void 0 : _d.status) || 500}): ${openAiMsg}`);
+        const openAiMsg = getApiError(err).message;
+        const wrapped = new Error(`OpenAI Batch Creation Failed (${getApiError(err).status}): ${openAiMsg}`);
+        Object.defineProperty(wrapped, 'cause', { value: err });
+        throw wrapped;
     }
     const batchId = batchRes.data.id;
     const estimatedMinutes = Math.ceil(docs.length / 500); // rough estimate
@@ -274,7 +291,7 @@ const processBatchResult = async (jobId) => {
         headers: authHeader(),
         responseType: 'text',
     });
-    const lines = fileRes.data.split('\n').filter((l) => l.trim());
+    const lines = fileRes.data.split('\n').filter(l => l.trim());
     let savedCount = 0;
     let errorCount = 0;
     const bulkOps = [];
@@ -331,14 +348,32 @@ const processBatchResult = async (jobId) => {
                 if (!title || !translation) {
                     const parts = translatedText.split('\n\n');
                     if (parts.length >= 2) {
-                        title = title || parts[0].replace(/^(?:TITLE|Title|শিরোনাম|TITRE):\s*/i, '').trim();
-                        translation = translation || parts.slice(1).join('\n\n').replace(/^(?:TRANSLATION|Translation|অনুবাদ|TRADUCTION):\s*/i, '').trim();
+                        title =
+                            title ||
+                                parts[0].replace(/^(?:TITLE|Title|শিরোনাম|TITRE):\s*/i, '').trim();
+                        translation =
+                            translation ||
+                                parts
+                                    .slice(1)
+                                    .join('\n\n')
+                                    .replace(/^(?:TRANSLATION|Translation|অনুবাদ|TRADUCTION):\s*/i, '')
+                                    .trim();
                     }
                     else {
                         const lines = translatedText.split('\n');
                         if (lines.length >= 2) {
-                            title = title || lines[0].replace(/^(?:TITLE|Title|শিরোনাম|TITRE):\s*/i, '').trim();
-                            translation = translation || lines.slice(1).join('\n').replace(/^(?:TRANSLATION|Translation|অনুবাদ|TRADUCTION):\s*/i, '').trim();
+                            title =
+                                title ||
+                                    lines[0]
+                                        .replace(/^(?:TITLE|Title|শিরোনাম|TITRE):\s*/i, '')
+                                        .trim();
+                            translation =
+                                translation ||
+                                    lines
+                                        .slice(1)
+                                        .join('\n')
+                                        .replace(/^(?:TRANSLATION|Translation|অনুবাদ|TRADUCTION):\s*/i, '')
+                                        .trim();
                         }
                         else {
                             title = title || sourceDoc.title;
@@ -426,7 +461,12 @@ const processBatchResult = async (jobId) => {
                 const text = ((_o = ayahMatch === null || ayahMatch === void 0 ? void 0 : ayahMatch[1]) === null || _o === void 0 ? void 0 : _o.trim()) || translatedText.trim();
                 bulkOps.push({
                     updateOne: {
-                        filter: { surah: sourceDoc.surah, ayah: sourceDoc.ayah, lang: targetLang, edition: `translated_${targetLang}` },
+                        filter: {
+                            surah: sourceDoc.surah,
+                            ayah: sourceDoc.ayah,
+                            lang: targetLang,
+                            edition: `translated_${targetLang}`,
+                        },
                         update: {
                             $set: {
                                 surah: sourceDoc.surah,
@@ -451,7 +491,12 @@ const processBatchResult = async (jobId) => {
                 const text = ((_p = tafsirMatch === null || tafsirMatch === void 0 ? void 0 : tafsirMatch[1]) === null || _p === void 0 ? void 0 : _p.trim()) || translatedText.trim();
                 bulkOps.push({
                     updateOne: {
-                        filter: { surah: sourceDoc.surah, ayah: sourceDoc.ayah, lang: targetLang, edition: `translated_${targetLang}` },
+                        filter: {
+                            surah: sourceDoc.surah,
+                            ayah: sourceDoc.ayah,
+                            lang: targetLang,
+                            edition: `translated_${targetLang}`,
+                        },
                         update: {
                             $set: {
                                 surah: sourceDoc.surah,
@@ -592,21 +637,20 @@ const listBatchJobs = async () => {
             }
             catch (pollErr) {
                 // Continue silently if rate-limited or transient network error
-                console.warn(`[BatchTranslate] Poll error for ${job.batchId}:`, pollErr === null || pollErr === void 0 ? void 0 : pollErr.message);
+                console.warn(`[BatchTranslate] Poll error for ${job.batchId}:`, getApiError(pollErr).message);
             }
         }
     }
     return await batch_job_model_1.BatchJob.find({}).sort({ createdAt: -1 }).limit(100).lean();
 };
 const cancelBatchJob = async (jobId) => {
-    var _a;
     if (process.env.OPENAI_API_KEY) {
         try {
             await axios_1.default.post(`${OPENAI_API_URL}/batches/${jobId}/cancel`, {}, { headers: authHeader(), timeout: 7000 });
             console.log(`[BatchTranslate] OpenAI batch ${jobId} cancellation requested.`);
         }
         catch (err) {
-            console.warn(`[BatchTranslate] OpenAI cancel call note:`, ((_a = err === null || err === void 0 ? void 0 : err.response) === null || _a === void 0 ? void 0 : _a.data) || (err === null || err === void 0 ? void 0 : err.message));
+            console.warn(`[BatchTranslate] OpenAI cancel call note:`, getApiError(err).data || getApiError(err).message);
         }
     }
     const job = await batch_job_model_1.BatchJob.findOneAndUpdate({ batchId: jobId }, { status: 'cancelled', updatedAt: new Date() }, { new: true });

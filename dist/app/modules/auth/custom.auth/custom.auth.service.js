@@ -82,7 +82,15 @@ const createUser = async (payload) => {
     });
     emailHelper_1.emailHelper.sendEmail(createAccount);
     const user = await user_model_1.User.create({
-        ...payload,
+        email: payload.email,
+        name: payload.name,
+        phone: payload.phone,
+        interest: payload.interest,
+        address: payload.address,
+        role: user_1.USER_ROLES.USER,
+        verified: false,
+        subscribe: false,
+        status: user_1.USER_STATUS.ACTIVE,
         password: payload.password,
         authentication,
     });
@@ -102,7 +110,7 @@ const customLogin = async (payload) => {
     const query = email ? { email: email.toLowerCase().trim() } : { phone: phone };
     const isUserExist = await user_model_1.User.findOne({
         ...query,
-        status: { $in: [user_1.USER_STATUS.ACTIVE] },
+        status: { $in: [user_1.USER_STATUS.ACTIVE, user_1.USER_STATUS.INACTIVE] },
     })
         .select('+password +authentication')
         .lean();
@@ -138,7 +146,7 @@ const adminLogin = async (payload) => {
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, 'Invalid email or password');
     }
     //tokens
-    const tokens = auth_helper_1.AuthHelper.createToken(isUserExist._id, isUserExist.role, isUserExist.name, isUserExist.email);
+    const tokens = auth_helper_1.AuthHelper.createToken(isUserExist._id, isUserExist.role, isUserExist.name, isUserExist.email, payload.deviceToken, payload.rememberMe);
     return (0, common_1.authResponse)(http_status_codes_1.StatusCodes.OK, `Welcome back ${isUserExist.name}`, isUserExist.role, tokens.accessToken, tokens.refreshToken);
 };
 const forgetPassword = async (email, phone) => {
@@ -288,7 +296,8 @@ const getRefreshToken = async (token) => {
         }
         if (decodedToken.iat &&
             ((_a = dbUser.authentication) === null || _a === void 0 ? void 0 : _a.passwordChangedAt) &&
-            decodedToken.iat * 1000 < dbUser.authentication.passwordChangedAt.getTime()) {
+            decodedToken.iat * 1000 <
+                dbUser.authentication.passwordChangedAt.getTime()) {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.UNAUTHORIZED, 'Session has been revoked, please login again');
         }
         const tokens = auth_helper_1.AuthHelper.createToken(userId, role, decodedToken.name, decodedToken.email);
@@ -312,9 +321,7 @@ const socialLogin = async (provider, idToken, deviceToken) => {
         appId: identity.appId,
         status: { $in: [user_1.USER_STATUS.ACTIVE, user_1.USER_STATUS.INACTIVE] },
     });
-    if (!isUserExist &&
-        identity.email &&
-        identity.emailVerified) {
+    if (!isUserExist && identity.email && identity.emailVerified) {
         isUserExist = await user_model_1.User.findOne({
             email: identity.email,
             status: { $in: [user_1.USER_STATUS.ACTIVE, user_1.USER_STATUS.INACTIVE] },

@@ -91,7 +91,7 @@ const getRefreshToken = (0, catchAsync_1.default)(async (req, res) => {
     });
 });
 const resendOtp = (0, catchAsync_1.default)(async (req, res) => {
-    const { email, phone, authType } = req.body;
+    const { email, authType } = req.body;
     await custom_auth_service_1.CustomAuthServices.resendOtp(email, authType);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_codes_1.StatusCodes.OK,

@@ -6,7 +6,9 @@ exports.TranslationHelper = void 0;
  */
 exports.TranslationHelper = {
     translateText: async (text, _tl, _sl = 'en') => {
+        void _tl;
+        void _sl;
         return text || '';
     },
-    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    sleep: (ms) => new Promise(resolve => setTimeout(resolve, ms)),
 };

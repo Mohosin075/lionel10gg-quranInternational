@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DashboardService = void 0;
+const report_range_1 = require("./report-range");
 const user_model_1 = require("../user/user.model");
 const bookmark_model_1 = require("../bookmark/bookmark.model");
 const highlight_model_1 = require("../highlight/highlight.model");
@@ -13,22 +14,35 @@ const lastRead_model_1 = require("../lastRead/lastRead.model");
 const user_1 = require("../../../enum/user");
 const getAnalytics = async () => {
     const totalUsers = await user_model_1.User.countDocuments();
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const activeUsers7d = await user_model_1.User.countDocuments({ updatedAt: { $gte: sevenDaysAgo } });
-    const dailyActiveUsers = await user_model_1.User.countDocuments({
-        updatedAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) },
-    });
+    // Session and install telemetry are not collected; report unavailable instead of proxy counts.
+    const activeUsers7d = null;
+    const dailyActiveUsers = null;
     // Content counts
     const totalHadiths = await hadith_model_1.Hadith.countDocuments({ isActive: true });
     const totalDuas = await dua_model_1.Dua.countDocuments();
     const totalOfflinePacks = await offline_pack_model_1.OfflinePack.countDocuments();
-    const activeBatchJobs = await batch_job_model_1.BatchJob.countDocuments({ status: { $in: ['in_progress', 'validating'] } });
+    const activeBatchJobs = await batch_job_model_1.BatchJob.countDocuments({
+        status: { $in: ['in_progress', 'validating', 'finalizing', 'cancelling'] },
+    });
     // Engagement real counts
     const totalBookmarks = await bookmark_model_1.Bookmark.countDocuments();
     const totalHighlights = await highlight_model_1.Highlight.countDocuments();
     const totalVerseViews = await lastRead_model_1.LastRead.countDocuments();
     // Real Monthly Active Users (last 6 calendar months computed from database)
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthNames = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+    ];
     const now = new Date();
     const monthlyActiveUsersChart = [];
     for (let i = 5; i >= 0; i--) {
@@ -50,28 +64,23 @@ const getAnalytics = async () => {
         { $sort: { count: -1 } },
         { $limit: 5 },
     ]);
-    let mostViewedTranslations = bookmarkEditions.map((item) => ({
+    const mostViewedTranslations = bookmarkEditions.map(item => ({
         label: String(item._id),
         value: item.count,
     }));
-    if (mostViewedTranslations.length === 0) {
-        const packsByLang = await offline_pack_model_1.OfflinePack.aggregate([
-            { $group: { _id: '$lang', count: { $sum: 1 } } },
-            { $sort: { count: -1 } },
-            { $limit: 5 },
-        ]);
-        mostViewedTranslations = packsByLang.map((p) => ({
-            label: p._id.toUpperCase(),
-            value: p.count,
-        }));
-    }
+    // No bookmark activity means no translation popularity data.
     // Real Most Bookmarked Verses
     const mostBookmarkedVersesRaw = await bookmark_model_1.Bookmark.aggregate([
-        { $group: { _id: { surah: '$surahNumber', ayah: '$ayahNumber' }, count: { $sum: 1 } } },
+        {
+            $group: {
+                _id: { surah: '$surahNumber', ayah: '$ayahNumber' },
+                count: { $sum: 1 },
+            },
+        },
         { $sort: { count: -1 } },
         { $limit: 5 },
     ]);
-    const mostBookmarkedVerses = mostBookmarkedVersesRaw.map((item) => ({
+    const mostBookmarkedVerses = mostBookmarkedVersesRaw.map(item => ({
         label: `Surah ${item._id.surah}, Ayah ${item._id.ayah}`,
         count: item.count,
     }));
@@ -81,7 +90,7 @@ const getAnalytics = async () => {
         { $sort: { count: -1 } },
         { $limit: 5 },
     ]);
-    const mostSearchedVerses = mostReadSurahsRaw.map((item) => ({
+    const mostSearchedVerses = mostReadSurahsRaw.map(item => ({
         label: `Surah ${item._id}`,
         count: item.count,
     }));
@@ -89,7 +98,7 @@ const getAnalytics = async () => {
         totalUsers,
         activeUsers7d,
         dailyActiveUsers,
-        appDownloads: totalUsers,
+        appDownloads: null,
         monthlyActiveUsersChart,
         mostViewedTranslations,
         mostSearchedVerses,
@@ -108,7 +117,9 @@ const getAnalytics = async () => {
 const getUserManagement = async () => {
     const totalUsers = await user_model_1.User.countDocuments();
     const activeUsers = await user_model_1.User.countDocuments({ status: user_1.USER_STATUS.ACTIVE });
-    const restrictedUsers = await user_model_1.User.countDocuments({ status: user_1.USER_STATUS.INACTIVE });
+    const restrictedUsers = await user_model_1.User.countDocuments({
+        status: user_1.USER_STATUS.INACTIVE,
+    });
     const bannedUsers = await user_model_1.User.countDocuments({ status: user_1.USER_STATUS.DELETED });
     const users = await user_model_1.User.find()
         .sort({ createdAt: -1 })
@@ -123,10 +134,12 @@ const getUserManagement = async () => {
     };
 };
 const getNotificationManagement = async () => {
-    const sentNotifications = await notification_model_1.Notification.countDocuments({ status: 'sent' });
-    const scheduledNotifications = await notification_model_1.Notification.countDocuments({ status: 'scheduled' });
-    const draftNotifications = await notification_model_1.Notification.countDocuments({ status: 'draft' });
-    const notifications = await notification_model_1.Notification.find().sort({ createdAt: -1 }).limit(10);
+    const sentNotifications = await notification_model_1.Notification.countDocuments();
+    const scheduledNotifications = 0;
+    const draftNotifications = 0;
+    const notifications = await notification_model_1.Notification.find()
+        .sort({ createdAt: -1 })
+        .limit(10);
     return {
         sentNotifications,
         scheduledNotifications,
@@ -134,32 +147,11 @@ const getNotificationManagement = async () => {
         notifications,
     };
 };
-const getReports = async () => {
-    const totalUsers = await user_model_1.User.countDocuments();
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const activeUsers = await user_model_1.User.countDocuments({ updatedAt: { $gte: sevenDaysAgo } });
-    const newUsers7d = await user_model_1.User.countDocuments({ createdAt: { $gte: sevenDaysAgo } });
-    // Real 7-day user activity from database
-    const userActivityLast7Days = [];
-    for (let i = 6; i >= 0; i--) {
-        const day = new Date();
-        day.setDate(day.getDate() - i);
-        day.setHours(0, 0, 0, 0);
-        const dayEnd = new Date(day);
-        dayEnd.setHours(23, 59, 59, 999);
-        const dateLabel = day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        const [newCount, activeCount] = await Promise.all([
-            user_model_1.User.countDocuments({ createdAt: { $gte: day, $lte: dayEnd } }),
-            user_model_1.User.countDocuments({ updatedAt: { $gte: day, $lte: dayEnd } }),
-        ]);
-        userActivityLast7Days.push({
-            date: dateLabel,
-            activeUsers: activeCount,
-            newUsers: newCount,
-        });
-    }
-    // Real feature usage stats
-    const [bCount, hCount, hadithCount, duaCount, packCount, totalVerseViews] = await Promise.all([
+const getReports = async (range = '7d') => {
+    const window = (0, report_range_1.getReportWindow)(range);
+    const [totalUsers, newUsers7d, bCount, hCount, hadithCount, duaCount, packCount, totalVerseViews,] = await Promise.all([
+        user_model_1.User.countDocuments(),
+        user_model_1.User.countDocuments({ createdAt: { $gte: window.start, $lt: window.end } }),
         bookmark_model_1.Bookmark.countDocuments(),
         highlight_model_1.Highlight.countDocuments(),
         hadith_model_1.Hadith.countDocuments({ isActive: true }),
@@ -167,32 +159,50 @@ const getReports = async () => {
         offline_pack_model_1.OfflinePack.countDocuments(),
         lastRead_model_1.LastRead.countDocuments(),
     ]);
-    const featureUsageStats = [
-        { label: 'Bookmarks', count: bCount },
-        { label: 'Highlights', count: hCount },
-        { label: 'Hadiths', count: hadithCount },
-        { label: 'Duas', count: duaCount },
-        { label: 'Offline Packs', count: packCount },
-    ];
-    const verifiedUsers = await user_model_1.User.countDocuments({ verified: true });
-    const unverifiedUsers = await user_model_1.User.countDocuments({ verified: false });
+    const userActivityLast7Days = [];
+    for (let time = window.start.getTime(); time < window.end.getTime(); time += 86400000) {
+        const day = new Date(time);
+        const next = new Date(time + 86400000);
+        const [newUsers, updatedUsers] = await Promise.all([
+            user_model_1.User.countDocuments({ createdAt: { $gte: day, $lt: next } }),
+            user_model_1.User.countDocuments({ updatedAt: { $gte: day, $lt: next } }),
+        ]);
+        userActivityLast7Days.push({
+            date: day.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                timeZone: 'UTC',
+            }),
+            newUsers,
+            updatedUsers,
+            activeUsers: null,
+        });
+    }
     return {
-        activeUsers,
-        totalDownloads: totalUsers,
+        activeUsers: null,
+        totalDownloads: null,
+        avgSessionTime: null,
         newUsers7d,
-        avgSessionTime: activeUsers > 0 ? `${Math.round(activeUsers / Math.max(1, totalUsers) * 100)}% active` : '0%',
         userActivityLast7Days,
-        featureUsageStats,
-        downloadsByPlatform: {
-            android: verifiedUsers,
-            ios: unverifiedUsers,
+        featureUsageStats: [
+            { label: 'Bookmarks', count: bCount },
+            { label: 'Highlights', count: hCount },
+            { label: 'Hadiths', count: hadithCount },
+            { label: 'Duas', count: duaCount },
+            { label: 'Offline Packs', count: packCount },
+        ],
+        downloadsByPlatform: null,
+        range: {
+            start: window.start.toISOString(),
+            end: window.end.toISOString(),
+            label: window.label,
         },
         reportSummary: {
             totalAppUsers: totalUsers,
             totalVerseViews,
             totalBookmarksCreated: bCount,
             totalHighlightsCreated: hCount,
-            avgDailyActiveUsers: activeUsers,
+            avgDailyActiveUsers: null,
         },
     };
 };

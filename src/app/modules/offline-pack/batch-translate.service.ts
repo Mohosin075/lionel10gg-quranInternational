@@ -12,140 +12,179 @@
  *  5. Admin calls POST /offline-pack/generate to create the .json.gz pack
  */
 
-import axios from 'axios';
-import FormData from 'form-data';
-import { Hadith } from '../hadith/hadith.model';
-import { Dua } from '../dua/dua.model';
-import { KnowledgeArticle } from '../knowledge-library/knowledge-library.model';
-import { Translation } from '../quran/quran.model';
-import { Tafsir } from '../tafsir/tafsir.model';
-import { KnowledgeBook } from '../knowledge-library/knowledge-book.model';
-import { KnowledgeFatwa } from '../knowledge-library/knowledge-fatwa.model';
-import { BatchJob } from './batch-job.model';
-import { SupportedModule } from './offline-pack.service';
+import axios, { AxiosResponse } from 'axios'
+import { Types, AnyBulkWriteOperation } from 'mongoose'
+interface TranslationSource {
+  _id: Types.ObjectId
+  title?: string
+  translation?: string
+  chapter?: string
+  category?: string
+  text?: string
+  content?: string
+  question?: string
+  answer?: string
+}
+const getApiError = (error: unknown) => {
+  if (axios.isAxiosError(error))
+    return {
+      message: error.response?.data?.error?.message || error.message,
+      status: error.response?.status || 500,
+      data: error.response?.data,
+    }
+  return {
+    message: error instanceof Error ? error.message : String(error),
+    status: 500,
+    data: undefined,
+  }
+}
 
-const OPENAI_API_URL = 'https://api.openai.com/v1';
-const MODEL = 'gpt-4o-mini';
+import FormData from 'form-data'
+import { Hadith } from '../hadith/hadith.model'
+import { Dua } from '../dua/dua.model'
+import { KnowledgeArticle } from '../knowledge-library/knowledge-library.model'
+import { Translation } from '../quran/quran.model'
+import { Tafsir } from '../tafsir/tafsir.model'
+import { KnowledgeBook } from '../knowledge-library/knowledge-book.model'
+import { KnowledgeFatwa } from '../knowledge-library/knowledge-fatwa.model'
+import { BatchJob } from './batch-job.model'
+import { SupportedModule } from './offline-pack.service'
+
+const OPENAI_API_URL = 'https://api.openai.com/v1'
+const MODEL = 'gpt-4o-mini'
 
 const authHeader = () => ({
   Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-});
+})
 
 // ─── Build system prompt ───────────────────────────────────────────────────────
 const buildTranslationPrompt = (targetLang: string): string =>
   `You are an expert Islamic scholar and professional translator. Translate the following Islamic religious text accurately into language code "${targetLang}".
 Preserve Islamic theological integrity, respect, and proper terminology.
 Keep any structural keys like TITLE:, CONTENT:, AYAH:, TAFSIR:, TRANSLATION:, QUESTION:, ANSWER:, CHAPTER:, CATEGORY: intact in your response.
-Return ONLY the translated formatted text, nothing else.`;
+Return ONLY the translated formatted text, nothing else.`
 
 // ─── Fetch source documents ────────────────────────────────────────────────────
 const getSourceDocs = async (module: SupportedModule) => {
-  let docs: any[] = [];
+  let docs: TranslationSource[]
   switch (module) {
     case 'hadith':
       docs = await Hadith.find({ lang: 'en', isActive: true })
-        .select('_id hadithNo translation chapter category source authenticity arabicText')
-        .lean();
+        .select(
+          '_id hadithNo translation chapter category source authenticity arabicText',
+        )
+        .lean()
       if (docs.length === 0) {
         docs = await Hadith.find({ isActive: true })
-          .select('_id hadithNo translation chapter category source authenticity arabicText')
-          .lean();
+          .select(
+            '_id hadithNo translation chapter category source authenticity arabicText',
+          )
+          .lean()
       }
-      break;
+      break
     case 'dua':
       docs = await Dua.find({ lang: 'en' })
-        .select('_id externalId title translation transliteration category reference arabic')
-        .lean();
+        .select(
+          '_id externalId title translation transliteration category reference arabic',
+        )
+        .lean()
       if (docs.length === 0) {
         docs = await Dua.find()
-          .select('_id externalId title translation transliteration category reference arabic')
-          .lean();
+          .select(
+            '_id externalId title translation transliteration category reference arabic',
+          )
+          .lean()
       }
-      break;
+      break
     case 'knowledge':
       docs = await KnowledgeArticle.find({ lang: 'en' })
-        .select('_id articleId slug title content category source readTime imageUrl audioUrl')
-        .lean();
+        .select(
+          '_id articleId slug title content category source readTime imageUrl audioUrl',
+        )
+        .lean()
       if (docs.length === 0) {
         docs = await KnowledgeArticle.find()
-          .select('_id articleId slug title content category source readTime imageUrl audioUrl')
-          .lean();
+          .select(
+            '_id articleId slug title content category source readTime imageUrl audioUrl',
+          )
+          .lean()
       }
-      break;
+      break
     case 'quran':
       docs = await Translation.find({ lang: 'en' })
         .select('_id surah ayah text arabicText footnotes edition')
-        .lean();
+        .lean()
       if (docs.length === 0) {
         docs = await Translation.find()
           .select('_id surah ayah text arabicText footnotes edition')
-          .lean();
+          .lean()
       }
-      break;
+      break
     case 'tafsir':
       docs = await Tafsir.find({ lang: 'en' })
         .select('_id surah ayah text edition')
-        .lean();
+        .lean()
       if (docs.length === 0) {
-        docs = await Tafsir.find()
-          .select('_id surah ayah text edition')
-          .lean();
+        docs = await Tafsir.find().select('_id surah ayah text edition').lean()
       }
-      break;
+      break
     case 'book':
       docs = await KnowledgeBook.find({ lang: 'en' })
         .select('_id bookId title author content source lang')
-        .lean();
+        .lean()
       if (docs.length === 0) {
         docs = await KnowledgeBook.find()
           .select('_id bookId title author content source lang')
-          .lean();
+          .lean()
       }
-      break;
+      break
     case 'fatwa':
       docs = await KnowledgeFatwa.find({ lang: 'en' })
         .select('_id fatwaId question answer scholar lang')
-        .lean();
+        .lean()
       if (docs.length === 0) {
         docs = await KnowledgeFatwa.find()
           .select('_id fatwaId question answer scholar lang')
-          .lean();
+          .lean()
       }
-      break;
+      break
     default:
-      throw new Error(`Unsupported module: ${module}`);
+      throw new Error(`Unsupported module: ${module}`)
   }
-  return docs;
-};
+  return docs
+}
 
 // ─── Build JSONL batch request payload ────────────────────────────────────────
 const buildBatchJsonl = (
-  docs: any[],
+  docs: TranslationSource[],
   module: SupportedModule,
   targetLang: string,
 ): string => {
-  const lines: string[] = [];
+  const lines: string[] = []
 
   for (const doc of docs) {
     // Determine text fields to translate per module
-    let textToTranslate: string;
+    let textToTranslate: string
     if (module === 'hadith') {
-      textToTranslate = `TRANSLATION: ${doc.translation}\nCHAPTER: ${doc.chapter}\nCATEGORY: ${doc.category}`;
+      textToTranslate = `TRANSLATION: ${doc.translation}\nCHAPTER: ${doc.chapter}\nCATEGORY: ${doc.category}`
     } else if (module === 'dua') {
-      textToTranslate = `TITLE: ${doc.title}\nTRANSLATION: ${doc.translation}`;
+      textToTranslate = `TITLE: ${doc.title}\nTRANSLATION: ${doc.translation}`
     } else if (module === 'quran') {
-      textToTranslate = `AYAH: ${doc.text}`;
+      textToTranslate = `AYAH: ${doc.text}`
     } else if (module === 'tafsir') {
-      textToTranslate = `TAFSIR: ${doc.text}`;
+      textToTranslate = `TAFSIR: ${doc.text}`
     } else if (module === 'book') {
-      const contentSnippet = (doc.content || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').slice(0, 1500);
-      textToTranslate = `TITLE: ${doc.title}\nCONTENT: ${contentSnippet}`;
+      const contentSnippet = (doc.content || '')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .slice(0, 1500)
+      textToTranslate = `TITLE: ${doc.title}\nCONTENT: ${contentSnippet}`
     } else if (module === 'fatwa') {
-      textToTranslate = `QUESTION: ${doc.question}\nANSWER: ${(doc.answer || '').slice(0, 2000)}`;
+      textToTranslate = `QUESTION: ${doc.question}\nANSWER: ${(doc.answer || '').slice(0, 2000)}`
     } else {
       // Knowledge: translate title + first 2000 chars of content (to stay within token limit)
-      const contentSnippet = (doc.content || '').slice(0, 2000);
-      textToTranslate = `TITLE: ${doc.title}\nCONTENT: ${contentSnippet}`;
+      const contentSnippet = (doc.content || '').slice(0, 2000)
+      textToTranslate = `TITLE: ${doc.title}\nCONTENT: ${contentSnippet}`
     }
 
     const request = {
@@ -160,65 +199,81 @@ const buildBatchJsonl = (
           { role: 'user', content: textToTranslate },
         ],
       },
-    };
-    lines.push(JSON.stringify(request));
+    }
+    lines.push(JSON.stringify(request))
   }
 
-  return lines.join('\n');
-};
+  return lines.join('\n')
+}
 
 // ─── Upload JSONL file to OpenAI ──────────────────────────────────────────────
 const uploadBatchFile = async (jsonlContent: string): Promise<string> => {
-  const formData = new FormData();
-  formData.append('purpose', 'batch');
+  const formData = new FormData()
+  formData.append('purpose', 'batch')
   formData.append('file', Buffer.from(jsonlContent, 'utf8'), {
     filename: 'batch_requests.jsonl',
     contentType: 'application/jsonl',
-  });
+  })
 
   try {
     const res = await axios.post(`${OPENAI_API_URL}/files`, formData, {
       headers: { ...authHeader(), ...formData.getHeaders() },
-    });
-    return res.data.id; // file_id
-  } catch (err: any) {
-    const openAiMsg = err?.response?.data?.error?.message || err?.message;
-    throw new Error(`OpenAI API Error (${err?.response?.status || 500}): ${openAiMsg}`);
+    })
+    return res.data.id // file_id
+  } catch (err: unknown) {
+    const openAiMsg = getApiError(err).message
+    const wrapped = new Error(
+      `OpenAI API Error (${getApiError(err).status}): ${openAiMsg}`,
+    )
+    Object.defineProperty(wrapped, 'cause', { value: err })
+    throw wrapped
   }
-};
+}
 
 // ─── Create OpenAI Batch Job ──────────────────────────────────────────────────
 const createBatchJob = async (
   module: SupportedModule,
   targetLang: string,
-): Promise<{ jobId: string; fileId: string; recordCount: number; estimatedMinutes: number }> => {
+): Promise<{
+  jobId: string
+  fileId: string
+  recordCount: number
+  estimatedMinutes: number
+}> => {
   if (!process.env.OPENAI_API_KEY) {
-    throw new Error('OPENAI_API_KEY not set in environment variables.');
+    throw new Error('OPENAI_API_KEY not set in environment variables.')
   }
 
   if (targetLang.toLowerCase() === 'en') {
-    throw new Error('English is the primary source language and does not require translation.');
+    throw new Error(
+      'English is the primary source language and does not require translation.',
+    )
   }
 
   const existingActiveJob = await BatchJob.findOne({
     module,
     targetLang,
     status: { $in: ['in_progress', 'validating', 'finalizing'] },
-  });
+  })
   if (existingActiveJob) {
-    throw new Error(`An active translation job is already running for ${module.toUpperCase()} [${targetLang}]. Please wait for it to complete.`);
+    throw new Error(
+      `An active translation job is already running for ${module.toUpperCase()} [${targetLang}]. Please wait for it to complete.`,
+    )
   }
 
-  const docs = await getSourceDocs(module);
-  if (docs.length === 0) throw new Error(`No source documents found in database for module "${module}". Please add or seed initial content for ${module} first.`);
+  const docs = await getSourceDocs(module)
+  if (docs.length === 0)
+    throw new Error(
+      `No source documents found in database for module "${module}". Please add or seed initial content for ${module} first.`,
+    )
 
-  const jsonl = buildBatchJsonl(docs, module, targetLang);
+  const jsonl = buildBatchJsonl(docs, module, targetLang)
 
   // 1. Upload JSONL file
-  const fileId = await uploadBatchFile(jsonl);
+  const fileId = await uploadBatchFile(jsonl)
 
   // 2. Create batch
-  let batchRes: any;
+  let batchRes: AxiosResponse<{ id: string }>
   try {
     batchRes = await axios.post(
       `${OPENAI_API_URL}/batches`,
@@ -229,14 +284,18 @@ const createBatchJob = async (
         metadata: { module, targetLang, recordCount: String(docs.length) },
       },
       { headers: authHeader() },
-    );
-  } catch (err: any) {
-    const openAiMsg = err?.response?.data?.error?.message || err?.message;
-    throw new Error(`OpenAI Batch Creation Failed (${err?.response?.status || 500}): ${openAiMsg}`);
+    )
+  } catch (err: unknown) {
+    const openAiMsg = getApiError(err).message
+    const wrapped = new Error(
+      `OpenAI Batch Creation Failed (${getApiError(err).status}): ${openAiMsg}`,
+    )
+    Object.defineProperty(wrapped, 'cause', { value: err })
+    throw wrapped
   }
 
-  const batchId = batchRes.data.id;
-  const estimatedMinutes = Math.ceil(docs.length / 500); // rough estimate
+  const batchId = batchRes.data.id
+  const estimatedMinutes = Math.ceil(docs.length / 500) // rough estimate
 
   // 3. Persist job record
   await BatchJob.create({
@@ -247,18 +306,20 @@ const createBatchJob = async (
     status: 'in_progress',
     recordCount: docs.length,
     processedCount: 0,
-  });
+  })
 
-  console.log(`[BatchTranslate] ✅ Batch job created: ${batchId} | module=${module} lang=${targetLang} | ${docs.length} records`);
-  return { jobId: batchId, fileId, recordCount: docs.length, estimatedMinutes };
-};
+  console.log(
+    `[BatchTranslate] ✅ Batch job created: ${batchId} | module=${module} lang=${targetLang} | ${docs.length} records`,
+  )
+  return { jobId: batchId, fileId, recordCount: docs.length, estimatedMinutes }
+}
 
 // ─── Check Batch Job Status ────────────────────────────────────────────────────
 const checkBatchStatus = async (jobId: string) => {
   const res = await axios.get(`${OPENAI_API_URL}/batches/${jobId}`, {
     headers: authHeader(),
-  });
-  const batch = res.data;
+  })
+  const batch = res.data
 
   // Update our local record
   await BatchJob.findOneAndUpdate(
@@ -269,7 +330,7 @@ const checkBatchStatus = async (jobId: string) => {
       outputFileId: batch.output_file_id || undefined,
       errorFileId: batch.error_file_id || undefined,
     },
-  );
+  )
 
   return {
     jobId,
@@ -279,47 +340,66 @@ const checkBatchStatus = async (jobId: string) => {
     errorFileId: batch.error_file_id,
     createdAt: batch.created_at,
     completedAt: batch.completed_at,
-  };
-};
+  }
+}
 
 // ─── Process Completed Batch → Save to MongoDB ───────────────────────────────
-const processBatchResult = async (jobId: string): Promise<{ savedCount: number; errorCount: number }> => {
-  const localJob = await BatchJob.findOne({ batchId: jobId });
-  if (!localJob) throw new Error(`Batch job "${jobId}" not found in database.`);
-  if (!localJob.outputFileId) throw new Error(`Batch "${jobId}" has no output file yet. Check status first.`);
+const processBatchResult = async (
+  jobId: string,
+): Promise<{ savedCount: number; errorCount: number }> => {
+  const localJob = await BatchJob.findOne({ batchId: jobId })
+  if (!localJob) throw new Error(`Batch job "${jobId}" not found in database.`)
+  if (!localJob.outputFileId)
+    throw new Error(
+      `Batch "${jobId}" has no output file yet. Check status first.`,
+    )
 
-  const module = localJob.module as SupportedModule;
-  const targetLang = localJob.targetLang;
+  const module = localJob.module as SupportedModule
+  const targetLang = localJob.targetLang
 
   // Download output JSONL
-  const fileRes = await axios.get(`${OPENAI_API_URL}/files/${localJob.outputFileId}/content`, {
-    headers: authHeader(),
-    responseType: 'text',
-  });
+  const fileRes = await axios.get(
+    `${OPENAI_API_URL}/files/${localJob.outputFileId}/content`,
+    {
+      headers: authHeader(),
+      responseType: 'text',
+    },
+  )
 
-  const lines = (fileRes.data as string).split('\n').filter((l) => l.trim());
-  let savedCount = 0;
-  let errorCount = 0;
+  const lines = (fileRes.data as string).split('\n').filter(l => l.trim())
+  let savedCount = 0
+  let errorCount = 0
 
-  const bulkOps: any[] = [];
+  const bulkOps: AnyBulkWriteOperation<Record<string, unknown>>[] = []
 
   for (const line of lines) {
     try {
-      const result = JSON.parse(line);
-      if (result.error) { errorCount++; continue; }
+      const result = JSON.parse(line)
+      if (result.error) {
+        errorCount++
+        continue
+      }
 
-      const docId = result.custom_id;
-      const translatedText: string = result.response?.body?.choices?.[0]?.message?.content || '';
-      if (!translatedText) { errorCount++; continue; }
+      const docId = result.custom_id
+      const translatedText: string =
+        result.response?.body?.choices?.[0]?.message?.content || ''
+      if (!translatedText) {
+        errorCount++
+        continue
+      }
 
       if (module === 'hadith') {
         // Parse structured response
-        const translationMatch = translatedText.match(/TRANSLATION:\s*([\s\S]*?)(?:\nCHAPTER:|$)/);
-        const chapterMatch = translatedText.match(/CHAPTER:\s*([\s\S]*?)(?:\nCATEGORY:|$)/);
-        const categoryMatch = translatedText.match(/CATEGORY:\s*([\s\S]*?)$/);
+        const translationMatch = translatedText.match(
+          /TRANSLATION:\s*([\s\S]*?)(?:\nCHAPTER:|$)/,
+        )
+        const chapterMatch = translatedText.match(
+          /CHAPTER:\s*([\s\S]*?)(?:\nCATEGORY:|$)/,
+        )
+        const categoryMatch = translatedText.match(/CATEGORY:\s*([\s\S]*?)$/)
 
-        const sourceDoc = await Hadith.findById(docId).lean();
-        if (!sourceDoc) continue;
+        const sourceDoc = await Hadith.findById(docId).lean()
+        if (!sourceDoc) continue
 
         bulkOps.push({
           updateOne: {
@@ -340,43 +420,71 @@ const processBatchResult = async (jobId: string): Promise<{ savedCount: number; 
             },
             upsert: true,
           },
-        });
+        })
       } else if (module === 'dua') {
-        const titleMatch = translatedText.match(/(?:TITLE|Title|শিরোনাম|TITRE|TITEL|TÍTULO):\s*([\s\S]*?)(?:\n(?:TRANSLATION|Translation|অনুবাদ|TRADUCTION|ÜBERSETZUNG|TRADUCCIÓN):|$)/i);
-        const translationMatch = translatedText.match(/(?:TRANSLATION|Translation|অনুবাদ|TRADUCTION|ÜBERSETZUNG|TRADUCCIÓN):\s*([\s\S]*?)$/i);
+        const titleMatch = translatedText.match(
+          /(?:TITLE|Title|শিরোনাম|TITRE|TITEL|TÍTULO):\s*([\s\S]*?)(?:\n(?:TRANSLATION|Translation|অনুবাদ|TRADUCTION|ÜBERSETZUNG|TRADUCCIÓN):|$)/i,
+        )
+        const translationMatch = translatedText.match(
+          /(?:TRANSLATION|Translation|অনুবাদ|TRADUCTION|ÜBERSETZUNG|TRADUCCIÓN):\s*([\s\S]*?)$/i,
+        )
 
-        const sourceDoc = await Dua.findById(docId).lean();
-        if (!sourceDoc) continue;
+        const sourceDoc = await Dua.findById(docId).lean()
+        if (!sourceDoc) continue
 
-        let title = titleMatch?.[1]?.trim();
-        let translation = translationMatch?.[1]?.trim();
+        let title = titleMatch?.[1]?.trim()
+        let translation = translationMatch?.[1]?.trim()
 
         if (!title || !translation) {
-          const parts = translatedText.split('\n\n');
+          const parts = translatedText.split('\n\n')
           if (parts.length >= 2) {
-            title = title || parts[0].replace(/^(?:TITLE|Title|শিরোনাম|TITRE):\s*/i, '').trim();
-            translation = translation || parts.slice(1).join('\n\n').replace(/^(?:TRANSLATION|Translation|অনুবাদ|TRADUCTION):\s*/i, '').trim();
+            title =
+              title ||
+              parts[0].replace(/^(?:TITLE|Title|শিরোনাম|TITRE):\s*/i, '').trim()
+            translation =
+              translation ||
+              parts
+                .slice(1)
+                .join('\n\n')
+                .replace(
+                  /^(?:TRANSLATION|Translation|অনুবাদ|TRADUCTION):\s*/i,
+                  '',
+                )
+                .trim()
           } else {
-            const lines = translatedText.split('\n');
+            const lines = translatedText.split('\n')
             if (lines.length >= 2) {
-              title = title || lines[0].replace(/^(?:TITLE|Title|শিরোনাম|TITRE):\s*/i, '').trim();
-              translation = translation || lines.slice(1).join('\n').replace(/^(?:TRANSLATION|Translation|অনুবাদ|TRADUCTION):\s*/i, '').trim();
+              title =
+                title ||
+                lines[0]
+                  .replace(/^(?:TITLE|Title|শিরোনাম|TITRE):\s*/i, '')
+                  .trim()
+              translation =
+                translation ||
+                lines
+                  .slice(1)
+                  .join('\n')
+                  .replace(
+                    /^(?:TRANSLATION|Translation|অনুবাদ|TRADUCTION):\s*/i,
+                    '',
+                  )
+                  .trim()
             } else {
-              title = title || sourceDoc.title;
-              translation = translation || translatedText;
+              title = title || sourceDoc.title
+              translation = translation || translatedText
             }
           }
         }
 
         if (title === sourceDoc.title && translation.includes(':')) {
-          const colonIdx = translation.indexOf(':');
-          title = translation.slice(0, colonIdx).trim();
-          translation = translation.slice(colonIdx + 1).trim();
+          const colonIdx = translation.indexOf(':')
+          title = translation.slice(0, colonIdx).trim()
+          translation = translation.slice(colonIdx + 1).trim()
         }
 
         const filter = sourceDoc.externalId
           ? { externalId: sourceDoc.externalId, lang: targetLang }
-          : { arabic: sourceDoc.arabic, lang: targetLang };
+          : { arabic: sourceDoc.arabic, lang: targetLang }
 
         bulkOps.push({
           updateOne: {
@@ -398,25 +506,29 @@ const processBatchResult = async (jobId: string): Promise<{ savedCount: number; 
             },
             upsert: true,
           },
-        });
+        })
       } else if (module === 'knowledge') {
-        const titleMatch = translatedText.match(/(?:TITLE|Title|শিরোনাম|TITRE):\s*([\s\S]*?)(?:\n(?:CONTENT|Content|বিষয়বস্তু|CONTENU):|$)/i);
-        const contentMatch = translatedText.match(/(?:CONTENT|Content|বিষয়বস্তু|CONTENU):\s*([\s\S]*?)$/i);
+        const titleMatch = translatedText.match(
+          /(?:TITLE|Title|শিরোনাম|TITRE):\s*([\s\S]*?)(?:\n(?:CONTENT|Content|বিষয়বস্তু|CONTENU):|$)/i,
+        )
+        const contentMatch = translatedText.match(
+          /(?:CONTENT|Content|বিষয়বস্তু|CONTENU):\s*([\s\S]*?)$/i,
+        )
 
-        const sourceDoc = await KnowledgeArticle.findById(docId).lean();
-        if (!sourceDoc) continue;
+        const sourceDoc = await KnowledgeArticle.findById(docId).lean()
+        if (!sourceDoc) continue
 
-        let title = titleMatch?.[1]?.trim();
-        let content = contentMatch?.[1]?.trim();
+        let title = titleMatch?.[1]?.trim()
+        let content = contentMatch?.[1]?.trim()
 
         if (!title || !content) {
-          const parts = translatedText.split('\n\n');
+          const parts = translatedText.split('\n\n')
           if (parts.length >= 2) {
-            title = title || parts[0].trim();
-            content = content || parts.slice(1).join('\n\n').trim();
+            title = title || parts[0].trim()
+            content = content || parts.slice(1).join('\n\n').trim()
           } else {
-            title = title || sourceDoc.title;
-            content = content || translatedText;
+            title = title || sourceDoc.title
+            content = content || translatedText
           }
         }
 
@@ -441,15 +553,22 @@ const processBatchResult = async (jobId: string): Promise<{ savedCount: number; 
             },
             upsert: true,
           },
-        });
+        })
       } else if (module === 'quran') {
-        const ayahMatch = translatedText.match(/(?:AYAH|Ayah|আয়াত):\s*([\s\S]*?)$/i);
-        const sourceDoc = await Translation.findById(docId).lean();
-        if (!sourceDoc) continue;
-        const text = ayahMatch?.[1]?.trim() || translatedText.trim();
+        const ayahMatch = translatedText.match(
+          /(?:AYAH|Ayah|আয়াত):\s*([\s\S]*?)$/i,
+        )
+        const sourceDoc = await Translation.findById(docId).lean()
+        if (!sourceDoc) continue
+        const text = ayahMatch?.[1]?.trim() || translatedText.trim()
         bulkOps.push({
           updateOne: {
-            filter: { surah: sourceDoc.surah, ayah: sourceDoc.ayah, lang: targetLang, edition: `translated_${targetLang}` },
+            filter: {
+              surah: sourceDoc.surah,
+              ayah: sourceDoc.ayah,
+              lang: targetLang,
+              edition: `translated_${targetLang}`,
+            },
             update: {
               $set: {
                 surah: sourceDoc.surah,
@@ -464,15 +583,22 @@ const processBatchResult = async (jobId: string): Promise<{ savedCount: number; 
             },
             upsert: true,
           },
-        });
+        })
       } else if (module === 'tafsir') {
-        const tafsirMatch = translatedText.match(/(?:TAFSIR|Tafsir|তাফসীর):\s*([\s\S]*?)$/i);
-        const sourceDoc = await Tafsir.findById(docId).lean();
-        if (!sourceDoc) continue;
-        const text = tafsirMatch?.[1]?.trim() || translatedText.trim();
+        const tafsirMatch = translatedText.match(
+          /(?:TAFSIR|Tafsir|তাফসীর):\s*([\s\S]*?)$/i,
+        )
+        const sourceDoc = await Tafsir.findById(docId).lean()
+        if (!sourceDoc) continue
+        const text = tafsirMatch?.[1]?.trim() || translatedText.trim()
         bulkOps.push({
           updateOne: {
-            filter: { surah: sourceDoc.surah, ayah: sourceDoc.ayah, lang: targetLang, edition: `translated_${targetLang}` },
+            filter: {
+              surah: sourceDoc.surah,
+              ayah: sourceDoc.ayah,
+              lang: targetLang,
+              edition: `translated_${targetLang}`,
+            },
             update: {
               $set: {
                 surah: sourceDoc.surah,
@@ -485,20 +611,24 @@ const processBatchResult = async (jobId: string): Promise<{ savedCount: number; 
             },
             upsert: true,
           },
-        });
+        })
       } else if (module === 'book') {
-        const titleMatch = translatedText.match(/(?:TITLE|Title):\s*([\s\S]*?)(?:\n(?:CONTENT|Content|DESCRIPTION|Description):|$)/i);
-        const contentMatch = translatedText.match(/(?:CONTENT|Content|DESCRIPTION|Description):\s*([\s\S]*?)$/i);
-        const sourceDoc = await KnowledgeBook.findById(docId).lean();
-        if (!sourceDoc) continue;
-        let title = titleMatch?.[1]?.trim() || sourceDoc.title;
-        title = title.replace(/(?:DESCRIPTION|CONTENT|বিবরণ):.*$/is, '').trim();
-        if (!title) title = sourceDoc.title;
+        const titleMatch = translatedText.match(
+          /(?:TITLE|Title):\s*([\s\S]*?)(?:\n(?:CONTENT|Content|DESCRIPTION|Description):|$)/i,
+        )
+        const contentMatch = translatedText.match(
+          /(?:CONTENT|Content|DESCRIPTION|Description):\s*([\s\S]*?)$/i,
+        )
+        const sourceDoc = await KnowledgeBook.findById(docId).lean()
+        if (!sourceDoc) continue
+        let title = titleMatch?.[1]?.trim() || sourceDoc.title
+        title = title.replace(/(?:DESCRIPTION|CONTENT|বিবরণ):.*$/is, '').trim()
+        if (!title) title = sourceDoc.title
 
-        let content = contentMatch?.[1]?.trim() || '';
+        let content = contentMatch?.[1]?.trim() || ''
         // If content is empty or contains raw prompt markers, preserve sourceDoc.content
         if (!content || /^title:/i.test(content) || content.length < 5) {
-          content = sourceDoc.content || '';
+          content = sourceDoc.content || ''
         }
         bulkOps.push({
           updateOne: {
@@ -517,14 +647,16 @@ const processBatchResult = async (jobId: string): Promise<{ savedCount: number; 
             },
             upsert: true,
           },
-        });
+        })
       } else if (module === 'fatwa') {
-        const qMatch = translatedText.match(/(?:QUESTION|Question):\s*([\s\S]*?)(?:\n(?:ANSWER|Answer):|$)/i);
-        const aMatch = translatedText.match(/(?:ANSWER|Answer):\s*([\s\S]*?)$/i);
-        const sourceDoc = await KnowledgeFatwa.findById(docId).lean();
-        if (!sourceDoc) continue;
-        const question = qMatch?.[1]?.trim() || sourceDoc.question;
-        const answer = aMatch?.[1]?.trim() || translatedText.trim();
+        const qMatch = translatedText.match(
+          /(?:QUESTION|Question):\s*([\s\S]*?)(?:\n(?:ANSWER|Answer):|$)/i,
+        )
+        const aMatch = translatedText.match(/(?:ANSWER|Answer):\s*([\s\S]*?)$/i)
+        const sourceDoc = await KnowledgeFatwa.findById(docId).lean()
+        if (!sourceDoc) continue
+        const question = qMatch?.[1]?.trim() || sourceDoc.question
+        const answer = aMatch?.[1]?.trim() || translatedText.trim()
         bulkOps.push({
           updateOne: {
             filter: { fatwaId: sourceDoc.fatwaId, lang: targetLang },
@@ -541,53 +673,61 @@ const processBatchResult = async (jobId: string): Promise<{ savedCount: number; 
             },
             upsert: true,
           },
-        });
+        })
       }
 
-      savedCount++;
+      savedCount++
     } catch (err) {
-      errorCount++;
-      console.error(`[BatchTranslate] Error processing result line:`, err);
+      errorCount++
+      console.error(`[BatchTranslate] Error processing result line:`, err)
     }
   }
 
   // Bulk write in chunks of 1000
-  const CHUNK = 1000;
+  const CHUNK = 1000
   for (let i = 0; i < bulkOps.length; i += CHUNK) {
-    const chunk = bulkOps.slice(i, i + CHUNK);
-    if (module === 'hadith') await Hadith.bulkWrite(chunk);
-    else if (module === 'dua') await Dua.bulkWrite(chunk);
-    else if (module === 'knowledge') await KnowledgeArticle.bulkWrite(chunk);
-    else if (module === 'quran') await Translation.bulkWrite(chunk);
-    else if (module === 'tafsir') await Tafsir.bulkWrite(chunk);
-    else if (module === 'book') await KnowledgeBook.bulkWrite(chunk);
-    else if (module === 'fatwa') await KnowledgeFatwa.bulkWrite(chunk);
+    const chunk = bulkOps.slice(i, i + CHUNK)
+    if (module === 'hadith') await Hadith.bulkWrite(chunk)
+    else if (module === 'dua') await Dua.bulkWrite(chunk)
+    else if (module === 'knowledge') await KnowledgeArticle.bulkWrite(chunk)
+    else if (module === 'quran') await Translation.bulkWrite(chunk)
+    else if (module === 'tafsir') await Tafsir.bulkWrite(chunk)
+    else if (module === 'book') await KnowledgeBook.bulkWrite(chunk)
+    else if (module === 'fatwa') await KnowledgeFatwa.bulkWrite(chunk)
   }
 
   // Mark job as processed
-  await BatchJob.findOneAndUpdate({ batchId: jobId }, { status: 'processed', processedCount: savedCount });
+  await BatchJob.findOneAndUpdate(
+    { batchId: jobId },
+    { status: 'processed', processedCount: savedCount },
+  )
 
-  console.log(`[BatchTranslate] ✅ Processed job ${jobId}: saved=${savedCount} errors=${errorCount}`);
-  return { savedCount, errorCount };
-};
+  console.log(
+    `[BatchTranslate] ✅ Processed job ${jobId}: saved=${savedCount} errors=${errorCount}`,
+  )
+  return { savedCount, errorCount }
+}
 
 const listBatchJobs = async () => {
   // Auto-sync status with OpenAI for any active jobs!
   if (process.env.OPENAI_API_KEY) {
     const activeJobs = await BatchJob.find({
       status: { $in: ['in_progress', 'validating', 'finalizing'] },
-    }).limit(10);
+    }).limit(10)
 
     for (const job of activeJobs) {
       try {
-        const res = await axios.get(`${OPENAI_API_URL}/batches/${job.batchId}`, {
-          headers: authHeader(),
-          timeout: 7000,
-        });
-        const batch = res.data;
-        const newStatus = batch.status;
-        const completedCount = batch.request_counts?.completed || 0;
-        const outputFileId = batch.output_file_id || job.outputFileId;
+        const res = await axios.get(
+          `${OPENAI_API_URL}/batches/${job.batchId}`,
+          {
+            headers: authHeader(),
+            timeout: 7000,
+          },
+        )
+        const batch = res.data
+        const newStatus = batch.status
+        const completedCount = batch.request_counts?.completed || 0
+        const outputFileId = batch.output_file_id || job.outputFileId
 
         await BatchJob.findOneAndUpdate(
           { batchId: job.batchId },
@@ -597,25 +737,31 @@ const listBatchJobs = async () => {
             outputFileId,
             errorFileId: batch.error_file_id,
           },
-        );
+        )
 
         // If batch completed on OpenAI, auto-process into database!
         if (newStatus === 'completed' && outputFileId) {
           try {
-            await processBatchResult(job.batchId);
+            await processBatchResult(job.batchId)
           } catch (pErr) {
-            console.error(`[BatchTranslate] Auto-process error for ${job.batchId}:`, pErr);
+            console.error(
+              `[BatchTranslate] Auto-process error for ${job.batchId}:`,
+              pErr,
+            )
           }
         }
-      } catch (pollErr: any) {
+      } catch (pollErr: unknown) {
         // Continue silently if rate-limited or transient network error
-        console.warn(`[BatchTranslate] Poll error for ${job.batchId}:`, pollErr?.message);
+        console.warn(
+          `[BatchTranslate] Poll error for ${job.batchId}:`,
+          getApiError(pollErr).message,
+        )
       }
     }
   }
 
-  return await BatchJob.find({}).sort({ createdAt: -1 }).limit(100).lean();
-};
+  return await BatchJob.find({}).sort({ createdAt: -1 }).limit(100).lean()
+}
 
 const cancelBatchJob = async (jobId: string) => {
   if (process.env.OPENAI_API_KEY) {
@@ -623,21 +769,26 @@ const cancelBatchJob = async (jobId: string) => {
       await axios.post(
         `${OPENAI_API_URL}/batches/${jobId}/cancel`,
         {},
-        { headers: authHeader(), timeout: 7000 }
-      );
-      console.log(`[BatchTranslate] OpenAI batch ${jobId} cancellation requested.`);
-    } catch (err: any) {
-      console.warn(`[BatchTranslate] OpenAI cancel call note:`, err?.response?.data || err?.message);
+        { headers: authHeader(), timeout: 7000 },
+      )
+      console.log(
+        `[BatchTranslate] OpenAI batch ${jobId} cancellation requested.`,
+      )
+    } catch (err: unknown) {
+      console.warn(
+        `[BatchTranslate] OpenAI cancel call note:`,
+        getApiError(err).data || getApiError(err).message,
+      )
     }
   }
 
   const job = await BatchJob.findOneAndUpdate(
     { batchId: jobId },
     { status: 'cancelled', updatedAt: new Date() },
-    { new: true }
-  );
-  return job;
-};
+    { new: true },
+  )
+  return job
+}
 
 export const BatchTranslateService = {
   createBatchJob,
@@ -645,5 +796,4 @@ export const BatchTranslateService = {
   processBatchResult,
   listBatchJobs,
   cancelBatchJob,
-};
-
+}

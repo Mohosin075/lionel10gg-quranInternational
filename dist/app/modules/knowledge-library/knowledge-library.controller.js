@@ -13,7 +13,13 @@ const getAllArticles = (0, catchAsync_1.default)(async (req, res) => {
     const category = req.query.category;
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
-    const result = await knowledge_library_service_1.KnowledgeLibraryServices.getAllArticles(lang, category, page, limit);
+    const result = await knowledge_library_service_1.KnowledgeLibraryServices.getAllArticles(lang, category, page, limit, {
+        strictLang: req.query.strictLang === 'true',
+        searchTerm: typeof req.query.searchTerm === 'string'
+            ? req.query.searchTerm
+            : undefined,
+        source: typeof req.query.source === 'string' ? req.query.source : undefined,
+    });
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_codes_1.StatusCodes.OK,
         success: true,
@@ -103,7 +109,12 @@ const getAllBooks = (0, catchAsync_1.default)(async (req, res) => {
     const lang = req.query.lang || 'de';
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
-    const result = await knowledge_library_service_1.KnowledgeLibraryServices.getAllBooks(lang, page, limit);
+    const result = await knowledge_library_service_1.KnowledgeLibraryServices.getAllBooks(lang, page, limit, {
+        strictLang: req.query.strictLang === 'true',
+        searchTerm: typeof req.query.searchTerm === 'string'
+            ? req.query.searchTerm
+            : undefined,
+    });
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_codes_1.StatusCodes.OK,
         success: true,
@@ -159,7 +170,12 @@ const getAllFatwas = (0, catchAsync_1.default)(async (req, res) => {
     const lang = req.query.lang || 'de';
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
-    const result = await knowledge_library_service_1.KnowledgeLibraryServices.getAllFatwas(lang, page, limit);
+    const result = await knowledge_library_service_1.KnowledgeLibraryServices.getAllFatwas(lang, page, limit, {
+        strictLang: req.query.strictLang === 'true',
+        searchTerm: typeof req.query.searchTerm === 'string'
+            ? req.query.searchTerm
+            : undefined,
+    });
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_codes_1.StatusCodes.OK,
         success: true,

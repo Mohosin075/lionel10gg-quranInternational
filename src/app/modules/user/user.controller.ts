@@ -16,7 +16,10 @@ const updateProfile = catchAsync(async (req: Request, res: Response) => {
   const { images, ...userData } = req.body
 
   if (images) {
-    userData.profile = Array.isArray(images) ? images[0] : images
+    userData.profile = (Array.isArray(images) ? images[0] : images).replace(
+      /^\/uploads\/images\//,
+      '/images/',
+    )
   }
   const result = await UserServices.updateProfile(req.user!, userData)
   sendResponse<string>(res, {

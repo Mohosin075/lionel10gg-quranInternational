@@ -89,9 +89,17 @@ const generateAndUploadPack = async (module, lang) => {
     const data = await getModuleData(module, lang);
     if (data.length === 0)
         throw new Error(`No data found in database for module "${module}" and language "${lang}". Please ensure content is added or translated first.`);
-    const existing = await offline_pack_model_1.OfflinePack.findOne({ module, lang }).sort({ version: -1 });
+    const existing = await offline_pack_model_1.OfflinePack.findOne({ module, lang }).sort({
+        version: -1,
+    });
     const version = ((_a = existing === null || existing === void 0 ? void 0 : existing.version) !== null && _a !== void 0 ? _a : 0) + 1;
-    const json = JSON.stringify({ module, lang, version, generatedAt: new Date().toISOString(), data });
+    const json = JSON.stringify({
+        module,
+        lang,
+        version,
+        generatedAt: new Date().toISOString(),
+        data,
+    });
     const compressed = await gzip(Buffer.from(json, 'utf8'), { level: 9 });
     const sha256 = (0, exports.computeSha256)(compressed);
     const packSizeMb = parseFloat((compressed.byteLength / (1024 * 1024)).toFixed(3));
@@ -115,12 +123,12 @@ const generateAndUploadPack = async (module, lang) => {
                 console.log(`[OfflinePack] 🧹 Cleaned up previous S3 pack version: ${existing.s3Key}`);
             }
             catch (cleanErr) {
-                console.warn(`[OfflinePack] Notice: Old S3 pack cleanup (${existing.s3Key}):`, cleanErr === null || cleanErr === void 0 ? void 0 : cleanErr.message);
+                console.warn(`[OfflinePack] Notice: Old S3 pack cleanup (${existing.s3Key}):`, cleanErr instanceof Error ? cleanErr.message : String(cleanErr));
             }
         }
     }
     catch (s3Err) {
-        console.warn(`[OfflinePack] Notice: S3 upload fallback to local storage for ${key} (${(s3Err === null || s3Err === void 0 ? void 0 : s3Err.message) || s3Err})`);
+        console.warn(`[OfflinePack] Notice: S3 upload fallback to local storage for ${key} (${s3Err instanceof Error ? s3Err.message : String(s3Err)})`);
     }
     // Clean up previous local file version
     if ((existing === null || existing === void 0 ? void 0 : existing.version) && existing.version !== version) {
@@ -129,18 +137,44 @@ const generateAndUploadPack = async (module, lang) => {
             try {
                 fs_1.default.unlinkSync(oldLocalFile);
             }
-            catch (_b) { }
+            catch (_b) {
+                // Cleanup is best effort; keep the generated pack available.
+            }
         }
     }
-    await offline_pack_model_1.OfflinePack.findOneAndUpdate({ module, lang }, { module, lang, version, sha256, packSizeMb, s3Key: key, recordCount: data.length, generatedAt: new Date() }, { upsert: true, new: true });
+    await offline_pack_model_1.OfflinePack.findOneAndUpdate({ module, lang }, {
+        module,
+        lang,
+        version,
+        sha256,
+        packSizeMb,
+        s3Key: key,
+        recordCount: data.length,
+        generatedAt: new Date(),
+    }, { upsert: true, new: true });
     console.log(`[OfflinePack] ✅ Generated: ${key} | ${packSizeMb} MB | ${data.length} records | sha256: ${sha256.slice(0, 16)}...`);
-    return { sha256, packSizeMb, version, s3Key: key, downloadUrl, recordCount: data.length };
+    return {
+        sha256,
+        packSizeMb,
+        version,
+        s3Key: key,
+        downloadUrl,
+        recordCount: data.length,
+    };
 };
 // ─── Check Sync ───────────────────────────────────────────────────────────────
 const checkSync = async (module, lang, clientVersion) => {
     const pack = await offline_pack_model_1.OfflinePack.findOne({ module, lang }).sort({ version: -1 });
     if (!pack) {
-        return { updateAvailable: false, serverVersion: 0, clientVersion, packSizeMb: 0, sha256: '', downloadUrl: '', recordCount: 0 };
+        return {
+            updateAvailable: false,
+            serverVersion: 0,
+            clientVersion,
+            packSizeMb: 0,
+            sha256: '',
+            downloadUrl: '',
+            recordCount: 0,
+        };
     }
     let downloadUrl = `/api/v1/offline-pack/download/${module}?lang=${lang}`;
     try {
@@ -171,18 +205,28 @@ const getPackStream = async (module, lang) => {
     const localPath = path_1.default.join(localDir, filename);
     if (fs_1.default.existsSync(localPath)) {
         const stream = fs_1.default.createReadStream(localPath);
-        return { stream, sha256: pack.sha256, packSizeMb: pack.packSizeMb, version: pack.version };
+        return {
+            stream,
+            sha256: pack.sha256,
+            packSizeMb: pack.packSizeMb,
+            version: pack.version,
+        };
     }
     // Fallback to S3 if file not on local disk
     const exists = await s3Exists(pack.s3Key);
     if (!exists)
         throw new Error(`Pack missing in storage: ${pack.s3Key}`);
     const res = await s3.send(new client_s3_1.GetObjectCommand({ Bucket: BUCKET, Key: pack.s3Key }));
-    return { stream: res.Body, sha256: pack.sha256, packSizeMb: pack.packSizeMb, version: pack.version };
+    return {
+        stream: res.Body,
+        sha256: pack.sha256,
+        packSizeMb: pack.packSizeMb,
+        version: pack.version,
+    };
 };
 const listPacks = async () => {
     const packs = await offline_pack_model_1.OfflinePack.find({}).sort({ module: 1, lang: 1 }).lean();
-    return packs.map((p) => ({
+    return packs.map(p => ({
         ...p,
         downloadUrl: `/api/v1/offline-pack/download/${p.module}?lang=${p.lang}`,
     }));
@@ -190,15 +234,24 @@ const listPacks = async () => {
 // ─── Coverage Matrix (DB records + S3 packs + Active jobs per lang) ───────────
 const getCoverageMatrix = async () => {
     const [hadithCounts, duaCounts, knowledgeCounts, quranCounts, tafsirCounts, bookCounts, fatwaCounts, packs, activeJobs,] = await Promise.all([
-        hadith_model_1.Hadith.aggregate([{ $match: { isActive: true } }, { $group: { _id: '$lang', count: { $sum: 1 } } }]),
+        hadith_model_1.Hadith.aggregate([
+            { $match: { isActive: true } },
+            { $group: { _id: '$lang', count: { $sum: 1 } } },
+        ]),
         dua_model_1.Dua.aggregate([{ $group: { _id: '$lang', count: { $sum: 1 } } }]),
-        knowledge_library_model_1.KnowledgeArticle.aggregate([{ $group: { _id: '$lang', count: { $sum: 1 } } }]),
+        knowledge_library_model_1.KnowledgeArticle.aggregate([
+            { $group: { _id: '$lang', count: { $sum: 1 } } },
+        ]),
         quran_model_1.Translation.aggregate([{ $group: { _id: '$lang', count: { $sum: 1 } } }]),
         tafsir_model_1.Tafsir.aggregate([{ $group: { _id: '$lang', count: { $sum: 1 } } }]),
         knowledge_book_model_1.KnowledgeBook.aggregate([{ $group: { _id: '$lang', count: { $sum: 1 } } }]),
-        knowledge_fatwa_model_1.KnowledgeFatwa.aggregate([{ $group: { _id: '$lang', count: { $sum: 1 } } }]),
+        knowledge_fatwa_model_1.KnowledgeFatwa.aggregate([
+            { $group: { _id: '$lang', count: { $sum: 1 } } },
+        ]),
         offline_pack_model_1.OfflinePack.find({}).lean(),
-        batch_job_model_1.BatchJob.find({ status: { $in: ['in_progress', 'validating', 'finalizing', 'completed'] } }).lean(),
+        batch_job_model_1.BatchJob.find({
+            status: { $in: ['in_progress', 'validating', 'finalizing', 'completed'] },
+        }).lean(),
     ]);
     const matrix = {};
     const ensureLang = (l) => {
@@ -291,7 +344,8 @@ let availableLanguagesCache = null;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5-minute memory cache
 const getAvailableLanguages = async () => {
     const now = Date.now();
-    if (availableLanguagesCache && now - availableLanguagesCache.timestamp < CACHE_TTL_MS) {
+    if (availableLanguagesCache &&
+        now - availableLanguagesCache.timestamp < CACHE_TTL_MS) {
         return availableLanguagesCache.data;
     }
     const matrix = await getCoverageMatrix();

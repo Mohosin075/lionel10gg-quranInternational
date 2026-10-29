@@ -7,19 +7,20 @@ exports.QuranServices = void 0;
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable prefer-const */
 const axios_1 = __importDefault(require("axios"));
+const quran_constants_1 = require("./quran.constants");
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const zlib_1 = __importDefault(require("zlib"));
 const quran_model_1 = require("./quran.model");
 const quran_worker_1 = require("./quran.worker");
-const quran_constants_1 = require("./quran.constants");
 const QURAN_ENC_URL = 'https://quranenc.com/api/v1';
 const QURAN_COM_URL = 'https://api.quran.com/api/v4';
 const resolveAudioUrl = (surahNumber, ayahNumber, reciterId) => {
     const s = surahNumber.toString().padStart(3, '0');
     const a = ayahNumber.toString().padStart(3, '0');
     if (reciterId) {
-        const reciter = quran_constants_1.POPULAR_RECITERS.find((r) => r.id === reciterId.toLowerCase() || r.urlKey.toLowerCase() === reciterId.toLowerCase());
+        const reciter = quran_constants_1.POPULAR_RECITERS.find(r => r.id === reciterId.toLowerCase() ||
+            r.urlKey.toLowerCase() === reciterId.toLowerCase());
         if (reciter) {
             return `https://everyayah.com/data/${reciter.urlKey}/${s}${a}.mp3`;
         }
@@ -37,10 +38,15 @@ const fetchLanguages = async (page = 1, limit = 200, language, localization, edi
     if (edition) {
         query.key = edition;
     }
-    let dbLanguages = await quran_model_1.Language.find(query).sort({ language: 1, name: 1 }).skip(skip).limit(limit).lean();
+    let dbLanguages = await quran_model_1.Language.find(query)
+        .sort({ language: 1, name: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
     let total = await quran_model_1.Language.countDocuments(query);
     // 2. If DB is empty or missing full_language_name/iso, fetch from API
-    const needsRefresh = dbLanguages.length > 0 && !dbLanguages.every(l => l.full_language_name && l.iso);
+    const needsRefresh = dbLanguages.length > 0 &&
+        !dbLanguages.every(l => l.full_language_name && l.iso);
     if (dbLanguages.length === 0 || needsRefresh) {
         // Fetch from API
         let encUrl = `${QURAN_ENC_URL}/translations/list`;
@@ -54,8 +60,10 @@ const fetchLanguages = async (page = 1, limit = 200, language, localization, edi
         const comLanguagesUrl = `${QURAN_COM_URL}/resources/languages`;
         const [encResponse, comTransResponse, comLangResponse] = await Promise.all([
             axios_1.default.get(encUrl).catch(() => ({ data: { translations: [] } })),
-            axios_1.default.get(comTranslationsUrl).catch(() => ({ data: { translations: [] } })),
-            axios_1.default.get(comLanguagesUrl).catch(() => ({ data: { languages: [] } }))
+            axios_1.default
+                .get(comTranslationsUrl)
+                .catch(() => ({ data: { translations: [] } })),
+            axios_1.default.get(comLanguagesUrl).catch(() => ({ data: { languages: [] } })),
         ]);
         const langMap = new Map();
         const isoToNameMap = new Map();
@@ -64,23 +72,92 @@ const fetchLanguages = async (page = 1, limit = 200, language, localization, edi
             isoToNameMap.set(l.iso_code, l.name);
         });
         const COMMON_ISO_NAMES = {
-            aa: 'Afar', ak: 'Akan', am: 'Amharic', as: 'Assamese', az: 'Azerbaijani',
-            be: 'Belarusian', bg: 'Bulgarian', bn: 'Bengali', bs: 'Bosnian', ca: 'Catalan',
-            cs: 'Czech', da: 'Danish', de: 'German', el: 'Greek', en: 'English',
-            eo: 'Esperanto', es: 'Spanish', et: 'Estonian', eu: 'Basque', fa: 'Persian',
-            fi: 'Finnish', fr: 'French', gu: 'Gujarati', ha: 'Hausa', he: 'Hebrew',
-            hi: 'Hindi', hr: 'Croatian', hu: 'Hungarian', hy: 'Armenian', id: 'Indonesian',
-            it: 'Italian', ja: 'Japanese', jv: 'Javanese', ka: 'Georgian', kk: 'Kazakh',
-            km: 'Khmer', kn: 'Kannada', ko: 'Korean', ku: 'Kurdish', ky: 'Kyrgyz',
-            la: 'Latin', lt: 'Lithuanian', lv: 'Latvian', mg: 'Malagasy', mk: 'Macedonian',
-            ml: 'Malayalam', mn: 'Mongolian', mr: 'Marathi', ms: 'Malay', my: 'Burmese',
-            ne: 'Nepali', nl: 'Dutch', no: 'Norwegian', or: 'Odia', pa: 'Punjabi',
-            pl: 'Polish', ps: 'Pashto', pt: 'Portuguese', ro: 'Romanian', ru: 'Russian',
-            rw: 'Kinyarwanda', sd: 'Sindhi', si: 'Sinhala', sk: 'Slovak', sl: 'Slovenian',
-            so: 'Somali', sq: 'Albanian', sr: 'Serbian', sv: 'Swedish', sw: 'Swahili',
-            ta: 'Tamil', te: 'Telugu', tg: 'Tajik', th: 'Thai', tk: 'Turkmen',
-            tl: 'Filipino', tr: 'Turkish', tt: 'Tatar', ug: 'Uyghur', uk: 'Ukrainian',
-            ur: 'Urdu', uz: 'Uzbek', vi: 'Vietnamese', yo: 'Yoruba', zh: 'Chinese', zu: 'Zulu'
+            aa: 'Afar',
+            ak: 'Akan',
+            am: 'Amharic',
+            as: 'Assamese',
+            az: 'Azerbaijani',
+            be: 'Belarusian',
+            bg: 'Bulgarian',
+            bn: 'Bengali',
+            bs: 'Bosnian',
+            ca: 'Catalan',
+            cs: 'Czech',
+            da: 'Danish',
+            de: 'German',
+            el: 'Greek',
+            en: 'English',
+            eo: 'Esperanto',
+            es: 'Spanish',
+            et: 'Estonian',
+            eu: 'Basque',
+            fa: 'Persian',
+            fi: 'Finnish',
+            fr: 'French',
+            gu: 'Gujarati',
+            ha: 'Hausa',
+            he: 'Hebrew',
+            hi: 'Hindi',
+            hr: 'Croatian',
+            hu: 'Hungarian',
+            hy: 'Armenian',
+            id: 'Indonesian',
+            it: 'Italian',
+            ja: 'Japanese',
+            jv: 'Javanese',
+            ka: 'Georgian',
+            kk: 'Kazakh',
+            km: 'Khmer',
+            kn: 'Kannada',
+            ko: 'Korean',
+            ku: 'Kurdish',
+            ky: 'Kyrgyz',
+            la: 'Latin',
+            lt: 'Lithuanian',
+            lv: 'Latvian',
+            mg: 'Malagasy',
+            mk: 'Macedonian',
+            ml: 'Malayalam',
+            mn: 'Mongolian',
+            mr: 'Marathi',
+            ms: 'Malay',
+            my: 'Burmese',
+            ne: 'Nepali',
+            nl: 'Dutch',
+            no: 'Norwegian',
+            or: 'Odia',
+            pa: 'Punjabi',
+            pl: 'Polish',
+            ps: 'Pashto',
+            pt: 'Portuguese',
+            ro: 'Romanian',
+            ru: 'Russian',
+            rw: 'Kinyarwanda',
+            sd: 'Sindhi',
+            si: 'Sinhala',
+            sk: 'Slovak',
+            sl: 'Slovenian',
+            so: 'Somali',
+            sq: 'Albanian',
+            sr: 'Serbian',
+            sv: 'Swedish',
+            sw: 'Swahili',
+            ta: 'Tamil',
+            te: 'Telugu',
+            tg: 'Tajik',
+            th: 'Thai',
+            tk: 'Turkmen',
+            tl: 'Filipino',
+            tr: 'Turkish',
+            tt: 'Tatar',
+            ug: 'Uyghur',
+            uk: 'Ukrainian',
+            ur: 'Urdu',
+            uz: 'Uzbek',
+            vi: 'Vietnamese',
+            yo: 'Yoruba',
+            zh: 'Chinese',
+            zu: 'Zulu',
         };
         const encTranslations = (encResponse.data.translations || []).map((t) => {
             const iso = (t.language_iso_code || '').toLowerCase().trim();
@@ -92,7 +169,7 @@ const fetchLanguages = async (page = 1, limit = 200, language, localization, edi
                 iso: t.language_iso_code,
                 full_language_name: resolvedName,
                 author: t.description,
-                source: 'quranenc'
+                source: 'quranenc',
             };
         });
         const comTranslations = (comTransResponse.data.translations || []).map((t) => {
@@ -105,13 +182,13 @@ const fetchLanguages = async (page = 1, limit = 200, language, localization, edi
                 iso: iso,
                 full_language_name: t.language_name,
                 author: t.author_name,
-                source: 'qurancom'
+                source: 'qurancom',
             };
         });
         const allTranslations = [...encTranslations, ...comTranslations];
         // Save to DB
         if (allTranslations.length > 0) {
-            await quran_model_1.Language.bulkWrite(allTranslations.map((t) => ({
+            await quran_model_1.Language.bulkWrite(allTranslations.map(t => ({
                 updateOne: {
                     filter: { key: t.key },
                     update: { $set: t },
@@ -119,7 +196,11 @@ const fetchLanguages = async (page = 1, limit = 200, language, localization, edi
                 },
             })));
         }
-        dbLanguages = await quran_model_1.Language.find(query).sort({ language: 1, name: 1 }).skip(skip).limit(limit).lean();
+        dbLanguages = await quran_model_1.Language.find(query)
+            .sort({ language: 1, name: 1 })
+            .skip(skip)
+            .limit(limit)
+            .lean();
         total = await quran_model_1.Language.countDocuments(query);
     }
     return {
@@ -127,9 +208,9 @@ const fetchLanguages = async (page = 1, limit = 200, language, localization, edi
             page,
             limit,
             total,
-            totalPages: Math.ceil(total / limit)
+            totalPages: Math.ceil(total / limit),
         },
-        data: dbLanguages
+        data: dbLanguages,
     };
 };
 const fetchSurahs = async (page = 1, limit = 10, language) => {
@@ -146,7 +227,7 @@ const fetchSurahs = async (page = 1, limit = 10, language) => {
                     if (chapter && chapter.translated_name) {
                         return {
                             ...surah,
-                            translatedName: chapter.translated_name.name
+                            translatedName: chapter.translated_name.name,
                         };
                     }
                     return surah;
@@ -162,9 +243,9 @@ const fetchSurahs = async (page = 1, limit = 10, language) => {
             page,
             limit,
             total,
-            totalPages: Math.ceil(total / limit)
+            totalPages: Math.ceil(total / limit),
         },
-        data
+        data,
     };
 };
 const resolveTranslationKey = async (translationKey) => {
@@ -179,8 +260,8 @@ const resolveTranslationKey = async (translationKey) => {
     const langDoc = await quran_model_1.Language.findOne({
         $or: [
             { language: translationKey.toLowerCase() },
-            { iso: translationKey.toLowerCase() }
-        ]
+            { iso: translationKey.toLowerCase() },
+        ],
     }).lean();
     if (langDoc) {
         return langDoc.key;
@@ -189,7 +270,7 @@ const resolveTranslationKey = async (translationKey) => {
 };
 const getSurahDetail = async (surahNumber, translationKey = 'english_saheeh', lang, reciter) => {
     // 1. Get Surah Metadata from local constant
-    const surahInfo = quran_constants_1.SURAH_LIST.find((s) => s.number === surahNumber);
+    const surahInfo = quran_constants_1.SURAH_LIST.find(s => s.number === surahNumber);
     if (!surahInfo) {
         throw new Error(`Surah ${surahNumber} not found`);
     }
@@ -218,12 +299,12 @@ const getSurahDetail = async (surahNumber, translationKey = 'english_saheeh', la
         ayahsData = await getSurahTranslations(surahNumber, translationKey);
     }
     // 4. Format response
-    const ayahs = ayahsData.map((item) => {
+    const ayahs = ayahsData.map(item => {
         return {
             number: item.ayah,
             text: item.arabicText || '',
-            translation: isArabicOnly ? '' : (item.text || ''),
-            footnotes: isArabicOnly ? '' : (item.footnotes || ''),
+            translation: isArabicOnly ? '' : item.text || '',
+            footnotes: isArabicOnly ? '' : item.footnotes || '',
             audio: resolveAudioUrl(surahNumber, item.ayah, reciter),
         };
     });
@@ -235,7 +316,11 @@ const getSurahDetail = async (surahNumber, translationKey = 'english_saheeh', la
 };
 const getAyah = async (surah, ayah, translationKey = 'english_saheeh', lang, reciter) => {
     translationKey = await resolveTranslationKey(translationKey);
-    let result = await quran_model_1.Translation.findOne({ surah, ayah, edition: translationKey }).lean();
+    let result = await quran_model_1.Translation.findOne({
+        surah,
+        ayah,
+        edition: translationKey,
+    }).lean();
     if (!result) {
         // Determine the correct language for this edition
         let targetLang = lang;
@@ -250,12 +335,19 @@ const getAyah = async (surah, ayah, translationKey = 'english_saheeh', lang, rec
         }
         // Trigger ingestion for the whole surah for better UX later
         await (0, quran_worker_1.ingestSurahTranslations)(surah, translationKey, targetLang);
-        result = await quran_model_1.Translation.findOne({ surah, ayah, edition: translationKey }).lean();
+        result = await quran_model_1.Translation.findOne({
+            surah,
+            ayah,
+            edition: translationKey,
+        }).lean();
     }
     if (result) {
+        ;
         result.audio = resolveAudioUrl(surah, ayah, reciter);
-        result.shareUrl = `quraninternational://surah/${surah}/ayah/${ayah}`;
-        result.shareText = `${result.arabicText || ''}\n[Quran ${surah}:${ayah}]`;
+        result.shareUrl =
+            `quraninternational://surah/${surah}/ayah/${ayah}`;
+        result.shareText =
+            `${result.arabicText || ''}\n[Quran ${surah}:${ayah}]`;
     }
     return result;
 };
@@ -305,18 +397,30 @@ const getDailyInspiration = async (translationKey = 'english_saheeh', lang) => {
                 };
             }
         }
-        catch (_) { }
-        return { surah: 1, ayah: 1, text: 'In the name of Allah, the Entirely Merciful, the Especially Merciful.' };
+        catch (_a) {
+            // Optional upstream data is unavailable; continue with the fallback.
+        }
+        return {
+            surah: 1,
+            ayah: 1,
+            text: 'In the name of Allah, the Entirely Merciful, the Especially Merciful.',
+        };
     }
     const randomSkip = Math.floor(Math.random() * count);
-    let ayah = await quran_model_1.Translation.findOne({ edition: translationKey }).skip(randomSkip).lean();
+    let ayah = await quran_model_1.Translation.findOne({ edition: translationKey })
+        .skip(randomSkip)
+        .lean();
     if (!ayah) {
-        return { surah: 1, ayah: 1, text: 'In the name of Allah, the Entirely Merciful, the Especially Merciful.' };
+        return {
+            surah: 1,
+            ayah: 1,
+            text: 'In the name of Allah, the Entirely Merciful, the Especially Merciful.',
+        };
     }
     return ayah;
 };
 const upsertTranslations = async (batch) => {
-    return await quran_model_1.Translation.bulkWrite(batch.map((doc) => ({
+    return await quran_model_1.Translation.bulkWrite(batch.map(doc => ({
         updateOne: {
             filter: {
                 surah: doc.surah,
@@ -333,10 +437,14 @@ const getSurahTranslations = async (surah, translationKey) => {
     return await quran_model_1.Translation.find({
         surah,
         edition: translationKey,
-    }).sort({ ayah: 1 }).lean();
+    })
+        .sort({ ayah: 1 })
+        .lean();
 };
 const getTranslationVersion = async (translationKey) => {
-    const latest = await quran_model_1.Translation.findOne({ edition: translationKey }).sort({ version: -1 }).select('version');
+    const latest = await quran_model_1.Translation.findOne({ edition: translationKey })
+        .sort({ version: -1 })
+        .select('version');
     return (latest === null || latest === void 0 ? void 0 : latest.version) || 1;
 };
 // Sync System Logic
@@ -345,7 +453,7 @@ const checkSyncMetadata = async (translationKey, clientVersion) => {
     return {
         updateAvailable: serverVersion > clientVersion,
         serverVersion,
-        clientVersion
+        clientVersion,
     };
 };
 const clampSyncLimit = (limit) => {
@@ -378,7 +486,7 @@ const getSyncData = async (translationKey, fromVersion = 0, page = 1, limit = 50
                 console.error(`Initial sync surah ${s} error:`, e);
             }
         }
-        (0, quran_worker_1.syncLanguage)(translationKey, langInfo === null || langInfo === void 0 ? void 0 : langInfo.language).catch((err) => {
+        (0, quran_worker_1.syncLanguage)(translationKey, langInfo === null || langInfo === void 0 ? void 0 : langInfo.language).catch(err => {
             console.error(`Background full sync error for ${translationKey}:`, err);
         });
         total = await quran_model_1.Translation.countDocuments(filter);
@@ -421,12 +529,16 @@ const getGzippedLanguagePack = async (translationKey) => {
         return filePath;
     }
     // Fetch from Mongo
-    let data = await quran_model_1.Translation.find({ edition: translationKey }).sort({ surah: 1, ayah: 1 }).lean();
+    let data = await quran_model_1.Translation.find({ edition: translationKey })
+        .sort({ surah: 1, ayah: 1 })
+        .lean();
     // Ingest if empty
     if (data.length === 0) {
         const langInfo = await quran_model_1.Language.findOne({ key: translationKey });
         await (0, quran_worker_1.syncLanguage)(translationKey, langInfo === null || langInfo === void 0 ? void 0 : langInfo.language);
-        data = await quran_model_1.Translation.find({ edition: translationKey }).sort({ surah: 1, ayah: 1 }).lean();
+        data = await quran_model_1.Translation.find({ edition: translationKey })
+            .sort({ surah: 1, ayah: 1 })
+            .lean();
     }
     const rows = data.map(item => ({
         surah: item.surah,
@@ -453,7 +565,9 @@ const getGzippedLanguagePack = async (translationKey) => {
             }
         }
     }
-    catch (_) { }
+    catch (_a) {
+        // Optional upstream data is unavailable; continue with the fallback.
+    }
     return filePath;
 };
 const syncEdition = async (edition) => {
@@ -478,5 +592,5 @@ exports.QuranServices = {
     getSyncData,
     syncEdition,
     syncAll,
-    getGzippedLanguagePack
+    getGzippedLanguagePack,
 };

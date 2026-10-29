@@ -93,10 +93,7 @@ const verifyAccount = catchAsync(async (req: Request, res: Response) => {
 const getRefreshToken = catchAsync(async (req: Request, res: Response) => {
   const refreshToken = req.body?.refreshToken || req.cookies?.refreshToken
   if (!refreshToken) {
-    throw new ApiError(
-      StatusCodes.UNAUTHORIZED,
-      'Refresh token is required',
-    )
+    throw new ApiError(StatusCodes.UNAUTHORIZED, 'Refresh token is required')
   }
   const result = await CustomAuthServices.getRefreshToken(refreshToken)
   sendResponse(res, {
@@ -108,7 +105,7 @@ const getRefreshToken = catchAsync(async (req: Request, res: Response) => {
 })
 
 const resendOtp = catchAsync(async (req: Request, res: Response) => {
-  const { email, phone, authType } = req.body
+  const { email, authType } = req.body
   await CustomAuthServices.resendOtp(email, authType)
   sendResponse(res, {
     statusCode: StatusCodes.OK,
