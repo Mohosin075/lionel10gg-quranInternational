@@ -11,7 +11,13 @@ const auth_1 = __importDefault(require("../../middleware/auth"));
 const subscription_validation_1 = require("./subscription.validation");
 const subscription_benefit_validation_1 = require("./subscription-benefit.validation");
 const user_1 = require("../../../enum/user");
+const subscription_service_1 = require("./subscription.service");
+const catchAsync_1 = __importDefault(require("../../../shared/catchAsync"));
 const router = express_1.default.Router();
+router.get('/verify-checkout/:sessionId', (0, auth_1.default)(user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER, user_1.USER_ROLES.SUPER_ADMIN), (0, catchAsync_1.default)(async (req, res) => {
+    const data = await subscription_service_1.subscriptionService.verifyCheckoutEntitlement(req.user.authId, req.params.sessionId);
+    res.json({ success: true, data });
+}));
 // Owned return URLs for mobile WebView checkout. A return never grants access;
 // the app verifies the session/entitlement with authenticated endpoints.
 router.get('/checkout-return/:result', (req, res) => {
@@ -19,7 +25,11 @@ router.get('/checkout-return/:result', (req, res) => {
         res.sendStatus(404);
         return;
     }
-    res.type('text/plain').send(req.params.result === 'success' ? 'Return to Quran International to verify your purchase.' : 'Checkout cancelled. You can return to Quran International.');
+    res
+        .type('text/plain')
+        .send(req.params.result === 'success'
+        ? 'Return to Quran International to verify your purchase.'
+        : 'Checkout cancelled. You can return to Quran International.');
 });
 // Public routes (no authentication required)
 router.get('/plans', (0, validateRequest_1.default)(subscription_validation_1.subscriptionValidation.getPlansQuery), subscription_controller_1.SubscriptionController.getAvailablePlans); //✅tested

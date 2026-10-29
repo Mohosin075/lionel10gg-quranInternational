@@ -71,6 +71,8 @@ subscriptionPlanSchema.index({ isActive: 1 });
 subscriptionPlanSchema.index({ stripePriceId: 1 });
 exports.SubscriptionPlan = (0, mongoose_1.model)('SubscriptionPlan', subscriptionPlanSchema);
 const premiumBenefitSchema = new mongoose_1.Schema({
+    defaultLanguage: { type: String, default: 'en' },
+    translations: { type: Map, of: String, default: {} },
     serialNumber: {
         type: Number,
         required: true,
@@ -87,6 +89,5 @@ const premiumBenefitSchema = new mongoose_1.Schema({
 }, {
     timestamps: true,
 });
-premiumBenefitSchema.index({ serialNumber: 1 });
 premiumBenefitSchema.index({ isActive: 1 });
 exports.PremiumBenefit = (0, mongoose_1.model)('PremiumBenefit', premiumBenefitSchema);

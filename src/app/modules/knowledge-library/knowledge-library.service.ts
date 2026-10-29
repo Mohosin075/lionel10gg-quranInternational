@@ -174,7 +174,10 @@ const deleteArticle = async (id: string) => {
 }
 
 const getVersion = async (lang: string = 'de') => {
-  return parseInt((await readContentRevision(KnowledgeArticle, lang)).slice(0, 12), 16)
+  return parseInt(
+    (await readContentRevision(KnowledgeArticle, lang)).slice(0, 12),
+    16,
+  )
 }
 
 const checkSyncMetadata = async (
@@ -314,7 +317,7 @@ const getBookById = async (id: string, lang?: string) => {
       lang,
       isActive: true,
     }).lean()
-    if (localized) return localized
+    return localized
   }
 
   if (mongoose.Types.ObjectId.isValid(id)) {

@@ -329,7 +329,7 @@ const getCollections = async (lang: string = 'en') => {
         edition: col.edition,
         name: col.name,
         count,
-        isAvailable: true,
+        isAvailable: count > 0,
       }
     }),
   )
@@ -472,7 +472,6 @@ const getSyncData = async (
   const filter = {
     lang,
     isActive: { $ne: false },
-
   }
   const total = await Hadith.countDocuments(filter)
   const data = await Hadith.find(filter)
@@ -498,7 +497,7 @@ const getOrSyncHadithsByLanguage = async (targetLang: string) => {
   }
 
   // Fallback: Return English hadiths cleanly if target language is not yet generated via OpenAI Batch
-  return await Hadith.find({ lang: 'en' }).lean()
+  return []
 }
 
 // ─── Tier 1 Top 10 Languages Bulk Sync ────────────────────────────────────────

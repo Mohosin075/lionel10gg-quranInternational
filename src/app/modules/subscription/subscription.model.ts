@@ -32,6 +32,7 @@ const subscriptionSchema = new Schema<ISubscription, SubscriptionModel>(
         'incomplete',
         'incomplete_expired',
         'active',
+        'trialing',
         'past_due',
         'canceled',
         'unpaid',
@@ -43,6 +44,9 @@ const subscriptionSchema = new Schema<ISubscription, SubscriptionModel>(
       type: Date,
       required: true,
     },
+    trialStart: { type: Date, default: null },
+    trialEnd: { type: Date, default: null },
+    hasUsedTrial: { type: Boolean, default: false },
     currentPeriodEnd: {
       type: Date,
       required: true,
@@ -135,7 +139,10 @@ subscriptionSchema.statics.findActiveByUserId = function (userId: string) {
   return this.findOne({
     userId,
     status: { $in: ['active', 'trialing'] },
-    $or: [{ currentPeriodEnd: { $gt: new Date() } }, { currentPeriodEnd: null }],
+    $or: [
+      { currentPeriodEnd: { $gt: new Date() } },
+      { currentPeriodEnd: null },
+    ],
   }).populate('planId')
 }
 

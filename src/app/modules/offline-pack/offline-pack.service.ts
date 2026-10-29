@@ -329,14 +329,22 @@ const getCoverageMatrix = async () => {
       { $match: { isActive: true } },
       { $group: { _id: '$lang', count: { $sum: 1 } } },
     ]),
-    Dua.aggregate([{ $group: { _id: '$lang', count: { $sum: 1 } } }]),
+    Dua.aggregate([
+      { $match: { isActive: { $ne: false } } },
+      { $group: { _id: '$lang', count: { $sum: 1 } } },
+    ]),
     KnowledgeArticle.aggregate([
+      { $match: { isActive: true } },
       { $group: { _id: '$lang', count: { $sum: 1 } } },
     ]),
     Translation.aggregate([{ $group: { _id: '$lang', count: { $sum: 1 } } }]),
     Tafsir.aggregate([{ $group: { _id: '$lang', count: { $sum: 1 } } }]),
-    KnowledgeBook.aggregate([{ $group: { _id: '$lang', count: { $sum: 1 } } }]),
+    KnowledgeBook.aggregate([
+      { $match: { isActive: true } },
+      { $group: { _id: '$lang', count: { $sum: 1 } } },
+    ]),
     KnowledgeFatwa.aggregate([
+      { $match: { isActive: true } },
       { $group: { _id: '$lang', count: { $sum: 1 } } },
     ]),
     OfflinePack.find({}).lean(),
@@ -453,7 +461,7 @@ let availableLanguagesCache: {
   timestamp: number
   data: AvailableLanguages
 } | null = null
-const CACHE_TTL_MS = 5 * 60 * 1000 // 5-minute memory cache
+const CACHE_TTL_MS = 5000 // Brief cache; newly published languages become visible promptly
 
 interface AvailableLanguages {
   availableCodes: string[]
@@ -532,18 +540,6 @@ const getAvailableLanguages = async (): Promise<AvailableLanguages> => {
         },
       })
     }
-  }
-
-  // Base fallback guarantee: ensure 'en' is always supported
-  if (!availableCodes.includes('en')) {
-    availableCodes.push('en')
-    languages.push({
-      code: 'en',
-      totalRecords: 1,
-      modules: ['hadith', 'dua', 'quran'],
-      hasPacks: false,
-      details: {},
-    })
   }
 
   const result = {

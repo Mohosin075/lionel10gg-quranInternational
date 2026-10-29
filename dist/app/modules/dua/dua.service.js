@@ -59,8 +59,7 @@ const getCategories = async (lang = 'en') => {
     return categories.filter(Boolean);
 };
 const getVersion = async (lang = 'en') => {
-    const rows = await dua_model_1.Dua.find({ lang }).select('_id updatedAt version isActive').sort({ _id: 1 }).lean();
-    return parseInt((0, content_snapshot_1.snapshotRevision)(rows).slice(0, 12), 16);
+    return parseInt((await (0, content_snapshot_1.readContentRevision)(dua_model_1.Dua, lang)).slice(0, 12), 16);
 };
 const checkSyncMetadata = async (lang = 'en', clientVersion) => {
     const serverVersion = await getVersion(lang);

@@ -159,7 +159,8 @@ const DEFAULT_PREMIUM_BENEFITS = [
 
 export async function seedPremiumBenefits(): Promise<void> {
   try {
-    await PremiumBenefit.deleteMany({})
+    // Preserve dashboard edits and localized copy across server restarts.
+    if (await PremiumBenefit.exists({})) return
     await PremiumBenefit.insertMany(
       DEFAULT_PREMIUM_BENEFITS.map((text, i) => ({
         serialNumber: i + 1,

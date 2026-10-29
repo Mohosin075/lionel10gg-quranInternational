@@ -3,6 +3,11 @@ import Stripe from 'stripe'
 import config from '../../../config'
 
 class StripeService {
+  async getCheckoutSession(id: string) {
+    return this.stripe.checkout.sessions.retrieve(id, {
+      expand: ['line_items'],
+    })
+  }
   private stripe: any
 
   constructor() {
@@ -45,10 +50,7 @@ class StripeService {
     }
   }
 
-  async updateCustomer(
-    customerId: string,
-    params: any,
-  ): Promise<any> {
+  async updateCustomer(customerId: string, params: any): Promise<any> {
     try {
       const customer = await this.stripe.customers.update(customerId, params)
       console.log(`Stripe customer updated: ${customerId}`)
@@ -113,10 +115,7 @@ class StripeService {
     }
   }
 
-  async updateSubscription(
-    subscriptionId: string,
-    params: any,
-  ): Promise<any> {
+  async updateSubscription(subscriptionId: string, params: any): Promise<any> {
     try {
       const subscription = await this.stripe.subscriptions.update(
         subscriptionId,
@@ -159,9 +158,7 @@ class StripeService {
     }
   }
 
-  async reactivateSubscription(
-    subscriptionId: string,
-  ): Promise<any> {
+  async reactivateSubscription(subscriptionId: string): Promise<any> {
     try {
       const subscription = await this.stripe.subscriptions.update(
         subscriptionId,
@@ -270,9 +267,7 @@ class StripeService {
     }
   }
 
-  async getUpcomingInvoice(
-    customerId: string,
-  ): Promise<any> {
+  async getUpcomingInvoice(customerId: string): Promise<any> {
     try {
       const invoice = await (this.stripe.invoices as any).retrieveUpcoming({
         customer: customerId,
@@ -293,7 +288,10 @@ class StripeService {
     webhookSecret?: string,
   ): any {
     try {
-      const secret = webhookSecret || config.stripe.paymentWebhookSecret || config.stripe.subscriptionWebhookSecret
+      const secret =
+        webhookSecret ||
+        config.stripe.paymentWebhookSecret ||
+        config.stripe.subscriptionWebhookSecret
       if (!secret) {
         throw new Error('Stripe webhook secret is required')
       }
@@ -364,10 +362,7 @@ class StripeService {
     }
   }
 
-  async updateProduct(
-    productId: string,
-    params: any,
-  ): Promise<any> {
+  async updateProduct(productId: string, params: any): Promise<any> {
     try {
       const product = await this.stripe.products.update(productId, params)
       console.log(`Stripe product updated: ${productId}`)
@@ -400,9 +395,7 @@ class StripeService {
     }
   }
 
-  async pauseSubscription(
-    subscriptionId: string,
-  ): Promise<any> {
+  async pauseSubscription(subscriptionId: string): Promise<any> {
     try {
       const subscription = await this.stripe.subscriptions.update(
         subscriptionId,
@@ -423,9 +416,7 @@ class StripeService {
     }
   }
 
-  async resumeSubscription(
-    subscriptionId: string,
-  ): Promise<any> {
+  async resumeSubscription(subscriptionId: string): Promise<any> {
     try {
       const subscription = await this.stripe.subscriptions.update(
         subscriptionId,
@@ -444,9 +435,7 @@ class StripeService {
     }
   }
 
-  async getPaymentMethod(
-    paymentMethodId: string,
-  ): Promise<any> {
+  async getPaymentMethod(paymentMethodId: string): Promise<any> {
     try {
       const paymentMethod =
         await this.stripe.paymentMethods.retrieve(paymentMethodId)
@@ -460,9 +449,7 @@ class StripeService {
     }
   }
 
-  async listCustomerPaymentMethods(
-    customerId: string,
-  ): Promise<any[]> {
+  async listCustomerPaymentMethods(customerId: string): Promise<any[]> {
     try {
       const paymentMethods = await this.stripe.paymentMethods.list({
         customer: customerId,
@@ -521,9 +508,7 @@ class StripeService {
     }
   }
 
-  async getSubscriptionExpanded(
-    subscriptionId: string,
-  ): Promise<any> {
+  async getSubscriptionExpanded(subscriptionId: string): Promise<any> {
     try {
       const subscription = await this.stripe.subscriptions.retrieve(
         subscriptionId,

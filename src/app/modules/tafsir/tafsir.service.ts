@@ -22,7 +22,7 @@ const getTafsir = async (
   }
 
   // Fallback: If requested language was not found, return Arabic base tafsir
-  if (!result) {
+  if (!result && lang === 'ar') {
     result = await Tafsir.findOne({
       surah,
       ayah,
@@ -71,7 +71,7 @@ const getSurahTafsir = async (
   }
 
   // Fallback: Return Arabic base tafsir if requested language returned empty
-  if (results.length === 0) {
+  if (results.length === 0 && lang === 'ar') {
     results = await Tafsir.find({
       surah,
       edition: 'arabic_moyassar',

@@ -41,6 +41,7 @@ const UserSchema = new Schema<IUser, UserModel>(
       },
     },
     subscribe: { type: Boolean, default: false },
+    trialUsed: { type: Boolean, default: false },
     totalHasanat: { type: Number, default: 0 },
     hasanatEventIds: { type: [String], default: [], select: false },
 
@@ -80,7 +81,7 @@ const UserSchema = new Schema<IUser, UserModel>(
         ref: 'User',
       },
     ],
-    
+
     stripeCustomerId: { type: String },
     subscriptionStatus: { type: String },
     subscriptionTier: { type: String },

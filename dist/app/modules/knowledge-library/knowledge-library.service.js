@@ -138,8 +138,7 @@ const deleteArticle = async (id) => {
     return await knowledge_library_model_1.KnowledgeArticle.findByIdAndUpdate(id, { isActive: false }, { new: true });
 };
 const getVersion = async (lang = 'de') => {
-    const rows = await knowledge_library_model_1.KnowledgeArticle.find({ lang }).select('_id updatedAt version isActive').sort({ _id: 1 }).lean();
-    return parseInt((0, content_snapshot_1.snapshotRevision)(rows).slice(0, 12), 16);
+    return parseInt((await (0, content_snapshot_1.readContentRevision)(knowledge_library_model_1.KnowledgeArticle, lang)).slice(0, 12), 16);
 };
 const checkSyncMetadata = async (lang = 'de', clientVersion) => {
     const serverVersion = await getVersion(lang);
@@ -253,8 +252,7 @@ const getBookById = async (id, lang) => {
             lang,
             isActive: true,
         }).lean();
-        if (localized)
-            return localized;
+        return localized;
     }
     if (mongoose_1.default.Types.ObjectId.isValid(id)) {
         const book = await knowledge_book_model_1.KnowledgeBook.findById(id).lean();

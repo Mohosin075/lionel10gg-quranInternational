@@ -71,12 +71,13 @@ export interface IUser {
 
   totalHasanat: number
   hasanatEventIds?: string[]
-  
+  trialUsed?: boolean
+
   stripeCustomerId?: string
   subscriptionStatus?: string
   subscriptionTier?: string
   subscriptionExpiresAt?: Date
-  
+
   createdAt: Date
   updatedAt: Date
 }

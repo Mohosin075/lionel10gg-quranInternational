@@ -21,23 +21,164 @@ import {
 } from './subscription.interface'
 
 class SubscriptionService {
+  async verifyCheckoutEntitlement(userId: string, sessionId: string) {
+    const session = await stripeService.getCheckoutSession(sessionId)
+    if (session.metadata?.userId !== userId)
+      throw new ApiError(
+        StatusCodes.FORBIDDEN,
+        'Checkout belongs to another account',
+      )
+    if (
+      session.status !== 'complete' ||
+      !['paid', 'no_payment_required'].includes(session.payment_status)
+    ) {
+      return {
+        state: session.status === 'expired' ? 'expired' : 'pending',
+        entitlement: await this.getEntitlement(userId),
+      }
+    }
+    const plan = await this.getPlanById(session.metadata.planId)
+    const priceId = session.metadata.priceId || plan.stripePriceId
+    if (
+      !session.line_items?.data.some(
+        (item: { price?: { id: string } }) => item.price?.id === priceId,
+      )
+    )
+      throw new ApiError(
+        StatusCodes.BAD_REQUEST,
+        'Checkout product does not match the selected plan',
+      )
+    const customerId =
+      typeof session.customer === 'string'
+        ? session.customer
+        : session.customer?.id
+    if (!customerId)
+      throw new ApiError(
+        StatusCodes.BAD_REQUEST,
+        'Checkout customer is missing',
+      )
+    let start: Date,
+      end: Date,
+      status: string,
+      stripeId: string,
+      trialUsed = false
+    if (session.mode === 'payment' && plan.interval === 'lifetime') {
+      start = new Date(session.created * 1000)
+      end = new Date(start)
+      end.setFullYear(end.getFullYear() + 100)
+      status = 'active'
+      stripeId = `lifetime_${session.id}`
+    } else if (session.mode === 'subscription' && session.subscription) {
+      stripeId =
+        typeof session.subscription === 'string'
+          ? session.subscription
+          : session.subscription.id
+      const subscription = await stripeService.getSubscription(stripeId)
+      const item = subscription.items.data[0]
+      const subscriptionCustomer =
+        typeof subscription.customer === 'string'
+          ? subscription.customer
+          : subscription.customer?.id
+      if (
+        subscriptionCustomer !== customerId ||
+        item?.price?.id !== priceId ||
+        (subscription.metadata?.userId &&
+          subscription.metadata.userId !== userId)
+      ) {
+        throw new ApiError(
+          StatusCodes.BAD_REQUEST,
+          'Subscription does not match the checkout owner and product',
+        )
+      }
+      const periodStart =
+        subscription.current_period_start || item?.current_period_start
+      const periodEnd =
+        subscription.current_period_end ||
+        item?.current_period_end ||
+        subscription.trial_end
+      if (!periodStart || !periodEnd)
+        throw new ApiError(
+          StatusCodes.BAD_REQUEST,
+          'The store has not supplied a subscription period',
+        )
+      start = new Date(periodStart * 1000)
+      end = new Date(periodEnd * 1000)
+      status = subscription.status
+      trialUsed = !!subscription.trial_start || status === 'trialing'
+    } else
+      throw new ApiError(
+        StatusCodes.BAD_REQUEST,
+        'Unsupported checkout purchase',
+      )
+    await Subscription.findOneAndUpdate(
+      { stripeSubscriptionId: stripeId },
+      {
+        $set: {
+          userId,
+          planId: plan._id,
+          stripeSubscriptionId: stripeId,
+          stripeCustomerId: customerId,
+          stripePriceId: priceId,
+          status,
+          currentPeriodStart: start,
+          currentPeriodEnd: end,
+          lastSyncedAt: new Date(),
+        },
+      },
+      { upsert: true, new: true, runValidators: true },
+    )
+    await User.findByIdAndUpdate(userId, {
+      $set: {
+        stripeCustomerId: customerId,
+        subscriptionStatus: status,
+        subscriptionTier: 'premium',
+        subscriptionExpiresAt: end,
+        ...(trialUsed ? { trialUsed: true } : {}),
+      },
+    })
+    return { state: 'complete', entitlement: await this.getEntitlement(userId) }
+  }
   private async assertPurchasesAvailable() {
     const config = await AppConfig.findOne().lean()
-    if (config?.maintenanceMode?.isEnabled || config?.featureFlags?.premiumEnabled === false) {
-      throw new ApiError(StatusCodes.SERVICE_UNAVAILABLE, 'Purchases are temporarily unavailable')
+    if (
+      config?.maintenanceMode?.isEnabled ||
+      config?.featureFlags?.premiumEnabled === false
+    ) {
+      throw new ApiError(
+        StatusCodes.SERVICE_UNAVAILABLE,
+        'Purchases are temporarily unavailable',
+      )
     }
   }
   async getEntitlement(userId: string) {
     const stripe = await Subscription.findActiveByUserId(userId)
-    const native = await InAppPurchase.findOne({ userId, status: 'active', expiryDate: { $gt: new Date() } }).sort({ expiryDate: -1 }).populate('planId')
-    if (!native || (stripe && (!stripe.currentPeriodEnd || stripe.currentPeriodEnd >= native.expiryDate!))) return stripe
+    const native = await InAppPurchase.findOne({
+      userId,
+      status: 'active',
+      expiryDate: { $gt: new Date() },
+    })
+      .sort({ expiryDate: -1 })
+      .populate('planId')
+    if (
+      !native ||
+      (stripe &&
+        (!stripe.currentPeriodEnd ||
+          stripe.currentPeriodEnd >= native.expiryDate!))
+    )
+      return stripe
     return {
-      _id: native._id, userId: native.userId, status: 'active',
-      currentPeriodStart: native.purchaseDate, currentPeriodEnd: native.expiryDate,
-      planId: native.planId, source: native.platform,
+      _id: native._id,
+      userId: native.userId,
+      status: 'active',
+      currentPeriodStart: native.purchaseDate,
+      currentPeriodEnd: native.expiryDate,
+      planId: native.planId,
+      source: native.platform,
     }
   }
-  async getAvailablePlans(includeInactive = false): Promise<ISubscriptionPlan[]> {
+  async getAvailablePlans(
+    includeInactive = false,
+  ): Promise<ISubscriptionPlan[]> {
     try {
       const query: any = includeInactive ? {} : { isActive: true }
 
@@ -218,7 +359,7 @@ class SubscriptionService {
     try {
       const result = await Subscription.find().populate(['userId', 'planId'])
       const total = await Subscription.countDocuments()
-      
+
       return {
         meta: {
           page: 1,
@@ -455,7 +596,8 @@ class SubscriptionService {
       const now = new Date()
       const endDate = subscription.currentPeriodEnd
       const daysUntilExpiry = Math.ceil(
-        ((endDate?.getTime() ?? now.getTime()) - now.getTime()) / (1000 * 60 * 60 * 24),
+        ((endDate?.getTime() ?? now.getTime()) - now.getTime()) /
+          (1000 * 60 * 60 * 24),
       )
 
       let currentPlan: ISubscriptionPlan | undefined
@@ -504,7 +646,11 @@ class SubscriptionService {
       const plan = await this.getPlanById(planId)
 
       let stripeCustomerId: string
-      if (!plan.isActive) throw new ApiError(StatusCodes.BAD_REQUEST, 'This plan is no longer available')
+      if (!plan.isActive)
+        throw new ApiError(
+          StatusCodes.BAD_REQUEST,
+          'This plan is no longer available',
+        )
       const existingCustomer = await Subscription.findOne({ userId }).select(
         'stripeCustomerId',
       )
@@ -520,17 +666,20 @@ class SubscriptionService {
         stripeCustomerId = stripeCustomer.id
       }
 
-      const isLifetime = plan.interval === 'lifetime';
+      const isLifetime = plan.interval === 'lifetime'
+      const trialEligible =
+        !user.trialUsed && !(await Subscription.exists({ userId }))
       const session = await stripeService.createCheckoutSession({
         customerId: stripeCustomerId,
         priceId: plan.stripePriceId,
         successUrl,
         cancelUrl,
         mode: isLifetime ? 'payment' : 'subscription',
-        trialPeriodDays: isLifetime ? 0 : 30, // Golden Month: 30 days trial period for month/year plans
+        trialPeriodDays: !isLifetime && trialEligible ? 30 : 0,
         metadata: {
           userId: userId.toString(),
           planId,
+          priceId: plan.stripePriceId,
         },
       })
 
@@ -951,12 +1100,26 @@ class SubscriptionService {
   }
 
   // Premium Benefit CRUD methods
-  async getAllPremiumBenefits(): Promise<IPremiumBenefit[]> {
+  async getAllPremiumBenefits(lang: string = 'en'): Promise<IPremiumBenefit[]> {
     try {
-      return await PremiumBenefit.find({ isActive: true }).sort({ serialNumber: 1 }).lean()
+      const benefits = await PremiumBenefit.find({ isActive: true })
+        .sort({ serialNumber: 1 })
+        .lean()
+      return benefits.map(benefit => {
+        const translations = benefit.translations || {}
+        const key = translations[lang] ? lang : lang.split('-')[0]
+        return {
+          ...benefit,
+          text: translations[key] || benefit.text,
+          language: translations[key] ? key : benefit.defaultLanguage || 'en',
+        }
+      })
     } catch (error) {
       console.error('Error fetching premium benefits:', error)
-      throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to fetch premium benefits')
+      throw new ApiError(
+        StatusCodes.INTERNAL_SERVER_ERROR,
+        'Failed to fetch premium benefits',
+      )
     }
   }
 
@@ -965,34 +1128,55 @@ class SubscriptionService {
       return await PremiumBenefit.find().sort({ serialNumber: 1 }).lean()
     } catch (error) {
       console.error('Error fetching admin premium benefits:', error)
-      throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to fetch premium benefits')
+      throw new ApiError(
+        StatusCodes.INTERNAL_SERVER_ERROR,
+        'Failed to fetch premium benefits',
+      )
     }
   }
 
-  async createPremiumBenefit(payload: IPremiumBenefit): Promise<IPremiumBenefit> {
+  async createPremiumBenefit(
+    payload: IPremiumBenefit,
+  ): Promise<IPremiumBenefit> {
     try {
       return await PremiumBenefit.create(payload)
     } catch (error) {
       console.error('Error creating premium benefit:', error)
-      throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to create premium benefit')
+      throw new ApiError(
+        StatusCodes.INTERNAL_SERVER_ERROR,
+        'Failed to create premium benefit',
+      )
     }
   }
 
-  async updatePremiumBenefit(id: string, payload: Partial<IPremiumBenefit>): Promise<IPremiumBenefit | null> {
+  async updatePremiumBenefit(
+    id: string,
+    payload: Partial<IPremiumBenefit>,
+  ): Promise<IPremiumBenefit | null> {
     try {
       return await PremiumBenefit.findByIdAndUpdate(id, payload, { new: true })
     } catch (error) {
       console.error('Error updating premium benefit:', error)
-      throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to update premium benefit')
+      throw new ApiError(
+        StatusCodes.INTERNAL_SERVER_ERROR,
+        'Failed to update premium benefit',
+      )
     }
   }
 
   async deletePremiumBenefit(id: string): Promise<IPremiumBenefit | null> {
     try {
-      return await PremiumBenefit.findByIdAndUpdate(id, { isActive: false }, { new: true })
+      return await PremiumBenefit.findByIdAndUpdate(
+        id,
+        { isActive: false },
+        { new: true },
+      )
     } catch (error) {
       console.error('Error deleting premium benefit:', error)
-      throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, 'Failed to delete premium benefit')
+      throw new ApiError(
+        StatusCodes.INTERNAL_SERVER_ERROR,
+        'Failed to delete premium benefit',
+      )
     }
   }
 }

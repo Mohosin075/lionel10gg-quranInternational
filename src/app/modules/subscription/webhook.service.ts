@@ -23,166 +23,99 @@ class WebhookService {
 
       switch (event.type) {
         case 'customer.subscription.created':
-          await this.handleSubscriptionCreated(
-            event.data.object,
-            event.id,
-          )
+          await this.handleSubscriptionCreated(event.data.object, event.id)
           break
 
         case 'customer.subscription.updated':
-          await this.handleSubscriptionUpdated(
-            event.data.object,
-            event.id,
-          )
+          await this.handleSubscriptionUpdated(event.data.object, event.id)
           break
 
         case 'customer.subscription.deleted':
-          await this.handleSubscriptionDeleted(
-            event.data.object,
-            event.id,
-          )
+          await this.handleSubscriptionDeleted(event.data.object, event.id)
           break
 
         case 'customer.subscription.trial_will_end':
-          await this.handleTrialWillEnd(
-            event.data.object,
-            event.id,
-          )
+          await this.handleTrialWillEnd(event.data.object, event.id)
           break
 
         case 'invoice.payment_succeeded':
-          await this.handlePaymentSucceeded(
-            event.data.object,
-            event.id,
-          )
+          await this.handlePaymentSucceeded(event.data.object, event.id)
           break
 
         case 'invoice.payment_failed':
-          await this.handlePaymentFailed(
-            event.data.object,
-            event.id,
-          )
+          await this.handlePaymentFailed(event.data.object, event.id)
           break
 
         case 'invoice.upcoming':
-          await this.handleUpcomingInvoice(
-            event.data.object,
-            event.id,
-          )
+          await this.handleUpcomingInvoice(event.data.object, event.id)
           break
 
         case 'checkout.session.completed':
-          await this.handleCheckoutCompleted(
-            event.data.object,
-            event.id,
-          )
+          await this.handleCheckoutCompleted(event.data.object, event.id)
           break
 
         case 'product.updated':
-          await this.handleProductUpdated(
-            event.data.object,
-            event.id,
-          )
+          await this.handleProductUpdated(event.data.object, event.id)
           break
 
         case 'product.deleted':
-          await this.handleProductDeleted(
-            event.data.object,
-            event.id,
-          )
+          await this.handleProductDeleted(event.data.object, event.id)
           break
 
         case 'price.updated':
-          await this.handlePriceUpdated(
-            event.data.object,
-            event.id,
-          )
+          await this.handlePriceUpdated(event.data.object, event.id)
           break
 
         case 'price.deleted':
-          await this.handlePriceDeleted(
-            event.data.object,
-            event.id,
-          )
+          await this.handlePriceDeleted(event.data.object, event.id)
           break
 
         case 'payment_method.attached':
-          await this.handlePaymentMethodAttached(
-            event.data.object,
-          )
+          await this.handlePaymentMethodAttached(event.data.object)
           break
 
         case 'customer.updated':
-          await this.handleCustomerUpdated(
-            event.data.object,
-          )
+          await this.handleCustomerUpdated(event.data.object)
           break
 
         case 'customer.deleted':
-          await this.handleCustomerDeleted(
-            event.data.object,
-            event.id,
-          )
+          await this.handleCustomerDeleted(event.data.object, event.id)
           break
 
         case 'charge.dispute.created':
-          await this.handleDisputeCreated(
-            event.data.object,
-            event.id,
-          )
+          await this.handleDisputeCreated(event.data.object, event.id)
           break
 
         case 'invoice.created':
-          await this.handleInvoiceCreated(
-            event.data.object,
-          )
+          await this.handleInvoiceCreated(event.data.object)
           break
 
         case 'invoice.finalized':
-          await this.handleInvoiceFinalized(
-            event.data.object,
-            event.id,
-          )
+          await this.handleInvoiceFinalized(event.data.object, event.id)
           break
 
         case 'payment_intent.succeeded':
-          await this.handlePaymentIntentSucceeded(
-            event.data.object,
-            event.id,
-          )
+          await this.handlePaymentIntentSucceeded(event.data.object, event.id)
           break
 
         case 'payment_intent.payment_failed':
-          await this.handlePaymentIntentFailed(
-            event.data.object,
-            event.id,
-          )
+          await this.handlePaymentIntentFailed(event.data.object, event.id)
           break
 
         case 'customer.subscription.paused':
-          await this.handleSubscriptionPaused(
-            event.data.object,
-            event.id,
-          )
+          await this.handleSubscriptionPaused(event.data.object, event.id)
           break
 
         case 'customer.subscription.resumed':
-          await this.handleSubscriptionResumed(
-            event.data.object,
-            event.id,
-          )
+          await this.handleSubscriptionResumed(event.data.object, event.id)
           break
 
         case 'setup_intent.succeeded':
-          await this.handleSetupIntentSucceeded(
-            event.data.object,
-          )
+          await this.handleSetupIntentSucceeded(event.data.object)
           break
 
         case 'payment_method.automatically_updated':
-          await this.handlePaymentMethodUpdated(
-            event.data.object,
-          )
+          await this.handlePaymentMethodUpdated(event.data.object)
           break
 
         default:
@@ -572,16 +505,18 @@ class WebhookService {
         console.error('No userId in checkout session metadata')
         return
       }
-      console.log('session', session)
 
       if (session.mode === 'payment') {
         const plan = await SubscriptionPlan.findById(planId)
         if (!plan || plan.interval !== 'lifetime') {
-          console.log('Payment checkout session completed but plan is not lifetime:', planId)
+          console.log(
+            'Payment checkout session completed but plan is not lifetime:',
+            planId,
+          )
           return
         }
 
-        const now = new Date()
+        const now = new Date(session.created * 1000)
         // 100 years lifetime
         const endDate = new Date(now)
         endDate.setFullYear(endDate.getFullYear() + 100)
@@ -603,7 +538,7 @@ class WebhookService {
         await Subscription.findOneAndUpdate(
           { userId: new Types.ObjectId(userId), planId: plan._id },
           { $set: subData },
-          { upsert: true, new: true }
+          { upsert: true, new: true },
         )
 
         await User.findByIdAndUpdate(userId, {
@@ -612,8 +547,10 @@ class WebhookService {
           subscriptionExpiresAt: endDate,
           stripeCustomerId: session.customer as string,
         })
-        
-        console.log(`Lifetime checkout completed and premium activated for user: ${userId}`)
+
+        console.log(
+          `Lifetime checkout completed and premium activated for user: ${userId}`,
+        )
         return
       }
 
@@ -791,9 +728,7 @@ class WebhookService {
     }
   }
 
-  private async handlePaymentMethodAttached(
-    paymentMethod: any,
-  ): Promise<void> {
+  private async handlePaymentMethodAttached(paymentMethod: any): Promise<void> {
     try {
       console.log(
         `Payment method attached: ${paymentMethod.id} to customer: ${paymentMethod.customer}`,
@@ -804,9 +739,7 @@ class WebhookService {
     }
   }
 
-  private async handleCustomerUpdated(
-    stripeCustomer: any,
-  ): Promise<void> {
+  private async handleCustomerUpdated(stripeCustomer: any): Promise<void> {
     try {
       const subscription = await Subscription.findOne({
         stripeCustomerId: stripeCustomer.id,
@@ -885,9 +818,7 @@ class WebhookService {
     }
   }
 
-  private async handleInvoiceCreated(
-    invoice: any,
-  ): Promise<void> {
+  private async handleInvoiceCreated(invoice: any): Promise<void> {
     try {
       const invoiceWithSubscription = invoice as any
       if (!invoiceWithSubscription.subscription) return
@@ -1045,9 +976,7 @@ class WebhookService {
     }
   }
 
-  private async handleSetupIntentSucceeded(
-    setupIntent: any,
-  ): Promise<void> {
+  private async handleSetupIntentSucceeded(setupIntent: any): Promise<void> {
     try {
       console.log(`Setup intent succeeded: ${setupIntent.id}`)
     } catch (error) {
@@ -1056,9 +985,7 @@ class WebhookService {
     }
   }
 
-  private async handlePaymentMethodUpdated(
-    paymentMethod: any,
-  ): Promise<void> {
+  private async handlePaymentMethodUpdated(paymentMethod: any): Promise<void> {
     try {
       console.log(`Payment method automatically updated: ${paymentMethod.id}`)
     } catch (error) {
@@ -1084,10 +1011,7 @@ class WebhookService {
     return 'free'
   }
 
-  verifyWebhookSignature(
-    payload: string | Buffer,
-    signature: string,
-  ): any {
+  verifyWebhookSignature(payload: string | Buffer, signature: string): any {
     try {
       return stripeService.constructWebhookEvent(payload, signature)
     } catch (error) {

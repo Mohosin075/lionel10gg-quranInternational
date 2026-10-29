@@ -10,7 +10,12 @@ const catchAsync_1 = __importDefault(require("../../../shared/catchAsync"));
 const user_model_1 = require("../user/user.model");
 exports.DeviceRegistration = (0, mongoose_1.model)('DeviceRegistration', new mongoose_1.Schema({
     token: { type: String, required: true, unique: true },
-    user: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    user: {
+        type: mongoose_1.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+        index: true,
+    },
 }, { timestamps: true }));
 const tokenSchema = zod_1.z.object({ token: zod_1.z.string().min(20).max(4096) });
 exports.registerDevice = (0, catchAsync_1.default)(async (req, res) => {

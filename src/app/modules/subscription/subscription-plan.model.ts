@@ -89,6 +89,8 @@ import { IPremiumBenefit } from './subscription.interface'
 
 const premiumBenefitSchema = new Schema<IPremiumBenefit>(
   {
+    defaultLanguage: { type: String, default: 'en' },
+    translations: { type: Map, of: String, default: {} },
     serialNumber: {
       type: Number,
       required: true,
@@ -105,11 +107,12 @@ const premiumBenefitSchema = new Schema<IPremiumBenefit>(
   },
   {
     timestamps: true,
-  }
+  },
 )
 
-premiumBenefitSchema.index({ serialNumber: 1 })
 premiumBenefitSchema.index({ isActive: 1 })
 
-export const PremiumBenefit = model<IPremiumBenefit>('PremiumBenefit', premiumBenefitSchema)
-
+export const PremiumBenefit = model<IPremiumBenefit>(
+  'PremiumBenefit',
+  premiumBenefitSchema,
+)

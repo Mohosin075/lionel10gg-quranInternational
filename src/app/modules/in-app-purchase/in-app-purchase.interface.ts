@@ -32,12 +32,9 @@ export interface IInAppPurchase {
   platform: 'ios' | 'android' | 'web'
   transactionId: string
   originalTransactionId?: string
+  ownershipKey?: string
   receiptData?: string
-  status:
-    | 'active'
-    | 'expired'
-    | 'canceled'
-    | 'pending'
+  status: 'active' | 'expired' | 'canceled' | 'pending'
   purchaseDate: Date
   expiryDate?: Date
   canceledAt?: Date | null

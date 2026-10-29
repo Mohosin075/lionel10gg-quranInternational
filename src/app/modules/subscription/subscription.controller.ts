@@ -33,8 +33,6 @@ const getPlanById = catchAsync(async (req: Request, res: Response) => {
   })
 })
 
-
-
 // Create subscription
 const createSubscription = catchAsync(async (req: Request, res: Response) => {
   const user = req.user as JwtPayload
@@ -373,25 +371,31 @@ const createBillingPortal = catchAsync(async (req: Request, res: Response) => {
   })
 })
 
-const getAllPremiumBenefits = catchAsync(async (req: Request, res: Response) => {
-  const result = await subscriptionService.getAllPremiumBenefits()
-  sendResponse(res, {
-    statusCode: StatusCodes.OK,
-    success: true,
-    message: 'Premium benefits fetched successfully',
-    data: result,
-  })
-})
+const getAllPremiumBenefits = catchAsync(
+  async (req: Request, res: Response) => {
+    const result = await subscriptionService.getAllPremiumBenefits(
+      typeof req.query.lang === 'string' ? req.query.lang : 'en',
+    )
+    sendResponse(res, {
+      statusCode: StatusCodes.OK,
+      success: true,
+      message: 'Premium benefits fetched successfully',
+      data: result,
+    })
+  },
+)
 
-const getAdminPremiumBenefits = catchAsync(async (req: Request, res: Response) => {
-  const result = await subscriptionService.getAdminPremiumBenefits()
-  sendResponse(res, {
-    statusCode: StatusCodes.OK,
-    success: true,
-    message: 'Premium benefits fetched successfully',
-    data: result,
-  })
-})
+const getAdminPremiumBenefits = catchAsync(
+  async (req: Request, res: Response) => {
+    const result = await subscriptionService.getAdminPremiumBenefits()
+    sendResponse(res, {
+      statusCode: StatusCodes.OK,
+      success: true,
+      message: 'Premium benefits fetched successfully',
+      data: result,
+    })
+  },
+)
 
 const createPremiumBenefit = catchAsync(async (req: Request, res: Response) => {
   const result = await subscriptionService.createPremiumBenefit(req.body)

@@ -12,6 +12,9 @@ const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const zlib_1 = __importDefault(require("zlib"));
 const quran_model_1 = require("./quran.model");
+const quran_completeness_1 = require("./quran-completeness");
+const content_snapshot_1 = require("../offline-pack/content-snapshot");
+const ApiError_1 = __importDefault(require("../../../errors/ApiError"));
 const quran_worker_1 = require("./quran.worker");
 const QURAN_ENC_URL = 'https://quranenc.com/api/v1';
 const QURAN_COM_URL = 'https://api.quran.com/api/v4';
@@ -283,7 +286,7 @@ const getSurahDetail = async (surahNumber, translationKey = 'english_saheeh', la
     // 2. Check if translations exist in DB
     let ayahsData = await getSurahTranslations(surahNumber, translationKey);
     // 3. If not found, trigger ingestion (ETL)
-    if (!ayahsData.length) {
+    if (!(0, quran_completeness_1.isCompleteSurah)(ayahsData, surahInfo.numberOfAyahs, !isArabicOnly)) {
         // Determine the correct language for this edition
         let targetLang = lang;
         if (!targetLang || targetLang === 'en') {
@@ -297,6 +300,9 @@ const getSurahDetail = async (surahNumber, translationKey = 'english_saheeh', la
         }
         await (0, quran_worker_1.ingestSurahTranslations)(surahNumber, translationKey, targetLang);
         ayahsData = await getSurahTranslations(surahNumber, translationKey);
+    }
+    if (!(0, quran_completeness_1.isCompleteSurah)(ayahsData, surahInfo.numberOfAyahs, !isArabicOnly)) {
+        throw new ApiError_1.default(503, 'The selected translation is temporarily incomplete. Please retry when the source is available.');
     }
     // 4. Format response
     const ayahs = ayahsData.map(item => {
@@ -410,13 +416,8 @@ const getDailyInspiration = async (translationKey = 'english_saheeh', lang) => {
     let ayah = await quran_model_1.Translation.findOne({ edition: translationKey })
         .skip(randomSkip)
         .lean();
-    if (!ayah) {
-        return {
-            surah: 1,
-            ayah: 1,
-            text: 'In the name of Allah, the Entirely Merciful, the Especially Merciful.',
-        };
-    }
+    if (!ayah)
+        return null;
     return ayah;
 };
 const upsertTranslations = async (batch) => {
@@ -442,16 +443,13 @@ const getSurahTranslations = async (surah, translationKey) => {
         .lean();
 };
 const getTranslationVersion = async (translationKey) => {
-    const latest = await quran_model_1.Translation.findOne({ edition: translationKey })
-        .sort({ version: -1 })
-        .select('version');
-    return (latest === null || latest === void 0 ? void 0 : latest.version) || 1;
+    return parseInt((await (0, content_snapshot_1.readScopedContentRevision)(quran_model_1.Translation, { edition: translationKey })).slice(0, 12), 16);
 };
 // Sync System Logic
 const checkSyncMetadata = async (translationKey, clientVersion) => {
     const serverVersion = await getTranslationVersion(translationKey);
     return {
-        updateAvailable: serverVersion > clientVersion,
+        updateAvailable: serverVersion !== clientVersion,
         serverVersion,
         clientVersion,
     };
@@ -471,7 +469,6 @@ const getSyncData = async (translationKey, fromVersion = 0, page = 1, limit = 50
     const skip = (safePage - 1) * safeLimit;
     const filter = {
         edition: translationKey,
-        version: { $gt: fromVersion },
     };
     let total = await quran_model_1.Translation.countDocuments(filter);
     // First fill: empty edition → fast-ingest first 3 surahs so client request returns instantly,

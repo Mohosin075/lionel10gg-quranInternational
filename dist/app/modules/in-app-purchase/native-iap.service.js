@@ -41,9 +41,13 @@ exports.nativeIapService = {
             return {
                 isValid: true,
                 transactionId: purchasedProduct.transactionId,
+                originalTransactionId: purchasedProduct.originalTransactionId ||
+                    purchasedProduct.transactionId,
                 productId: purchasedProduct.productId,
                 purchaseDate: new Date(purchasedProduct.purchaseDate),
-                expiryDate: purchasedProduct.expirationDate ? new Date(purchasedProduct.expirationDate) : undefined,
+                expiryDate: purchasedProduct.expirationDate
+                    ? new Date(purchasedProduct.expirationDate)
+                    : undefined,
             };
         }
         catch (error) {
@@ -70,14 +74,24 @@ exports.nativeIapService = {
             });
             const purchase = response.data;
             const item = (_a = purchase.lineItems) === null || _a === void 0 ? void 0 : _a.find(item => item.productId === productId);
-            if (!item || !['SUBSCRIPTION_STATE_ACTIVE', 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD', 'SUBSCRIPTION_STATE_CANCELED'].includes(purchase.subscriptionState || '') || !item.expiryTime || new Date(item.expiryTime).getTime() <= Date.now()) {
+            if (!item ||
+                ![
+                    'SUBSCRIPTION_STATE_ACTIVE',
+                    'SUBSCRIPTION_STATE_IN_GRACE_PERIOD',
+                    'SUBSCRIPTION_STATE_CANCELED',
+                ].includes(purchase.subscriptionState || '') ||
+                !item.expiryTime ||
+                new Date(item.expiryTime).getTime() <= Date.now()) {
                 throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Purchase is not in a valid state');
             }
             return {
                 isValid: true,
                 transactionId: purchase.latestOrderId,
+                originalTransactionId: purchaseToken,
                 productId: productId,
-                purchaseDate: purchase.startTime ? new Date(purchase.startTime) : new Date(),
+                purchaseDate: purchase.startTime
+                    ? new Date(purchase.startTime)
+                    : new Date(),
                 expiryDate: new Date(item.expiryTime),
             };
         }

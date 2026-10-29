@@ -238,14 +238,22 @@ const getCoverageMatrix = async () => {
             { $match: { isActive: true } },
             { $group: { _id: '$lang', count: { $sum: 1 } } },
         ]),
-        dua_model_1.Dua.aggregate([{ $group: { _id: '$lang', count: { $sum: 1 } } }]),
+        dua_model_1.Dua.aggregate([
+            { $match: { isActive: { $ne: false } } },
+            { $group: { _id: '$lang', count: { $sum: 1 } } },
+        ]),
         knowledge_library_model_1.KnowledgeArticle.aggregate([
+            { $match: { isActive: true } },
             { $group: { _id: '$lang', count: { $sum: 1 } } },
         ]),
         quran_model_1.Translation.aggregate([{ $group: { _id: '$lang', count: { $sum: 1 } } }]),
         tafsir_model_1.Tafsir.aggregate([{ $group: { _id: '$lang', count: { $sum: 1 } } }]),
-        knowledge_book_model_1.KnowledgeBook.aggregate([{ $group: { _id: '$lang', count: { $sum: 1 } } }]),
+        knowledge_book_model_1.KnowledgeBook.aggregate([
+            { $match: { isActive: true } },
+            { $group: { _id: '$lang', count: { $sum: 1 } } },
+        ]),
         knowledge_fatwa_model_1.KnowledgeFatwa.aggregate([
+            { $match: { isActive: true } },
             { $group: { _id: '$lang', count: { $sum: 1 } } },
         ]),
         offline_pack_model_1.OfflinePack.find({}).lean(),
@@ -341,7 +349,7 @@ const getCoverageMatrix = async () => {
 };
 // ─── Available Languages (Online Public Discovery) ────────────────────────────
 let availableLanguagesCache = null;
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5-minute memory cache
+const CACHE_TTL_MS = 5000; // Brief cache; newly published languages become visible promptly
 const getAvailableLanguages = async () => {
     const now = Date.now();
     if (availableLanguagesCache &&
@@ -399,17 +407,6 @@ const getAvailableLanguages = async () => {
                 },
             });
         }
-    }
-    // Base fallback guarantee: ensure 'en' is always supported
-    if (!availableCodes.includes('en')) {
-        availableCodes.push('en');
-        languages.push({
-            code: 'en',
-            totalRecords: 1,
-            modules: ['hadith', 'dua', 'quran'],
-            hasPacks: false,
-            details: {},
-        });
     }
     const result = {
         availableCodes,

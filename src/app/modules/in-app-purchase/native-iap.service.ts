@@ -51,9 +51,14 @@ export const nativeIapService = {
       return {
         isValid: true,
         transactionId: purchasedProduct.transactionId,
+        originalTransactionId:
+          purchasedProduct.originalTransactionId ||
+          purchasedProduct.transactionId,
         productId: purchasedProduct.productId,
         purchaseDate: new Date(purchasedProduct.purchaseDate),
-        expiryDate: purchasedProduct.expirationDate ? new Date(purchasedProduct.expirationDate) : undefined,
+        expiryDate: purchasedProduct.expirationDate
+          ? new Date(purchasedProduct.expirationDate)
+          : undefined,
       }
     } catch (error: unknown) {
       console.error('Apple receipt verification failed:', error)
@@ -85,8 +90,19 @@ export const nativeIapService = {
 
       const purchase = response.data
 
-      const item = purchase.lineItems?.find(item => item.productId === productId);
-      if (!item || !['SUBSCRIPTION_STATE_ACTIVE', 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD', 'SUBSCRIPTION_STATE_CANCELED'].includes(purchase.subscriptionState || '') || !item.expiryTime || new Date(item.expiryTime).getTime() <= Date.now()) {
+      const item = purchase.lineItems?.find(
+        item => item.productId === productId,
+      )
+      if (
+        !item ||
+        ![
+          'SUBSCRIPTION_STATE_ACTIVE',
+          'SUBSCRIPTION_STATE_IN_GRACE_PERIOD',
+          'SUBSCRIPTION_STATE_CANCELED',
+        ].includes(purchase.subscriptionState || '') ||
+        !item.expiryTime ||
+        new Date(item.expiryTime).getTime() <= Date.now()
+      ) {
         throw new ApiError(
           StatusCodes.BAD_REQUEST,
           'Purchase is not in a valid state',
@@ -96,8 +112,11 @@ export const nativeIapService = {
       return {
         isValid: true,
         transactionId: purchase.latestOrderId,
+        originalTransactionId: purchaseToken,
         productId: productId,
-        purchaseDate: purchase.startTime ? new Date(purchase.startTime) : new Date(),
+        purchaseDate: purchase.startTime
+          ? new Date(purchase.startTime)
+          : new Date(),
         expiryDate: new Date(item.expiryTime),
       }
     } catch (error: unknown) {

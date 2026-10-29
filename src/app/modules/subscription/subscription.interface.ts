@@ -35,11 +35,15 @@ export interface ISubscription {
     | 'incomplete'
     | 'incomplete_expired'
     | 'active'
+    | 'trialing'
     | 'past_due'
     | 'canceled'
     | 'unpaid'
     | 'paused'
   currentPeriodStart: Date
+  trialStart?: Date | null
+  trialEnd?: Date | null
+  hasUsedTrial?: boolean
   currentPeriodEnd: Date
   canceledAt?: Date | null
   pausedAt?: Date | null
@@ -114,11 +118,13 @@ export interface SubscriptionStatus {
 
 // Premium Benefit Interface (Dynamic 14 Premium Features Text)
 export interface IPremiumBenefit {
-  _id?: Types.ObjectId;
-  serialNumber: number;
-  text: string;
-  isActive: boolean;
-  createdAt?: Date;
-  updatedAt?: Date;
+  _id?: Types.ObjectId
+  serialNumber: number
+  text: string
+  defaultLanguage?: string
+  translations?: Record<string, string>
+  language?: string
+  isActive: boolean
+  createdAt?: Date
+  updatedAt?: Date
 }
-

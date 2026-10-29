@@ -7,6 +7,9 @@ import path from 'path'
 import zlib from 'zlib'
 import { Translation, Language } from './quran.model'
 import { ITranslation, ILanguage } from './quran.interface'
+import { isCompleteSurah } from './quran-completeness'
+import { readScopedContentRevision } from '../offline-pack/content-snapshot'
+import ApiError from '../../../errors/ApiError'
 import {
   ingestSurahTranslations,
   syncLanguage,
@@ -347,7 +350,7 @@ const getSurahDetail = async (
   let ayahsData = await getSurahTranslations(surahNumber, translationKey)
 
   // 3. If not found, trigger ingestion (ETL)
-  if (!ayahsData.length) {
+  if (!isCompleteSurah(ayahsData, surahInfo.numberOfAyahs, !isArabicOnly)) {
     // Determine the correct language for this edition
     let targetLang = lang
     if (!targetLang || targetLang === 'en') {
@@ -361,6 +364,12 @@ const getSurahDetail = async (
 
     await ingestSurahTranslations(surahNumber, translationKey, targetLang)
     ayahsData = await getSurahTranslations(surahNumber, translationKey)
+  }
+  if (!isCompleteSurah(ayahsData, surahInfo.numberOfAyahs, !isArabicOnly)) {
+    throw new ApiError(
+      503,
+      'The selected translation is temporarily incomplete. Please retry when the source is available.',
+    )
   }
 
   // 4. Format response
@@ -508,13 +517,7 @@ const getDailyInspiration = async (
     .skip(randomSkip)
     .lean()
 
-  if (!ayah) {
-    return {
-      surah: 1,
-      ayah: 1,
-      text: 'In the name of Allah, the Entirely Merciful, the Especially Merciful.',
-    }
-  }
+  if (!ayah) return null
 
   return ayah
 }
@@ -546,10 +549,12 @@ const getSurahTranslations = async (surah: number, translationKey: string) => {
 }
 
 const getTranslationVersion = async (translationKey: string) => {
-  const latest = await Translation.findOne({ edition: translationKey })
-    .sort({ version: -1 })
-    .select('version')
-  return latest?.version || 1
+  return parseInt(
+    (
+      await readScopedContentRevision(Translation, { edition: translationKey })
+    ).slice(0, 12),
+    16,
+  )
 }
 
 // Sync System Logic
@@ -559,7 +564,7 @@ const checkSyncMetadata = async (
 ) => {
   const serverVersion = await getTranslationVersion(translationKey)
   return {
-    updateAvailable: serverVersion > clientVersion,
+    updateAvailable: serverVersion !== clientVersion,
     serverVersion,
     clientVersion,
   }
@@ -587,7 +592,6 @@ const getSyncData = async (
 
   const filter = {
     edition: translationKey,
-    version: { $gt: fromVersion },
   }
 
   let total = await Translation.countDocuments(filter)

@@ -50,22 +50,118 @@ const subscription_plan_model_1 = require("./subscription-plan.model");
 const stripe_service_1 = require("./stripe.service");
 const email_notification_service_1 = require("./email-notification.service");
 class SubscriptionService {
+    async verifyCheckoutEntitlement(userId, sessionId) {
+        var _a, _b, _c, _d, _e, _f;
+        const session = await stripe_service_1.stripeService.getCheckoutSession(sessionId);
+        if (((_a = session.metadata) === null || _a === void 0 ? void 0 : _a.userId) !== userId)
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.FORBIDDEN, 'Checkout belongs to another account');
+        if (session.status !== 'complete' ||
+            !['paid', 'no_payment_required'].includes(session.payment_status)) {
+            return {
+                state: session.status === 'expired' ? 'expired' : 'pending',
+                entitlement: await this.getEntitlement(userId),
+            };
+        }
+        const plan = await this.getPlanById(session.metadata.planId);
+        const priceId = session.metadata.priceId || plan.stripePriceId;
+        if (!((_b = session.line_items) === null || _b === void 0 ? void 0 : _b.data.some((item) => { var _a; return ((_a = item.price) === null || _a === void 0 ? void 0 : _a.id) === priceId; })))
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Checkout product does not match the selected plan');
+        const customerId = typeof session.customer === 'string'
+            ? session.customer
+            : (_c = session.customer) === null || _c === void 0 ? void 0 : _c.id;
+        if (!customerId)
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Checkout customer is missing');
+        let start, end, status, stripeId, trialUsed = false;
+        if (session.mode === 'payment' && plan.interval === 'lifetime') {
+            start = new Date(session.created * 1000);
+            end = new Date(start);
+            end.setFullYear(end.getFullYear() + 100);
+            status = 'active';
+            stripeId = `lifetime_${session.id}`;
+        }
+        else if (session.mode === 'subscription' && session.subscription) {
+            stripeId =
+                typeof session.subscription === 'string'
+                    ? session.subscription
+                    : session.subscription.id;
+            const subscription = await stripe_service_1.stripeService.getSubscription(stripeId);
+            const item = subscription.items.data[0];
+            const subscriptionCustomer = typeof subscription.customer === 'string'
+                ? subscription.customer
+                : (_d = subscription.customer) === null || _d === void 0 ? void 0 : _d.id;
+            if (subscriptionCustomer !== customerId ||
+                ((_e = item === null || item === void 0 ? void 0 : item.price) === null || _e === void 0 ? void 0 : _e.id) !== priceId ||
+                (((_f = subscription.metadata) === null || _f === void 0 ? void 0 : _f.userId) &&
+                    subscription.metadata.userId !== userId)) {
+                throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Subscription does not match the checkout owner and product');
+            }
+            const periodStart = subscription.current_period_start || (item === null || item === void 0 ? void 0 : item.current_period_start);
+            const periodEnd = subscription.current_period_end ||
+                (item === null || item === void 0 ? void 0 : item.current_period_end) ||
+                subscription.trial_end;
+            if (!periodStart || !periodEnd)
+                throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'The store has not supplied a subscription period');
+            start = new Date(periodStart * 1000);
+            end = new Date(periodEnd * 1000);
+            status = subscription.status;
+            trialUsed = !!subscription.trial_start || status === 'trialing';
+        }
+        else
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Unsupported checkout purchase');
+        await subscription_model_1.Subscription.findOneAndUpdate({ stripeSubscriptionId: stripeId }, {
+            $set: {
+                userId,
+                planId: plan._id,
+                stripeSubscriptionId: stripeId,
+                stripeCustomerId: customerId,
+                stripePriceId: priceId,
+                status,
+                currentPeriodStart: start,
+                currentPeriodEnd: end,
+                lastSyncedAt: new Date(),
+            },
+        }, { upsert: true, new: true, runValidators: true });
+        await user_model_1.User.findByIdAndUpdate(userId, {
+            $set: {
+                stripeCustomerId: customerId,
+                subscriptionStatus: status,
+                subscriptionTier: 'premium',
+                subscriptionExpiresAt: end,
+                ...(trialUsed ? { trialUsed: true } : {}),
+            },
+        });
+        return { state: 'complete', entitlement: await this.getEntitlement(userId) };
+    }
     async assertPurchasesAvailable() {
         var _a, _b;
         const config = await app_config_model_1.AppConfig.findOne().lean();
-        if (((_a = config === null || config === void 0 ? void 0 : config.maintenanceMode) === null || _a === void 0 ? void 0 : _a.isEnabled) || ((_b = config === null || config === void 0 ? void 0 : config.featureFlags) === null || _b === void 0 ? void 0 : _b.premiumEnabled) === false) {
+        if (((_a = config === null || config === void 0 ? void 0 : config.maintenanceMode) === null || _a === void 0 ? void 0 : _a.isEnabled) ||
+            ((_b = config === null || config === void 0 ? void 0 : config.featureFlags) === null || _b === void 0 ? void 0 : _b.premiumEnabled) === false) {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.SERVICE_UNAVAILABLE, 'Purchases are temporarily unavailable');
         }
     }
     async getEntitlement(userId) {
         const stripe = await subscription_model_1.Subscription.findActiveByUserId(userId);
-        const native = await in_app_purchase_model_1.InAppPurchase.findOne({ userId, status: 'active', expiryDate: { $gt: new Date() } }).sort({ expiryDate: -1 }).populate('planId');
-        if (!native || (stripe && (!stripe.currentPeriodEnd || stripe.currentPeriodEnd >= native.expiryDate)))
+        const native = await in_app_purchase_model_1.InAppPurchase.findOne({
+            userId,
+            status: 'active',
+            expiryDate: { $gt: new Date() },
+        })
+            .sort({ expiryDate: -1 })
+            .populate('planId');
+        if (!native ||
+            (stripe &&
+                (!stripe.currentPeriodEnd ||
+                    stripe.currentPeriodEnd >= native.expiryDate)))
             return stripe;
         return {
-            _id: native._id, userId: native.userId, status: 'active',
-            currentPeriodStart: native.purchaseDate, currentPeriodEnd: native.expiryDate,
-            planId: native.planId, source: native.platform,
+            _id: native._id,
+            userId: native.userId,
+            status: 'active',
+            currentPeriodStart: native.purchaseDate,
+            currentPeriodEnd: native.expiryDate,
+            planId: native.planId,
+            source: native.platform,
         };
     }
     async getAvailablePlans(includeInactive = false) {
@@ -346,7 +442,8 @@ class SubscriptionService {
             }
             const now = new Date();
             const endDate = subscription.currentPeriodEnd;
-            const daysUntilExpiry = Math.ceil((((_a = endDate === null || endDate === void 0 ? void 0 : endDate.getTime()) !== null && _a !== void 0 ? _a : now.getTime()) - now.getTime()) / (1000 * 60 * 60 * 24));
+            const daysUntilExpiry = Math.ceil((((_a = endDate === null || endDate === void 0 ? void 0 : endDate.getTime()) !== null && _a !== void 0 ? _a : now.getTime()) - now.getTime()) /
+                (1000 * 60 * 60 * 24));
             let currentPlan;
             if (subscription.planId &&
                 typeof subscription.planId === 'object' &&
@@ -392,16 +489,18 @@ class SubscriptionService {
                 stripeCustomerId = stripeCustomer.id;
             }
             const isLifetime = plan.interval === 'lifetime';
+            const trialEligible = !user.trialUsed && !(await subscription_model_1.Subscription.exists({ userId }));
             const session = await stripe_service_1.stripeService.createCheckoutSession({
                 customerId: stripeCustomerId,
                 priceId: plan.stripePriceId,
                 successUrl,
                 cancelUrl,
                 mode: isLifetime ? 'payment' : 'subscription',
-                trialPeriodDays: isLifetime ? 0 : 30, // Golden Month: 30 days trial period for month/year plans
+                trialPeriodDays: !isLifetime && trialEligible ? 30 : 0,
                 metadata: {
                     userId: userId.toString(),
                     planId,
+                    priceId: plan.stripePriceId,
                 },
             });
             return {
@@ -708,9 +807,20 @@ class SubscriptionService {
         return 'free';
     }
     // Premium Benefit CRUD methods
-    async getAllPremiumBenefits() {
+    async getAllPremiumBenefits(lang = 'en') {
         try {
-            return await subscription_plan_model_1.PremiumBenefit.find({ isActive: true }).sort({ serialNumber: 1 }).lean();
+            const benefits = await subscription_plan_model_1.PremiumBenefit.find({ isActive: true })
+                .sort({ serialNumber: 1 })
+                .lean();
+            return benefits.map(benefit => {
+                const translations = benefit.translations || {};
+                const key = translations[lang] ? lang : lang.split('-')[0];
+                return {
+                    ...benefit,
+                    text: translations[key] || benefit.text,
+                    language: translations[key] ? key : benefit.defaultLanguage || 'en',
+                };
+            });
         }
         catch (error) {
             console.error('Error fetching premium benefits:', error);

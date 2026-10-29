@@ -8,6 +8,11 @@ exports.stripeService = void 0;
 const stripe_1 = __importDefault(require("stripe"));
 const config_1 = __importDefault(require("../../../config"));
 class StripeService {
+    async getCheckoutSession(id) {
+        return this.stripe.checkout.sessions.retrieve(id, {
+            expand: ['line_items'],
+        });
+    }
     constructor() {
         if (!config_1.default.stripe.stripeSecretKey) {
             throw new Error('Stripe secret key is required');
@@ -212,7 +217,9 @@ class StripeService {
     }
     constructWebhookEvent(payload, signature, webhookSecret) {
         try {
-            const secret = webhookSecret || config_1.default.stripe.paymentWebhookSecret || config_1.default.stripe.subscriptionWebhookSecret;
+            const secret = webhookSecret ||
+                config_1.default.stripe.paymentWebhookSecret ||
+                config_1.default.stripe.subscriptionWebhookSecret;
             if (!secret) {
                 throw new Error('Stripe webhook secret is required');
             }

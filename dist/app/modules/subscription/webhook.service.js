@@ -391,14 +391,13 @@ class WebhookService {
                 console.error('No userId in checkout session metadata');
                 return;
             }
-            console.log('session', session);
             if (session.mode === 'payment') {
                 const plan = await subscription_plan_model_1.SubscriptionPlan.findById(planId);
                 if (!plan || plan.interval !== 'lifetime') {
                     console.log('Payment checkout session completed but plan is not lifetime:', planId);
                     return;
                 }
-                const now = new Date();
+                const now = new Date(session.created * 1000);
                 // 100 years lifetime
                 const endDate = new Date(now);
                 endDate.setFullYear(endDate.getFullYear() + 100);

@@ -261,7 +261,7 @@ const getCollections = async (lang = 'en') => {
             edition: col.edition,
             name: col.name,
             count,
-            isAvailable: true,
+            isAvailable: count > 0,
         };
     }));
     return result;
@@ -317,8 +317,7 @@ const deleteHadith = async (id) => {
     return await hadith_model_1.Hadith.findByIdAndUpdate(id, { isActive: false }, { new: true });
 };
 const getVersion = async (lang = 'en') => {
-    const rows = await hadith_model_1.Hadith.find({ lang }).select('_id updatedAt version isActive').sort({ _id: 1 }).lean();
-    return parseInt((0, content_snapshot_1.snapshotRevision)(rows).slice(0, 12), 16);
+    return parseInt((await (0, content_snapshot_1.readContentRevision)(hadith_model_1.Hadith, lang)).slice(0, 12), 16);
 };
 const checkSyncMetadata = async (lang = 'en', clientVersion) => {
     const serverVersion = await getVersion(lang);
@@ -388,7 +387,7 @@ const getOrSyncHadithsByLanguage = async (targetLang) => {
         return await hadith_model_1.Hadith.find({ lang: targetLang }).lean();
     }
     // Fallback: Return English hadiths cleanly if target language is not yet generated via OpenAI Batch
-    return await hadith_model_1.Hadith.find({ lang: 'en' }).lean();
+    return [];
 };
 // ─── Tier 1 Top 10 Languages Bulk Sync ────────────────────────────────────────
 const syncTier1Languages = async (bookKey = 'bukhari', fromHadith = 1, toHadith = 100) => {

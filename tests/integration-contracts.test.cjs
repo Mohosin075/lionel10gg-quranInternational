@@ -100,3 +100,59 @@ test('invalid outbox batches and malformed reminder time fail validation',()=>{
  assert.equal(appConfigSchema.safeParse({dailyReminder:{time:'28:90'}}).success,false)
  assert.equal(appConfigSchema.safeParse({maintenanceMode:{minAppVersion:'1.2.0'}}).success,true)
 })
+
+const {subscriptionService}=require('../src/app/modules/subscription/subscription.service')
+const {stripeService}=require('../src/app/modules/subscription/stripe.service')
+test('checkout verification cannot claim another account session',async()=>{
+ mock.method(stripeService,'getCheckoutSession',async()=>({metadata:{userId:other},status:'complete',payment_status:'paid'}))
+ await assert.rejects(subscriptionService.verifyCheckoutEntitlement(owner,'cs_fixture'),/another account/)
+})
+test('pending checkout does not write a subscription or grant premium',async()=>{
+ mock.method(stripeService,'getCheckoutSession',async()=>({metadata:{userId:owner},status:'open',payment_status:'unpaid'}))
+ mock.method(subscriptionService,'getEntitlement',async()=>null)
+ mock.method(Subscription,'findOneAndUpdate',async()=>assert.fail('pending purchase was activated'))
+ const result=await subscriptionService.verifyCheckoutEntitlement(owner,'cs_fixture')
+ assert.equal(result.state,'pending')
+ assert.equal(result.entitlement,null)
+})
+test('completed trial is reconciled from provider data without a payment-row dependency',async()=>{
+ const start=Math.floor(Date.now()/1000),end=start+86400
+ mock.method(stripeService,'getCheckoutSession',async()=>({id:'cs_trial',created:start,status:'complete',payment_status:'no_payment_required',mode:'subscription',customer:'cus_fixture',subscription:'sub_fixture',metadata:{userId:owner,planId,priceId:'price_fixture'},line_items:{data:[{price:{id:'price_fixture'}}]}}))
+ mock.method(stripeService,'getSubscription',async()=>({id:'sub_fixture',status:'trialing',customer:'cus_fixture',metadata:{userId:owner},trial_start:start,current_period_start:start,current_period_end:end,items:{data:[{price:{id:'price_fixture'}}]}}))
+ mock.method(subscriptionService,'getPlanById',async()=>({_id:planId,interval:'month',stripePriceId:'price_fixture'}))
+ mock.method(subscriptionService,'getEntitlement',async()=>null)
+ let saved,user
+ mock.method(Subscription,'findOneAndUpdate',async(filter,update)=>{saved=update.$set})
+ mock.method(User,'findByIdAndUpdate',async(id,update)=>{user=update.$set})
+ const result=await subscriptionService.verifyCheckoutEntitlement(owner,'cs_trial')
+ assert.equal(result.state,'complete')
+ assert.equal(saved.status,'trialing')
+ assert.equal(saved.currentPeriodEnd.getTime(),end*1000)
+ assert.equal(user.trialUsed,true)
+})
+test('lifetime checkout verification replay keeps the original purchase expiry',async()=>{
+ const created=1700000000
+ mock.method(stripeService,'getCheckoutSession',async()=>({id:'cs_lifetime',created,status:'complete',payment_status:'paid',mode:'payment',customer:'cus_fixture',metadata:{userId:owner,planId},line_items:{data:[{price:{id:'price_fixture'}}]}}))
+ mock.method(subscriptionService,'getPlanById',async()=>({_id:planId,interval:'lifetime',stripePriceId:'price_fixture'}))
+ mock.method(subscriptionService,'getEntitlement',async()=>null)
+ const saved=[]
+ mock.method(Subscription,'findOneAndUpdate',async(filter,update)=>{saved.push(update.$set.currentPeriodEnd)})
+ mock.method(User,'findByIdAndUpdate',async()=>{})
+ await subscriptionService.verifyCheckoutEntitlement(owner,'cs_lifetime')
+ await subscriptionService.verifyCheckoutEntitlement(owner,'cs_lifetime')
+ assert.equal(saved[0].getTime(),saved[1].getTime())
+ assert.equal(saved[0].getFullYear(),new Date(created*1000).getFullYear()+100)
+})
+test('trialing is accepted by the persisted subscription schema',()=>{
+ const document=new Subscription({userId:owner,planId,stripeCustomerId:'fixture',stripeSubscriptionId:'fixture',stripePriceId:'fixture',status:'trialing',currentPeriodStart:new Date(),currentPeriodEnd:expiry})
+ assert.equal(document.validateSync(),undefined)
+})
+
+const {isCompleteSurah}=require('../src/app/modules/quran/quran-completeness')
+test('partial, duplicate, missing-Arabic or blank-translation surahs are not considered complete',()=>{const rows=Array.from({length:7},(_,i)=>({ayah:i+1,arabicText:'\u0627',text:'Translation'}));assert.equal(isCompleteSurah(rows,7),true);assert.equal(isCompleteSurah(rows.slice(0,6),7),false);assert.equal(isCompleteSurah([...rows.slice(0,6),rows[0]],7),false);assert.equal(isCompleteSurah(rows.map(row=>({...row,arabicText:'not Arabic'})),7),false);assert.equal(isCompleteSurah(rows.map(row=>({...row,text:''})),7),false)})
+
+const {PremiumBenefit}=require('../src/app/modules/subscription/subscription-plan.model')
+test('premium benefit API resolves requested translations and labels their language',async()=>{mock.method(PremiumBenefit,'find',()=>({sort(){return this},lean:async()=>[{serialNumber:1,text:'Default',defaultLanguage:'en',translations:{bn:'Localized'}}]}));const localized=await subscriptionService.getAllPremiumBenefits('bn');assert.equal(localized[0].text,'Localized');assert.equal(localized[0].language,'bn');const defaultText=await subscriptionService.getAllPremiumBenefits('de');assert.equal(defaultText[0].text,'Default');assert.equal(defaultText[0].language,'en')})
+
+const {seedPremiumBenefits}=require('../src/app/modules/subscription/subscription.seed')
+test('startup preserves published premium benefits and translations',async()=>{mock.method(PremiumBenefit,'exists',async()=>({_id:planId}));mock.method(PremiumBenefit,'deleteMany',async()=>assert.fail('existing benefits deleted'));mock.method(PremiumBenefit,'insertMany',async()=>assert.fail('existing benefits overwritten'));await seedPremiumBenefits()})

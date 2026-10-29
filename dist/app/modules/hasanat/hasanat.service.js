@@ -8,16 +8,15 @@ const user_model_1 = require("../user/user.model");
 const ApiError_1 = __importDefault(require("../../../errors/ApiError"));
 const http_status_codes_1 = require("http-status-codes");
 const collectHasanat = async (userId, amount) => {
-    const user = await user_model_1.User.findById(userId);
-    if (!user) {
-        throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'User not found');
-    }
     const hasanatAmount = Number(amount);
-    if (isNaN(hasanatAmount)) {
+    if (!Number.isSafeInteger(hasanatAmount) ||
+        hasanatAmount <= 0 ||
+        hasanatAmount > 10000000) {
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Invalid amount');
     }
-    user.totalHasanat = (user.totalHasanat || 0) + hasanatAmount;
-    await user.save();
+    const user = await user_model_1.User.findByIdAndUpdate(userId, { $inc: { totalHasanat: hasanatAmount } }, { new: true });
+    if (!user)
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'User not found');
     return user;
 };
 exports.HasanatService = {

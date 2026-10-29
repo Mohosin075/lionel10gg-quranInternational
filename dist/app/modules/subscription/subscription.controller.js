@@ -275,7 +275,7 @@ const createBillingPortal = (0, catchAsync_1.default)(async (req, res) => {
     });
 });
 const getAllPremiumBenefits = (0, catchAsync_1.default)(async (req, res) => {
-    const result = await subscription_service_1.subscriptionService.getAllPremiumBenefits();
+    const result = await subscription_service_1.subscriptionService.getAllPremiumBenefits(typeof req.query.lang === 'string' ? req.query.lang : 'en');
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_codes_1.StatusCodes.OK,
         success: true,

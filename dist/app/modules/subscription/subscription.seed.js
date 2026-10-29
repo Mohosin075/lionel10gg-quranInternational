@@ -152,7 +152,9 @@ const DEFAULT_PREMIUM_BENEFITS = [
 ];
 async function seedPremiumBenefits() {
     try {
-        await subscription_plan_model_1.PremiumBenefit.deleteMany({});
+        // Preserve dashboard edits and localized copy across server restarts.
+        if (await subscription_plan_model_1.PremiumBenefit.exists({}))
+            return;
         await subscription_plan_model_1.PremiumBenefit.insertMany(DEFAULT_PREMIUM_BENEFITS.map((text, i) => ({
             serialNumber: i + 1,
             text,

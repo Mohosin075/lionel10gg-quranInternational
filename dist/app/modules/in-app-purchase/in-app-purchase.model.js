@@ -26,17 +26,13 @@ const inAppPurchaseSchema = new mongoose_1.Schema({
     originalTransactionId: {
         type: String,
     },
+    ownershipKey: { type: String, unique: true, sparse: true },
     receiptData: {
         type: String,
     },
     status: {
         type: String,
-        enum: [
-            'active',
-            'expired',
-            'canceled',
-            'pending'
-        ],
+        enum: ['active', 'expired', 'canceled', 'pending'],
         default: 'active',
     },
     purchaseDate: {
