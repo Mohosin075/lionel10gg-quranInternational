@@ -5,6 +5,7 @@ import { StatusCodes } from 'http-status-codes'
 import path from 'path'
 import session from 'express-session'
 import cookieParser from 'cookie-parser'
+import morgan from 'morgan'
 import passport from './app/modules/auth/passport.auth/config/passport'
 import router from './routes'
 import globalErrorHandler from './app/middleware/globalErrorHandler'
@@ -14,9 +15,55 @@ import { PaymentController } from './app/modules/payment/payment.controller'
 
 const app = express()
 
+// -------------------- CORS --------------------
+export const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    // Allow non-browser requests (mobile apps, Postman, curl, server-to-server)
+    if (!origin) return callback(null, true)
+
+    const isExplicitlyAllowed = config.cors_origins.some(
+      allowed =>
+        allowed === '*' ||
+        allowed.replace(/\/$/, '').toLowerCase() ===
+          origin.replace(/\/$/, '').toLowerCase(),
+    )
+
+    if (
+      isExplicitlyAllowed ||
+      config.node_env === 'development' ||
+      origin.includes('localhost') ||
+      origin.includes('127.0.0.1') ||
+      origin.includes('92.205.234.176')
+    ) {
+      return callback(null, true)
+    }
+
+    return callback(null, false)
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'Access-Control-Request-Method',
+    'Access-Control-Request-Headers',
+  ],
+  optionsSuccessStatus: 200,
+}
+
+app.use(cors(corsOptions))
+app.options('*', cors(corsOptions))
+
 // -------------------- Security Middleware --------------------
 // Set security HTTP headers
-app.use(helmet())
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  }),
+)
 
 // Rate limiting stays off for the offline-first content APIs.
 // To enable later: import rateLimit from 'express-rate-limit' and app.use('/api', limiter)
@@ -61,19 +108,10 @@ app.use(
 app.use(passport.initialize())
 app.use(passport.session())
 
-// CORS
-app.use(
-  cors({
-    origin: config.cors_origins,
-    credentials: true,
-  }),
-)
-
 // Cookie parser
 app.use(cookieParser())
 
 // Logging enabled for troubleshooting
-import morgan from 'morgan'
 app.use(morgan('dev'))
 
 // Public profile images only. Documents and media stay off the public web root.

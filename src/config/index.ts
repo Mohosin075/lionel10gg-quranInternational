@@ -12,7 +12,18 @@ export default {
   server_map_api_key: process.env.SERVER_MAP_API_KEY,
   cors_origins: process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
-    : ['http://localhost:3000', 'http://localhost:3001'],
+    : [
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'http://localhost:3002',
+        'http://localhost:3003',
+        'http://localhost:3004',
+        'http://localhost:5173',
+        'http://localhost:5174',
+        'http://92.205.234.176:3004',
+        'http://92.205.234.176:3000',
+        'http://92.205.234.176:5005',
+      ],
   session_secret: process.env.SESSION_SECRET,
   apple_client_id: process.env.APPLE_CLIENT_ID,
   bcrypt_salt_rounds: process.env.BCRYPT_SALT_ROUNDS,

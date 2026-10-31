@@ -1,6 +1,6 @@
 import colors from 'colors'
 import mongoose from 'mongoose'
-import app from './app'
+import app, { corsOptions } from './app'
 import config from './config'
 
 import { Server as SocketServer } from 'socket.io'
@@ -46,10 +46,7 @@ async function main() {
 
     // Initialize Socket.io
     io = new SocketServer(server, {
-      cors: {
-        origin: config.cors_origins,
-        credentials: true,
-      },
+      cors: corsOptions,
     })
 
     // Socket helper
@@ -78,7 +75,9 @@ async function main() {
 }
 
 // Start main
-main()
+if (process.env.NODE_ENV !== 'test') {
+  main()
+}
 
 // Graceful shutdown on SIGTERM
 process.on('SIGTERM', async () => {
