@@ -167,3 +167,16 @@ test('direct Bengali Tafsir reads apply the same publication rules as snapshots'
 const {KnowledgeLibraryController}=require('../src/app/modules/knowledge-library/knowledge-library.controller')
 const {KnowledgeLibraryServices}=require('../src/app/modules/knowledge-library/knowledge-library.service')
 test('dashboard book requests retain source-record visibility through the controller',async()=>{let options;mock.method(KnowledgeLibraryServices,'getAllBooks',async(lang,page,limit,opts)=>{options=opts;return{meta:{},data:[]}});const res={status(){return this},json(){}};await KnowledgeLibraryController.getAllBooks({query:{lang:'bn',includeUnavailable:'true'}},res,error=>{throw error});assert.equal(options.includeUnavailable,true)})
+
+const {completeEditionKeys}=require('../src/app/modules/quran/available-editions')
+const {SURAH_LIST}=require('../src/app/modules/quran/quran.constants')
+test('selectable Quran editions require complete readable data for all canonical Surahs',()=>{const rows=SURAH_LIST.map(s=>({_id:{edition:'ready',lang:'en',surah:s.number},count:s.numberOfAyahs,valid:s.numberOfAyahs,first:1,last:s.numberOfAyahs}));assert.deepEqual(completeEditionKeys(rows),['ready']);assert.deepEqual(completeEditionKeys(rows.slice(0,113)),[]);assert.deepEqual(completeEditionKeys(rows.map((r,i)=>i===0?{...r,valid:6}:r)),[]);assert.deepEqual(completeEditionKeys(rows.map((r,i)=>i===0?{...r,_id:{...r._id,lang:'bn'}}:r)),[])})
+
+const {hasAllContentModules,REQUIRED_CONTENT_MODULES}=require('../src/app/modules/offline-pack/content-availability')
+test('language eligibility requires valid data in every content section',()=>{const complete=Object.fromEntries(REQUIRED_CONTENT_MODULES.map(name=>[name,1]));assert.equal(hasAllContentModules(complete),true);for(const name of REQUIRED_CONTENT_MODULES){assert.equal(hasAllContentModules({...complete,[name]:0}),false,'missing '+name)}})
+test('Quran sync request validation preserves pagination beyond the first page',()=>{
+ const {QuranValidations}=require('../src/app/modules/quran/quran.validation')
+ const {query}=QuranValidations.downloadSyncValidationSchema.parse({query:{edition:'german_bubenheim',fromVersion:'0',page:'2',limit:'1000'}})
+ assert.equal(query.page,'2');assert.equal(query.limit,'1000')
+ assert.throws(()=>QuranValidations.downloadSyncValidationSchema.parse({query:{edition:'en',page:'0'}}))
+})

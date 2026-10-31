@@ -1,3 +1,4 @@
+import { readCompleteContentLanguages } from './content-availability'
 import { publishedContentFilter } from './content-publication'
 import crypto from 'crypto'
 import fs from 'fs'
@@ -483,70 +484,9 @@ const getAvailableLanguages = async (): Promise<AvailableLanguages> => {
     return availableLanguagesCache.data
   }
 
-  const matrix = await getCoverageMatrix()
-  const availableCodes: string[] = []
-  const languages: Array<{
-    code: string
-    totalRecords: number
-    modules: string[]
-    hasPacks: boolean
-    details: Record<string, number>
-  }> = []
-
-  for (const [lang, stats] of Object.entries(matrix)) {
-    const totalRecords =
-      (stats.hadithCount || 0) +
-      (stats.duaCount || 0) +
-      (stats.knowledgeCount || 0) +
-      (stats.quranCount || 0) +
-      (stats.tafsirCount || 0) +
-      (stats.bookCount || 0) +
-      (stats.fatwaCount || 0)
-
-    const hasAnyPack = !!(
-      stats.hadithPack ||
-      stats.duaPack ||
-      stats.knowledgePack ||
-      stats.quranPack ||
-      stats.tafsirPack ||
-      stats.bookPack ||
-      stats.fatwaPack
-    )
-
-    if (totalRecords > 0 || hasAnyPack) {
-      availableCodes.push(lang)
-      const modules: string[] = []
-      if (stats.hadithCount > 0 || stats.hadithPack) modules.push('hadith')
-      if (stats.duaCount > 0 || stats.duaPack) modules.push('dua')
-      if (stats.knowledgeCount > 0 || stats.knowledgePack)
-        modules.push('knowledge')
-      if (stats.quranCount > 0 || stats.quranPack) modules.push('quran')
-      if (stats.tafsirCount > 0 || stats.tafsirPack) modules.push('tafsir')
-      if (stats.bookCount > 0 || stats.bookPack) modules.push('book')
-      if (stats.fatwaCount > 0 || stats.fatwaPack) modules.push('fatwa')
-
-      languages.push({
-        code: lang,
-        totalRecords,
-        modules,
-        hasPacks: hasAnyPack,
-        details: {
-          hadithCount: stats.hadithCount,
-          duaCount: stats.duaCount,
-          knowledgeCount: stats.knowledgeCount,
-          quranCount: stats.quranCount,
-          tafsirCount: stats.tafsirCount,
-          bookCount: stats.bookCount,
-          fatwaCount: stats.fatwaCount,
-        },
-      })
-    }
-  }
-
-  const result = {
-    availableCodes,
-    languages,
-  }
+  const coverage = await readCompleteContentLanguages()
+  const packedCodes = new Set(await OfflinePack.distinct('lang', {lang: {$in: coverage.availableCodes}}))
+  const result = { availableCodes: coverage.availableCodes, languages: coverage.languages.map(language => ({...language, hasPacks: packedCodes.has(language.code)})) }
 
   availableLanguagesCache = { timestamp: now, data: result }
   return result

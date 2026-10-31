@@ -1,3 +1,4 @@
+import { readCompleteContentLanguages, REQUIRED_CONTENT_MODULES } from '../offline-pack/content-availability'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable prefer-const */
 import axios from 'axios'
@@ -48,6 +49,7 @@ const fetchLanguages = async (
   language?: string,
   localization?: string,
   edition?: string,
+  availableOnly = false,
 ) => {
   const skip = (page - 1) * limit
 
@@ -58,6 +60,16 @@ const fetchLanguages = async (
   }
   if (edition) {
     query.key = edition
+  }
+
+  if (availableOnly) {
+    const coverage = await readCompleteContentLanguages()
+    const ready = coverage.editionKeys
+    if (edition) query.key = ready.includes(edition) ? edition : { $in: [] }
+    else query.key = { $in: ready }
+    const total = await Language.countDocuments(query)
+    const data = await Language.find(query).sort({ language: 1, name: 1 }).skip(skip).limit(limit).lean()
+    return { meta: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)), availableOnly: true, contentScope: 'all-sections', requiredModules: REQUIRED_CONTENT_MODULES }, data }
   }
 
   let dbLanguages = await Language.find(query)

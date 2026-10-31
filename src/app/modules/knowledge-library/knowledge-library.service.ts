@@ -213,22 +213,9 @@ const getSyncData = async (
 }
 
 // Fetch articles in target language, fallback to base German articles if not yet translated
-const getOrSyncArticlesByLanguage = async (
-  targetLang: string,
-  articlesList?: IKnowledgeArticle[],
-) => {
-  const existingArticles = await KnowledgeArticle.find({
-    lang: targetLang,
-    isActive: true,
-  }).lean()
-  if (existingArticles.length > 0) {
-    return existingArticles as unknown as IKnowledgeArticle[]
-  }
-
-  const baseArticles =
-    articlesList ||
-    (await KnowledgeArticle.find({ lang: 'de', isActive: true }).lean())
-  return baseArticles as unknown as IKnowledgeArticle[]
+const getOrSyncArticlesByLanguage = async (targetLang: string, articlesList?: IKnowledgeArticle[]) => {
+  void articlesList
+  return KnowledgeArticle.find(publishedContentFilter('knowledge',targetLang)).lean()
 }
 
 // ==========================================

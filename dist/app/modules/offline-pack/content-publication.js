@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.publishedContentFilter = void 0;
+exports.publishedModuleFilter = exports.publishedContentFilter = void 0;
 // Keep incomplete source/import records editable in the dashboard, but never
 // advertise them as readable selected-language content on mobile.
 const bodyFields = {
@@ -23,3 +23,15 @@ const publishedContentFilter = (module, lang) => {
     return filter;
 };
 exports.publishedContentFilter = publishedContentFilter;
+const publishedModuleFilter = (module) => {
+    const filter = { isActive: { $ne: false } };
+    for (const field of bodyFields[module] || [])
+        filter[field] = /\S/;
+    if (translatedBody[module])
+        filter.$or = [
+            { lang: { $ne: 'bn' } },
+            { [translatedBody[module]]: new RegExp('[' + String.fromCharCode(0x980) + '-' + String.fromCharCode(0x9ff) + ']') },
+        ];
+    return filter;
+};
+exports.publishedModuleFilter = publishedModuleFilter;

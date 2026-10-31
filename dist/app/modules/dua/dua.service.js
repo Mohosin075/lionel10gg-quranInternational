@@ -154,25 +154,10 @@ const syncEnglishDuas = async () => {
 };
 // 2. ডাইনামিক ল্যাঙ্গুয়েজ সিঙ্ক (অফলাইন সাপোর্ট নিশ্চিত করতে)
 const getOrSyncDuasByLanguage = async (targetLang, category) => {
-    // ক) ডাটাবেজে চেক করুন এই ভাষার ডাটা আছে কি না
-    const count = await dua_model_1.Dua.countDocuments({ lang: targetLang });
-    if (count > 0) {
-        const query = { lang: targetLang };
-        if (category) {
-            query.category = category;
-        }
-        return await dua_model_1.Dua.find(query).lean();
-    }
-    // খ) ডাটা না থাকলে ইংরেজি ডাটা রিটার্ন করুন (অনুবাদ ড্যাশবোর্ডের OpenAI Batch API দিয়ে পরিচালিত হয়)
-    let englishDuas = await dua_model_1.Dua.find({ lang: 'en' }).lean();
-    if (englishDuas.length === 0) {
-        await syncEnglishDuas();
-        englishDuas = await dua_model_1.Dua.find({ lang: 'en' }).lean();
-    }
-    if (category) {
-        return englishDuas.filter((d) => d.category === category);
-    }
-    return englishDuas;
+    const filter = (0, content_publication_1.publishedContentFilter)('dua', targetLang);
+    if (category)
+        filter.category = category;
+    return dua_model_1.Dua.find(filter).lean();
 };
 exports.DuaService = {
     getAllDuas,

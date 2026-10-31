@@ -18,3 +18,13 @@ export const publishedContentFilter = (module: string, lang: string): Record<str
     filter[translatedBody[module]] = new RegExp('[' + String.fromCharCode(0x980) + '-' + String.fromCharCode(0x9ff) + ']')
   return filter
 }
+
+export const publishedModuleFilter = (module: string): Record<string, unknown> => {
+  const filter: Record<string, unknown> = { isActive: { $ne: false } }
+  for (const field of bodyFields[module] || []) filter[field] = /\S/
+  if (translatedBody[module]) filter.$or = [
+    { lang: { $ne: 'bn' } },
+    { [translatedBody[module]]: new RegExp('[' + String.fromCharCode(0x980) + '-' + String.fromCharCode(0x9ff) + ']') },
+  ]
+  return filter
+}

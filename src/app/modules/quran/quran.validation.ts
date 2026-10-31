@@ -32,6 +32,8 @@ const downloadSyncValidationSchema = z.object({
   query: z.object({
     edition: z.string({ required_error: 'Edition is required' }),
     fromVersion: z.string().regex(/^\d+$/, 'fromVersion must be a digit').optional(),
+    page: z.string().regex(/^[1-9]\d*$/, 'Page must be a positive integer').optional(),
+    limit: z.string().regex(/^[1-9]\d*$/, 'Limit must be a positive integer').optional(),
   }),
 });
 

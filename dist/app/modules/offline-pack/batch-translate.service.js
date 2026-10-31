@@ -41,6 +41,8 @@ const tafsir_model_1 = require("../tafsir/tafsir.model");
 const knowledge_book_model_1 = require("../knowledge-library/knowledge-book.model");
 const knowledge_fatwa_model_1 = require("../knowledge-library/knowledge-fatwa.model");
 const batch_job_model_1 = require("./batch-job.model");
+const content_publication_1 = require("./content-publication");
+const translation_policy_1 = require("./translation-policy");
 const OPENAI_API_URL = 'https://api.openai.com/v1';
 const MODEL = 'gpt-4o-mini';
 const authHeader = () => ({
@@ -53,80 +55,13 @@ Keep any structural keys like TITLE:, CONTENT:, AYAH:, TAFSIR:, TRANSLATION:, QU
 Return ONLY the translated formatted text, nothing else.`;
 // ─── Fetch source documents ────────────────────────────────────────────────────
 const getSourceDocs = async (module) => {
-    let docs;
-    switch (module) {
-        case 'hadith':
-            docs = await hadith_model_1.Hadith.find({ lang: 'en', isActive: true })
-                .select('_id hadithNo translation chapter category source authenticity arabicText')
-                .lean();
-            if (docs.length === 0) {
-                docs = await hadith_model_1.Hadith.find({ isActive: true })
-                    .select('_id hadithNo translation chapter category source authenticity arabicText')
-                    .lean();
-            }
-            break;
-        case 'dua':
-            docs = await dua_model_1.Dua.find({ lang: 'en' })
-                .select('_id externalId title translation transliteration category reference arabic')
-                .lean();
-            if (docs.length === 0) {
-                docs = await dua_model_1.Dua.find()
-                    .select('_id externalId title translation transliteration category reference arabic')
-                    .lean();
-            }
-            break;
-        case 'knowledge':
-            docs = await knowledge_library_model_1.KnowledgeArticle.find({ lang: 'en' })
-                .select('_id articleId slug title content category source readTime imageUrl audioUrl')
-                .lean();
-            if (docs.length === 0) {
-                docs = await knowledge_library_model_1.KnowledgeArticle.find()
-                    .select('_id articleId slug title content category source readTime imageUrl audioUrl')
-                    .lean();
-            }
-            break;
-        case 'quran':
-            docs = await quran_model_1.Translation.find({ lang: 'en' })
-                .select('_id surah ayah text arabicText footnotes edition')
-                .lean();
-            if (docs.length === 0) {
-                docs = await quran_model_1.Translation.find()
-                    .select('_id surah ayah text arabicText footnotes edition')
-                    .lean();
-            }
-            break;
-        case 'tafsir':
-            docs = await tafsir_model_1.Tafsir.find({ lang: 'en' })
-                .select('_id surah ayah text edition')
-                .lean();
-            if (docs.length === 0) {
-                docs = await tafsir_model_1.Tafsir.find().select('_id surah ayah text edition').lean();
-            }
-            break;
-        case 'book':
-            docs = await knowledge_book_model_1.KnowledgeBook.find({ lang: 'en' })
-                .select('_id bookId title author content source lang')
-                .lean();
-            if (docs.length === 0) {
-                docs = await knowledge_book_model_1.KnowledgeBook.find()
-                    .select('_id bookId title author content source lang')
-                    .lean();
-            }
-            break;
-        case 'fatwa':
-            docs = await knowledge_fatwa_model_1.KnowledgeFatwa.find({ lang: 'en' })
-                .select('_id fatwaId question answer scholar lang')
-                .lean();
-            if (docs.length === 0) {
-                docs = await knowledge_fatwa_model_1.KnowledgeFatwa.find()
-                    .select('_id fatwaId question answer scholar lang')
-                    .lean();
-            }
-            break;
-        default:
-            throw new Error(`Unsupported module: ${module}`);
-    }
-    return docs;
+    const models = { hadith: hadith_model_1.Hadith, dua: dua_model_1.Dua, knowledge: knowledge_library_model_1.KnowledgeArticle, quran: quran_model_1.Translation, tafsir: tafsir_model_1.Tafsir, book: knowledge_book_model_1.KnowledgeBook, fatwa: knowledge_fatwa_model_1.KnowledgeFatwa };
+    const filter = (0, content_publication_1.publishedContentFilter)(module, (0, translation_policy_1.translationSourceLanguage)(module));
+    if (module === 'quran')
+        filter.edition = 'english_saheeh';
+    if (module === 'tafsir')
+        filter.edition = 'arabic_moyassar';
+    return await models[module].find(filter).lean();
 };
 // ─── Build JSONL batch request payload ────────────────────────────────────────
 const buildBatchJsonl = (docs, module, targetLang) => {
@@ -147,20 +82,18 @@ const buildBatchJsonl = (docs, module, targetLang) => {
             textToTranslate = `TAFSIR: ${doc.text}`;
         }
         else if (module === 'book') {
-            const contentSnippet = (doc.content || '')
-                .replace(/<[^>]*>/g, ' ')
-                .replace(/\s+/g, ' ')
-                .slice(0, 1500);
+            const contentSnippet = doc.content || '';
             textToTranslate = `TITLE: ${doc.title}\nCONTENT: ${contentSnippet}`;
         }
         else if (module === 'fatwa') {
-            textToTranslate = `QUESTION: ${doc.question}\nANSWER: ${(doc.answer || '').slice(0, 2000)}`;
+            textToTranslate = `QUESTION: ${doc.question}\nANSWER: ${doc.answer || ''}`;
         }
         else {
-            // Knowledge: translate title + first 2000 chars of content (to stay within token limit)
-            const contentSnippet = (doc.content || '').slice(0, 2000);
+            // Always submit full content. Oversized records require a full manual translation.
+            const contentSnippet = doc.content || '';
             textToTranslate = `TITLE: ${doc.title}\nCONTENT: ${contentSnippet}`;
         }
+        (0, translation_policy_1.assertFullTranslationInput)(textToTranslate, String(doc._id));
         const request = {
             custom_id: String(doc._id),
             method: 'POST',
@@ -204,8 +137,8 @@ const createBatchJob = async (module, targetLang) => {
     if (!process.env.OPENAI_API_KEY) {
         throw new Error('OPENAI_API_KEY not set in environment variables.');
     }
-    if (targetLang.toLowerCase() === 'en') {
-        throw new Error('English is the primary source language and does not require translation.');
+    if (targetLang.toLowerCase() === (0, translation_policy_1.translationSourceLanguage)(module)) {
+        throw new Error('The target matches this module source language. Manage its original content instead.');
     }
     const existingActiveJob = await batch_job_model_1.BatchJob.findOne({
         module,
@@ -278,7 +211,6 @@ const checkBatchStatus = async (jobId) => {
 };
 // ─── Process Completed Batch → Save to MongoDB ───────────────────────────────
 const processBatchResult = async (jobId) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t;
     const localJob = await batch_job_model_1.BatchJob.findOne({ batchId: jobId });
     if (!localJob)
         throw new Error(`Batch job "${jobId}" not found in database.`);
@@ -303,7 +235,8 @@ const processBatchResult = async (jobId) => {
                 continue;
             }
             const docId = result.custom_id;
-            const translatedText = ((_e = (_d = (_c = (_b = (_a = result.response) === null || _a === void 0 ? void 0 : _a.body) === null || _b === void 0 ? void 0 : _b.choices) === null || _c === void 0 ? void 0 : _c[0]) === null || _d === void 0 ? void 0 : _d.message) === null || _e === void 0 ? void 0 : _e.content) || '';
+            const fields = (0, translation_policy_1.parseTranslationResponse)(module, result);
+            const translatedText = result.response.body.choices[0].message.content;
             if (!translatedText) {
                 errorCount++;
                 continue;
@@ -325,9 +258,9 @@ const processBatchResult = async (jobId) => {
                                 source: sourceDoc.source,
                                 arabicText: sourceDoc.arabicText,
                                 authenticity: sourceDoc.authenticity,
-                                translation: ((_f = translationMatch === null || translationMatch === void 0 ? void 0 : translationMatch[1]) === null || _f === void 0 ? void 0 : _f.trim()) || translatedText,
-                                chapter: ((_g = chapterMatch === null || chapterMatch === void 0 ? void 0 : chapterMatch[1]) === null || _g === void 0 ? void 0 : _g.trim()) || sourceDoc.chapter,
-                                category: ((_h = categoryMatch === null || categoryMatch === void 0 ? void 0 : categoryMatch[1]) === null || _h === void 0 ? void 0 : _h.trim()) || sourceDoc.category,
+                                translation: fields.TRANSLATION,
+                                chapter: fields.CHAPTER,
+                                category: fields.CATEGORY,
                                 lang: targetLang,
                                 version: 1,
                                 isActive: true,
@@ -343,49 +276,8 @@ const processBatchResult = async (jobId) => {
                 const sourceDoc = await dua_model_1.Dua.findById(docId).lean();
                 if (!sourceDoc)
                     continue;
-                let title = (_j = titleMatch === null || titleMatch === void 0 ? void 0 : titleMatch[1]) === null || _j === void 0 ? void 0 : _j.trim();
-                let translation = (_k = translationMatch === null || translationMatch === void 0 ? void 0 : translationMatch[1]) === null || _k === void 0 ? void 0 : _k.trim();
-                if (!title || !translation) {
-                    const parts = translatedText.split('\n\n');
-                    if (parts.length >= 2) {
-                        title =
-                            title ||
-                                parts[0].replace(/^(?:TITLE|Title|শিরোনাম|TITRE):\s*/i, '').trim();
-                        translation =
-                            translation ||
-                                parts
-                                    .slice(1)
-                                    .join('\n\n')
-                                    .replace(/^(?:TRANSLATION|Translation|অনুবাদ|TRADUCTION):\s*/i, '')
-                                    .trim();
-                    }
-                    else {
-                        const lines = translatedText.split('\n');
-                        if (lines.length >= 2) {
-                            title =
-                                title ||
-                                    lines[0]
-                                        .replace(/^(?:TITLE|Title|শিরোনাম|TITRE):\s*/i, '')
-                                        .trim();
-                            translation =
-                                translation ||
-                                    lines
-                                        .slice(1)
-                                        .join('\n')
-                                        .replace(/^(?:TRANSLATION|Translation|অনুবাদ|TRADUCTION):\s*/i, '')
-                                        .trim();
-                        }
-                        else {
-                            title = title || sourceDoc.title;
-                            translation = translation || translatedText;
-                        }
-                    }
-                }
-                if (title === sourceDoc.title && translation.includes(':')) {
-                    const colonIdx = translation.indexOf(':');
-                    title = translation.slice(0, colonIdx).trim();
-                    translation = translation.slice(colonIdx + 1).trim();
-                }
+                const title = fields.TITLE;
+                const translation = fields.TRANSLATION;
                 const filter = sourceDoc.externalId
                     ? { externalId: sourceDoc.externalId, lang: targetLang }
                     : { arabic: sourceDoc.arabic, lang: targetLang };
@@ -401,8 +293,8 @@ const processBatchResult = async (jobId) => {
                                 reference: sourceDoc.reference,
                                 category: sourceDoc.category,
                                 transliteration: sourceDoc.transliteration,
-                                title: title || sourceDoc.title,
-                                translation: translation || translatedText,
+                                title: fields.TITLE,
+                                translation: fields.TRANSLATION,
                                 lang: targetLang,
                                 version: 1,
                             },
@@ -417,19 +309,8 @@ const processBatchResult = async (jobId) => {
                 const sourceDoc = await knowledge_library_model_1.KnowledgeArticle.findById(docId).lean();
                 if (!sourceDoc)
                     continue;
-                let title = (_l = titleMatch === null || titleMatch === void 0 ? void 0 : titleMatch[1]) === null || _l === void 0 ? void 0 : _l.trim();
-                let content = (_m = contentMatch === null || contentMatch === void 0 ? void 0 : contentMatch[1]) === null || _m === void 0 ? void 0 : _m.trim();
-                if (!title || !content) {
-                    const parts = translatedText.split('\n\n');
-                    if (parts.length >= 2) {
-                        title = title || parts[0].trim();
-                        content = content || parts.slice(1).join('\n\n').trim();
-                    }
-                    else {
-                        title = title || sourceDoc.title;
-                        content = content || translatedText;
-                    }
-                }
+                const title = fields.TITLE;
+                const content = fields.CONTENT;
                 bulkOps.push({
                     updateOne: {
                         filter: { articleId: sourceDoc.articleId, lang: targetLang },
@@ -442,8 +323,8 @@ const processBatchResult = async (jobId) => {
                                 readTime: sourceDoc.readTime,
                                 imageUrl: sourceDoc.imageUrl,
                                 audioUrl: sourceDoc.audioUrl,
-                                title: title || sourceDoc.title,
-                                content: content || sourceDoc.content,
+                                title: fields.TITLE,
+                                content: fields.CONTENT,
                                 lang: targetLang,
                                 version: 1,
                                 isActive: true,
@@ -458,7 +339,7 @@ const processBatchResult = async (jobId) => {
                 const sourceDoc = await quran_model_1.Translation.findById(docId).lean();
                 if (!sourceDoc)
                     continue;
-                const text = ((_o = ayahMatch === null || ayahMatch === void 0 ? void 0 : ayahMatch[1]) === null || _o === void 0 ? void 0 : _o.trim()) || translatedText.trim();
+                const text = fields.AYAH;
                 bulkOps.push({
                     updateOne: {
                         filter: {
@@ -488,7 +369,7 @@ const processBatchResult = async (jobId) => {
                 const sourceDoc = await tafsir_model_1.Tafsir.findById(docId).lean();
                 if (!sourceDoc)
                     continue;
-                const text = ((_p = tafsirMatch === null || tafsirMatch === void 0 ? void 0 : tafsirMatch[1]) === null || _p === void 0 ? void 0 : _p.trim()) || translatedText.trim();
+                const text = fields.TAFSIR;
                 bulkOps.push({
                     updateOne: {
                         filter: {
@@ -517,15 +398,8 @@ const processBatchResult = async (jobId) => {
                 const sourceDoc = await knowledge_book_model_1.KnowledgeBook.findById(docId).lean();
                 if (!sourceDoc)
                     continue;
-                let title = ((_q = titleMatch === null || titleMatch === void 0 ? void 0 : titleMatch[1]) === null || _q === void 0 ? void 0 : _q.trim()) || sourceDoc.title;
-                title = title.replace(/(?:DESCRIPTION|CONTENT|বিবরণ):.*$/is, '').trim();
-                if (!title)
-                    title = sourceDoc.title;
-                let content = ((_r = contentMatch === null || contentMatch === void 0 ? void 0 : contentMatch[1]) === null || _r === void 0 ? void 0 : _r.trim()) || '';
-                // If content is empty or contains raw prompt markers, preserve sourceDoc.content
-                if (!content || /^title:/i.test(content) || content.length < 5) {
-                    content = sourceDoc.content || '';
-                }
+                const title = fields.TITLE;
+                const content = fields.CONTENT;
                 bulkOps.push({
                     updateOne: {
                         filter: { bookId: sourceDoc.bookId, lang: targetLang },
@@ -551,8 +425,8 @@ const processBatchResult = async (jobId) => {
                 const sourceDoc = await knowledge_fatwa_model_1.KnowledgeFatwa.findById(docId).lean();
                 if (!sourceDoc)
                     continue;
-                const question = ((_s = qMatch === null || qMatch === void 0 ? void 0 : qMatch[1]) === null || _s === void 0 ? void 0 : _s.trim()) || sourceDoc.question;
-                const answer = ((_t = aMatch === null || aMatch === void 0 ? void 0 : aMatch[1]) === null || _t === void 0 ? void 0 : _t.trim()) || translatedText.trim();
+                const question = fields.QUESTION;
+                const answer = fields.ANSWER;
                 bulkOps.push({
                     updateOne: {
                         filter: { fatwaId: sourceDoc.fatwaId, lang: targetLang },

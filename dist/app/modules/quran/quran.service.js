@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.QuranServices = void 0;
+const content_availability_1 = require("../offline-pack/content-availability");
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable prefer-const */
 const axios_1 = __importDefault(require("axios"));
@@ -31,7 +32,7 @@ const resolveAudioUrl = (surahNumber, ayahNumber, reciterId) => {
     // Global Audio Logic: Recitation is always in original Arabic. Default is Mishary Rashid Alafasy.
     return `https://everyayah.com/data/Alafasy_128kbps/${s}${a}.mp3`;
 };
-const fetchLanguages = async (page = 1, limit = 200, language, localization, edition) => {
+const fetchLanguages = async (page = 1, limit = 200, language, localization, edition, availableOnly = false) => {
     const skip = (page - 1) * limit;
     // 1. Try to fetch from DB first
     let query = {};
@@ -40,6 +41,17 @@ const fetchLanguages = async (page = 1, limit = 200, language, localization, edi
     }
     if (edition) {
         query.key = edition;
+    }
+    if (availableOnly) {
+        const coverage = await (0, content_availability_1.readCompleteContentLanguages)();
+        const ready = coverage.editionKeys;
+        if (edition)
+            query.key = ready.includes(edition) ? edition : { $in: [] };
+        else
+            query.key = { $in: ready };
+        const total = await quran_model_1.Language.countDocuments(query);
+        const data = await quran_model_1.Language.find(query).sort({ language: 1, name: 1 }).skip(skip).limit(limit).lean();
+        return { meta: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)), availableOnly: true, contentScope: 'all-sections', requiredModules: content_availability_1.REQUIRED_CONTENT_MODULES }, data };
     }
     let dbLanguages = await quran_model_1.Language.find(query)
         .sort({ language: 1, name: 1 })

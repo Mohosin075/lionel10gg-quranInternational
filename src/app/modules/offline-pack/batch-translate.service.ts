@@ -49,6 +49,8 @@ import { KnowledgeBook } from '../knowledge-library/knowledge-book.model'
 import { KnowledgeFatwa } from '../knowledge-library/knowledge-fatwa.model'
 import { BatchJob } from './batch-job.model'
 import { SupportedModule } from './offline-pack.service'
+import { publishedContentFilter } from './content-publication'
+import { translationSourceLanguage, parseTranslationResponse, assertFullTranslationInput } from './translation-policy'
 
 const OPENAI_API_URL = 'https://api.openai.com/v1'
 const MODEL = 'gpt-4o-mini'
@@ -66,92 +68,11 @@ Return ONLY the translated formatted text, nothing else.`
 
 // ─── Fetch source documents ────────────────────────────────────────────────────
 const getSourceDocs = async (module: SupportedModule) => {
-  let docs: TranslationSource[]
-  switch (module) {
-    case 'hadith':
-      docs = await Hadith.find({ lang: 'en', isActive: true })
-        .select(
-          '_id hadithNo translation chapter category source authenticity arabicText',
-        )
-        .lean()
-      if (docs.length === 0) {
-        docs = await Hadith.find({ isActive: true })
-          .select(
-            '_id hadithNo translation chapter category source authenticity arabicText',
-          )
-          .lean()
-      }
-      break
-    case 'dua':
-      docs = await Dua.find({ lang: 'en' })
-        .select(
-          '_id externalId title translation transliteration category reference arabic',
-        )
-        .lean()
-      if (docs.length === 0) {
-        docs = await Dua.find()
-          .select(
-            '_id externalId title translation transliteration category reference arabic',
-          )
-          .lean()
-      }
-      break
-    case 'knowledge':
-      docs = await KnowledgeArticle.find({ lang: 'en' })
-        .select(
-          '_id articleId slug title content category source readTime imageUrl audioUrl',
-        )
-        .lean()
-      if (docs.length === 0) {
-        docs = await KnowledgeArticle.find()
-          .select(
-            '_id articleId slug title content category source readTime imageUrl audioUrl',
-          )
-          .lean()
-      }
-      break
-    case 'quran':
-      docs = await Translation.find({ lang: 'en' })
-        .select('_id surah ayah text arabicText footnotes edition')
-        .lean()
-      if (docs.length === 0) {
-        docs = await Translation.find()
-          .select('_id surah ayah text arabicText footnotes edition')
-          .lean()
-      }
-      break
-    case 'tafsir':
-      docs = await Tafsir.find({ lang: 'en' })
-        .select('_id surah ayah text edition')
-        .lean()
-      if (docs.length === 0) {
-        docs = await Tafsir.find().select('_id surah ayah text edition').lean()
-      }
-      break
-    case 'book':
-      docs = await KnowledgeBook.find({ lang: 'en' })
-        .select('_id bookId title author content source lang')
-        .lean()
-      if (docs.length === 0) {
-        docs = await KnowledgeBook.find()
-          .select('_id bookId title author content source lang')
-          .lean()
-      }
-      break
-    case 'fatwa':
-      docs = await KnowledgeFatwa.find({ lang: 'en' })
-        .select('_id fatwaId question answer scholar lang')
-        .lean()
-      if (docs.length === 0) {
-        docs = await KnowledgeFatwa.find()
-          .select('_id fatwaId question answer scholar lang')
-          .lean()
-      }
-      break
-    default:
-      throw new Error(`Unsupported module: ${module}`)
-  }
-  return docs
+  const models = {hadith: Hadith, dua: Dua, knowledge: KnowledgeArticle, quran: Translation, tafsir: Tafsir, book: KnowledgeBook, fatwa: KnowledgeFatwa}
+  const filter = publishedContentFilter(module, translationSourceLanguage(module))
+  if (module === 'quran') filter.edition = 'english_saheeh'
+  if (module === 'tafsir') filter.edition = 'arabic_moyassar'
+  return await (models[module] as typeof Hadith).find(filter).lean() as unknown as TranslationSource[]
 }
 
 // ─── Build JSONL batch request payload ────────────────────────────────────────
@@ -174,19 +95,17 @@ const buildBatchJsonl = (
     } else if (module === 'tafsir') {
       textToTranslate = `TAFSIR: ${doc.text}`
     } else if (module === 'book') {
-      const contentSnippet = (doc.content || '')
-        .replace(/<[^>]*>/g, ' ')
-        .replace(/\s+/g, ' ')
-        .slice(0, 1500)
+      const contentSnippet = doc.content || ''
       textToTranslate = `TITLE: ${doc.title}\nCONTENT: ${contentSnippet}`
     } else if (module === 'fatwa') {
-      textToTranslate = `QUESTION: ${doc.question}\nANSWER: ${(doc.answer || '').slice(0, 2000)}`
+      textToTranslate = `QUESTION: ${doc.question}\nANSWER: ${doc.answer || ''}`
     } else {
-      // Knowledge: translate title + first 2000 chars of content (to stay within token limit)
-      const contentSnippet = (doc.content || '').slice(0, 2000)
+      // Always submit full content. Oversized records require a full manual translation.
+      const contentSnippet = doc.content || ''
       textToTranslate = `TITLE: ${doc.title}\nCONTENT: ${contentSnippet}`
     }
 
+    assertFullTranslationInput(textToTranslate, String(doc._id))
     const request = {
       custom_id: String(doc._id),
       method: 'POST',
@@ -244,9 +163,9 @@ const createBatchJob = async (
     throw new Error('OPENAI_API_KEY not set in environment variables.')
   }
 
-  if (targetLang.toLowerCase() === 'en') {
+  if (targetLang.toLowerCase() === translationSourceLanguage(module)) {
     throw new Error(
-      'English is the primary source language and does not require translation.',
+      'The target matches this module source language. Manage its original content instead.',
     )
   }
 
@@ -381,8 +300,8 @@ const processBatchResult = async (
       }
 
       const docId = result.custom_id
-      const translatedText: string =
-        result.response?.body?.choices?.[0]?.message?.content || ''
+      const fields = parseTranslationResponse(module, result)
+      const translatedText: string = result.response.body.choices[0].message.content
       if (!translatedText) {
         errorCount++
         continue
@@ -410,9 +329,9 @@ const processBatchResult = async (
                 source: sourceDoc.source,
                 arabicText: sourceDoc.arabicText,
                 authenticity: sourceDoc.authenticity,
-                translation: translationMatch?.[1]?.trim() || translatedText,
-                chapter: chapterMatch?.[1]?.trim() || sourceDoc.chapter,
-                category: categoryMatch?.[1]?.trim() || sourceDoc.category,
+                translation: fields.TRANSLATION,
+                chapter: fields.CHAPTER,
+                category: fields.CATEGORY,
                 lang: targetLang,
                 version: 1,
                 isActive: true,
@@ -432,55 +351,8 @@ const processBatchResult = async (
         const sourceDoc = await Dua.findById(docId).lean()
         if (!sourceDoc) continue
 
-        let title = titleMatch?.[1]?.trim()
-        let translation = translationMatch?.[1]?.trim()
-
-        if (!title || !translation) {
-          const parts = translatedText.split('\n\n')
-          if (parts.length >= 2) {
-            title =
-              title ||
-              parts[0].replace(/^(?:TITLE|Title|শিরোনাম|TITRE):\s*/i, '').trim()
-            translation =
-              translation ||
-              parts
-                .slice(1)
-                .join('\n\n')
-                .replace(
-                  /^(?:TRANSLATION|Translation|অনুবাদ|TRADUCTION):\s*/i,
-                  '',
-                )
-                .trim()
-          } else {
-            const lines = translatedText.split('\n')
-            if (lines.length >= 2) {
-              title =
-                title ||
-                lines[0]
-                  .replace(/^(?:TITLE|Title|শিরোনাম|TITRE):\s*/i, '')
-                  .trim()
-              translation =
-                translation ||
-                lines
-                  .slice(1)
-                  .join('\n')
-                  .replace(
-                    /^(?:TRANSLATION|Translation|অনুবাদ|TRADUCTION):\s*/i,
-                    '',
-                  )
-                  .trim()
-            } else {
-              title = title || sourceDoc.title
-              translation = translation || translatedText
-            }
-          }
-        }
-
-        if (title === sourceDoc.title && translation.includes(':')) {
-          const colonIdx = translation.indexOf(':')
-          title = translation.slice(0, colonIdx).trim()
-          translation = translation.slice(colonIdx + 1).trim()
-        }
+        const title = fields.TITLE
+        const translation = fields.TRANSLATION
 
         const filter = sourceDoc.externalId
           ? { externalId: sourceDoc.externalId, lang: targetLang }
@@ -498,8 +370,8 @@ const processBatchResult = async (
                 reference: sourceDoc.reference,
                 category: sourceDoc.category,
                 transliteration: sourceDoc.transliteration,
-                title: title || sourceDoc.title,
-                translation: translation || translatedText,
+                title: fields.TITLE,
+                translation: fields.TRANSLATION,
                 lang: targetLang,
                 version: 1,
               },
@@ -518,19 +390,8 @@ const processBatchResult = async (
         const sourceDoc = await KnowledgeArticle.findById(docId).lean()
         if (!sourceDoc) continue
 
-        let title = titleMatch?.[1]?.trim()
-        let content = contentMatch?.[1]?.trim()
-
-        if (!title || !content) {
-          const parts = translatedText.split('\n\n')
-          if (parts.length >= 2) {
-            title = title || parts[0].trim()
-            content = content || parts.slice(1).join('\n\n').trim()
-          } else {
-            title = title || sourceDoc.title
-            content = content || translatedText
-          }
-        }
+        const title = fields.TITLE
+        const content = fields.CONTENT
 
         bulkOps.push({
           updateOne: {
@@ -544,8 +405,8 @@ const processBatchResult = async (
                 readTime: sourceDoc.readTime,
                 imageUrl: sourceDoc.imageUrl,
                 audioUrl: sourceDoc.audioUrl,
-                title: title || sourceDoc.title,
-                content: content || sourceDoc.content,
+                title: fields.TITLE,
+                content: fields.CONTENT,
                 lang: targetLang,
                 version: 1,
                 isActive: true,
@@ -560,7 +421,7 @@ const processBatchResult = async (
         )
         const sourceDoc = await Translation.findById(docId).lean()
         if (!sourceDoc) continue
-        const text = ayahMatch?.[1]?.trim() || translatedText.trim()
+        const text = fields.AYAH
         bulkOps.push({
           updateOne: {
             filter: {
@@ -590,7 +451,7 @@ const processBatchResult = async (
         )
         const sourceDoc = await Tafsir.findById(docId).lean()
         if (!sourceDoc) continue
-        const text = tafsirMatch?.[1]?.trim() || translatedText.trim()
+        const text = fields.TAFSIR
         bulkOps.push({
           updateOne: {
             filter: {
@@ -621,15 +482,8 @@ const processBatchResult = async (
         )
         const sourceDoc = await KnowledgeBook.findById(docId).lean()
         if (!sourceDoc) continue
-        let title = titleMatch?.[1]?.trim() || sourceDoc.title
-        title = title.replace(/(?:DESCRIPTION|CONTENT|বিবরণ):.*$/is, '').trim()
-        if (!title) title = sourceDoc.title
-
-        let content = contentMatch?.[1]?.trim() || ''
-        // If content is empty or contains raw prompt markers, preserve sourceDoc.content
-        if (!content || /^title:/i.test(content) || content.length < 5) {
-          content = sourceDoc.content || ''
-        }
+        const title = fields.TITLE
+        const content = fields.CONTENT
         bulkOps.push({
           updateOne: {
             filter: { bookId: sourceDoc.bookId, lang: targetLang },
@@ -655,8 +509,8 @@ const processBatchResult = async (
         const aMatch = translatedText.match(/(?:ANSWER|Answer):\s*([\s\S]*?)$/i)
         const sourceDoc = await KnowledgeFatwa.findById(docId).lean()
         if (!sourceDoc) continue
-        const question = qMatch?.[1]?.trim() || sourceDoc.question
-        const answer = aMatch?.[1]?.trim() || translatedText.trim()
+        const question = fields.QUESTION
+        const answer = fields.ANSWER
         bulkOps.push({
           updateOne: {
             filter: { fatwaId: sourceDoc.fatwaId, lang: targetLang },

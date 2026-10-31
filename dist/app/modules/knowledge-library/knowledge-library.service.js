@@ -159,16 +159,8 @@ const getSyncData = async (lang = 'de', fromVersion = 0, page = 1, limit = 500) 
 };
 // Fetch articles in target language, fallback to base German articles if not yet translated
 const getOrSyncArticlesByLanguage = async (targetLang, articlesList) => {
-    const existingArticles = await knowledge_library_model_1.KnowledgeArticle.find({
-        lang: targetLang,
-        isActive: true,
-    }).lean();
-    if (existingArticles.length > 0) {
-        return existingArticles;
-    }
-    const baseArticles = articlesList ||
-        (await knowledge_library_model_1.KnowledgeArticle.find({ lang: 'de', isActive: true }).lean());
-    return baseArticles;
+    void articlesList;
+    return knowledge_library_model_1.KnowledgeArticle.find((0, content_publication_1.publishedContentFilter)('knowledge', targetLang)).lean();
 };
 // ==========================================
 // BOOKS SERVICES

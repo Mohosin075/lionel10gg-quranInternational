@@ -31,6 +31,8 @@ const downloadSyncValidationSchema = zod_1.z.object({
     query: zod_1.z.object({
         edition: zod_1.z.string({ required_error: 'Edition is required' }),
         fromVersion: zod_1.z.string().regex(/^\d+$/, 'fromVersion must be a digit').optional(),
+        page: zod_1.z.string().regex(/^[1-9]\d*$/, 'Page must be a positive integer').optional(),
+        limit: zod_1.z.string().regex(/^[1-9]\d*$/, 'Limit must be a positive integer').optional(),
     }),
 });
 exports.QuranValidations = {

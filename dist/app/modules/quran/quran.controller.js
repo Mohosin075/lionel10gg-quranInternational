@@ -15,7 +15,7 @@ const getLanguages = (0, catchAsync_1.default)(async (req, res) => {
     const lang = req.query.lang;
     const localization = req.query.localization || 'en';
     const edition = req.query.edition;
-    const result = await quran_service_1.QuranServices.fetchLanguages(page, limit, lang, localization, edition);
+    const result = await quran_service_1.QuranServices.fetchLanguages(page, limit, lang, localization, edition, req.query.availableOnly === 'true');
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_codes_1.StatusCodes.OK,
         success: true,
